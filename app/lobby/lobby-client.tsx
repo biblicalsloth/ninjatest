@@ -56,13 +56,13 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
   const winRate = getWinRate(profile.wins, profile.matches_played);
 
   return (
-    <div className="min-h-screen bg-[#001e2b] text-white">
+    <div className="min-h-screen bg-[#073b4c] text-white">
       {/* Nav */}
-      <header className="border-b border-[#1c2d38] px-4 py-3">
+      <header className="border-b border-[#1a6080] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-[#00ed64] flex items-center justify-center">
-              <span className="text-[#001e2b] font-bold text-sm">N</span>
+            <div className="w-8 h-8 rounded-full bg-[#06d6a0] flex items-center justify-center">
+              <span className="text-[#073b4c] font-bold text-sm">N</span>
             </div>
             <span className="font-semibold text-white tracking-tight">Ninjatest</span>
           </div>
@@ -70,14 +70,14 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <Link href={`/profile/${profile.username}`}>
               <Avatar className="w-8 h-8 cursor-pointer">
                 <AvatarImage src={profile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-[#1c2d38] text-[#00ed64] text-xs font-bold">
+                <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
                   {profile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Link>
             <button
               onClick={handleSignOut}
-              className="text-[#5c6c7a] hover:text-white transition-colors"
+              className="text-[#7ab5cc] hover:text-white transition-colors"
             >
               <LogOut size={16} />
             </button>
@@ -87,20 +87,20 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         {/* Profile card */}
-        <div className="bg-[#1c2d38] rounded-xl p-5 flex items-center gap-4">
+        <div className="bg-[#0a4f66] rounded-xl p-5 flex items-center gap-4">
           <Avatar className="w-14 h-14">
             <AvatarImage src={profile.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-[#003d4f] text-[#00ed64] font-bold text-lg">
+            <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] font-bold text-lg">
               {profile.username.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-white truncate">{profile.display_name ?? profile.username}</p>
-            <p className="text-[#5c6c7a] text-sm">@{profile.username}</p>
+            <p className="text-[#7ab5cc] text-sm">@{profile.username}</p>
           </div>
           <div className="text-right shrink-0">
-            <div className="text-2xl font-bold text-[#00ed64]">{profile.elo}</div>
-            <div className="text-[#5c6c7a] text-xs">ELO rating</div>
+            <div className="text-2xl font-bold text-[#ffd166]">{profile.elo}</div>
+            <div className="text-[#7ab5cc] text-xs">ELO rating</div>
           </div>
         </div>
 
@@ -108,7 +108,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
         <div className="grid grid-cols-3 gap-3">
           <StatCard label="Matches" value={profile.matches_played.toString()} />
           <StatCard label="Win rate" value={winRate} accent />
-          <StatCard label="Peak ELO" value={profile.peak_elo.toString()} />
+          <StatCard label="Peak ELO" value={profile.peak_elo.toString()} gold />
         </div>
 
         {/* Primary actions */}
@@ -116,7 +116,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
           <Button
             onClick={handleFindMatch}
             disabled={joining}
-            className="w-full h-14 bg-[#00ed64] text-[#001e2b] font-bold text-base rounded-full hover:bg-[#00b545] transition-colors disabled:opacity-60 flex items-center gap-2"
+            className="w-full h-14 bg-[#06d6a0] text-[#073b4c] font-bold text-base rounded-full hover:bg-[#05b088] transition-colors disabled:opacity-60 flex items-center gap-2"
           >
             <Zap size={18} />
             {joining ? "Joining queue…" : "Find Match"}
@@ -125,7 +125,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
           <Button
             onClick={() => setShowChallenge(true)}
             variant="outline"
-            className="w-full h-12 border-[#3d4f5b] text-white font-semibold rounded-full hover:bg-[#1c2d38] transition-colors flex items-center gap-2"
+            className="w-full h-12 border-[#2a7a9a] text-white font-semibold rounded-full hover:bg-[#0a4f66] transition-colors flex items-center gap-2"
           >
             <Users size={16} />
             Challenge a Friend
@@ -135,7 +135,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <Link href="/leaderboard">
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[#a8b3bc] hover:text-white hover:bg-[#1c2d38] rounded-lg flex items-center gap-2"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#0a4f66] rounded-lg flex items-center gap-2"
               >
                 <Trophy size={16} />
                 Leaderboard
@@ -144,7 +144,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <Link href={`/profile/${profile.username}`}>
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[#a8b3bc] hover:text-white hover:bg-[#1c2d38] rounded-lg flex items-center gap-2"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#0a4f66] rounded-lg flex items-center gap-2"
               >
                 <User size={16} />
                 My Profile
@@ -156,28 +156,28 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
         {/* Recent matches */}
         {recentMatches.length > 0 && (
           <div>
-            <h2 className="text-[#a8b3bc] text-sm font-medium mb-3">Recent matches</h2>
+            <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent matches</h2>
             <div className="space-y-2">
               {recentMatches.map((m) => (
                 <div
                   key={m.match_id}
-                  className="bg-[#1c2d38] rounded-lg px-4 py-3 flex items-center gap-3"
+                  className="bg-[#0a4f66] rounded-lg px-4 py-3 flex items-center gap-3"
                 >
                   <Avatar className="w-8 h-8 shrink-0">
                     <AvatarImage src={m.opponent_avatar ?? undefined} />
-                    <AvatarFallback className="bg-[#003d4f] text-[#00ed64] text-xs font-bold">
+                    <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xs font-bold">
                       {m.opponent.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-medium truncate">{m.opponent}</p>
-                    <p className="text-[#5c6c7a] text-xs">
+                    <p className="text-[#7ab5cc] text-xs">
                       {m.my_score} — {m.opp_score}
                     </p>
                   </div>
                   <div className="text-right shrink-0 space-y-0.5">
                     <ResultBadge result={m.result} />
-                    <p className={`text-xs font-medium ${m.elo_delta >= 0 ? "text-[#00ed64]" : "text-red-400"}`}>
+                    <p className={`text-xs font-medium ${m.elo_delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]"}`}>
                       {formatPoints(m.elo_delta)}
                     </p>
                   </div>
@@ -193,17 +193,17 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function StatCard({ label, value, accent, gold }: { label: string; value: string; accent?: boolean; gold?: boolean }) {
   return (
-    <div className="bg-[#1c2d38] rounded-xl p-4 text-center">
-      <div className={`text-xl font-bold ${accent ? "text-[#00ed64]" : "text-white"}`}>{value}</div>
-      <div className="text-[#5c6c7a] text-xs mt-0.5">{label}</div>
+    <div className="bg-[#0a4f66] rounded-xl p-4 text-center">
+      <div className={`text-xl font-bold ${gold ? "text-[#ffd166]" : accent ? "text-[#06d6a0]" : "text-white"}`}>{value}</div>
+      <div className="text-[#7ab5cc] text-xs mt-0.5">{label}</div>
     </div>
   );
 }
 
 function ResultBadge({ result }: { result: "win" | "loss" | "draw" }) {
-  if (result === "win") return <Badge className="bg-[#00ed64]/20 text-[#00ed64] border-[#00ed64]/30 text-xs px-2 py-0">W</Badge>;
-  if (result === "loss") return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs px-2 py-0">L</Badge>;
-  return <Badge className="bg-[#5c6c7a]/20 text-[#a8b3bc] border-[#5c6c7a]/30 text-xs px-2 py-0">D</Badge>;
+  if (result === "win") return <Badge className="bg-[#06d6a0]/20 text-[#06d6a0] border-[#06d6a0]/30 text-xs px-2 py-0">W</Badge>;
+  if (result === "loss") return <Badge className="bg-[#ef476f]/20 text-[#ef476f] border-[#ef476f]/30 text-xs px-2 py-0">L</Badge>;
+  return <Badge className="bg-[#7ab5cc]/20 text-[#c5e8f0] border-[#7ab5cc]/30 text-xs px-2 py-0">D</Badge>;
 }

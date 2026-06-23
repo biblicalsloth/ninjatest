@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Sword, Shield, Clock } from "lucide-react";
@@ -28,6 +28,12 @@ export default function JoinChallengePage() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   useEffect(() => {
     async function fetchInfo() {
@@ -85,6 +91,18 @@ export default function JoinChallengePage() {
         username: string; avatar_url: string | null; elo: number;
       } | null;
 
+      const expiresAt = new Date(challenge.expires_at).getTime();
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining > 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = setInterval(() => {
+          const s = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+          setSecondsLeft(s);
+          if (s === 0 && timerRef.current) clearInterval(timerRef.current);
+        }, 1000);
+      }
+
       setInfo({
         code: challenge.code,
         host_username: hostProfile?.username ?? "Unknown",
@@ -140,7 +158,13 @@ export default function JoinChallengePage() {
 
   if (!info) return null;
 
-  const expiresIn = Math.max(0, Math.floor((new Date(info.expires_at).getTime() - Date.now()) / 60000));
+  const expiryMins = Math.floor(secondsLeft / 60);
+  const expirySecs = secondsLeft % 60;
+  const expiryLabel = secondsLeft > 60
+    ? `${expiryMins}m ${expirySecs}s`
+    : secondsLeft > 0
+    ? `${secondsLeft}s`
+    : "Expired";
 
   return (
     <div className="min-h-screen bg-[#001e2b] flex items-center justify-center px-4">
@@ -181,9 +205,9 @@ export default function JoinChallengePage() {
                 </>
               )}
             </div>
-            <div className="flex items-center gap-1 text-[#5c6c7a]">
+            <div className={`flex items-center gap-1 ${secondsLeft <= 60 ? "text-red-400" : "text-[#5c6c7a]"}`}>
               <Clock size={12} />
-              <span className="text-xs">{expiresIn}m left</span>
+              <span className="text-xs font-medium">{expiryLabel}</span>
             </div>
           </div>
 
@@ -202,10 +226,10 @@ export default function JoinChallengePage() {
         {/* Accept */}
         <Button
           onClick={handleAccept}
-          disabled={accepting}
-          className="w-full h-14 bg-[#00ed64] text-[#001e2b] font-bold text-base rounded-full hover:bg-[#00b545] transition-colors"
+          disabled={accepting || secondsLeft === 0}
+          className="w-full h-14 bg-[#00ed64] text-[#001e2b] font-bold text-base rounded-full hover:bg-[#00b545] transition-colors disabled:opacity-50"
         >
-          {accepting ? "Starting match…" : "Accept Challenge"}
+          {accepting ? "Starting match…" : secondsLeft === 0 ? "Link expired" : "Accept Challenge"}
         </Button>
 
         <Button

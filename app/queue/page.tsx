@@ -53,7 +53,6 @@ export default function QueuePage() {
       }
 
       if (!queueRow || queueRow.status !== "waiting") {
-        // Not in queue — join now
         const { error } = await supabase.rpc("join_queue");
         if (error) {
           toast.error("Failed to join queue");
@@ -106,30 +105,28 @@ export default function QueuePage() {
     router.push("/lobby");
   }
 
-  // Band grows 20 ELO/sec from base 100, capped at 1000.
-  // Server uses GREATEST(my_band, opp_band), so actual match range may be wider.
   const currentBand = Math.min(1000, 100 + elapsed * 20);
 
   if (verifying) {
     return (
-      <div className="min-h-screen bg-[#001e2b] flex items-center justify-center">
-        <p className="text-[#5c6c7a] text-sm">Joining queue…</p>
+      <div className="min-h-screen bg-[#073b4c] flex items-center justify-center">
+        <p className="text-[#7ab5cc] text-sm">Joining queue…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#001e2b] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-[#073b4c] flex flex-col items-center justify-center px-4">
       {/* Animated search indicator */}
       <div className="relative mb-8">
-        <div className="absolute inset-0 rounded-full border-2 border-[#00ed64]/20 animate-ping" style={{ transform: "scale(1.5)" }} />
-        <div className="absolute inset-0 rounded-full border-2 border-[#00ed64]/10 animate-ping" style={{ transform: "scale(2)", animationDelay: "0.5s" }} />
-        <div className="w-24 h-24 rounded-full bg-[#1c2d38] border-2 border-[#00ed64]/30 flex items-center justify-center">
+        <div className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/20 motion-safe:animate-ping" style={{ transform: "scale(1.5)" }} />
+        <div className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/10 motion-safe:animate-ping" style={{ transform: "scale(2)", animationDelay: "0.5s" }} />
+        <div className="w-24 h-24 rounded-full bg-[#0a4f66] border-2 border-[#06d6a0]/40 flex items-center justify-center">
           <div className="flex gap-1">
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="w-2 h-2 rounded-full bg-[#00ed64] inline-block"
+                className="queue-dot w-2 h-2 rounded-full bg-[#06d6a0] inline-block"
                 style={{
                   animation: `queueBounce 1.4s ease-in-out ${i * 0.16}s infinite`,
                 }}
@@ -140,24 +137,24 @@ export default function QueuePage() {
       </div>
 
       <h1 className="text-white text-2xl font-bold mb-1">Finding your opponent…</h1>
-      <p className="text-[#5c6c7a] text-sm mb-8">
+      <p className="text-[#7ab5cc] text-sm mb-8">
         Your band: ±{currentBand} ELO{currentBand >= 1000 ? " (any)" : ""} · {formatTime(elapsed)} elapsed
       </p>
 
       <div className="flex gap-6 mb-10 text-center">
         <div>
-          <div className="text-[#00ed64] font-bold text-lg">{currentBand}</div>
-          <div className="text-[#5c6c7a] text-xs">ELO band</div>
+          <div className="text-[#ffd166] font-bold text-lg">{currentBand}</div>
+          <div className="text-[#7ab5cc] text-xs">ELO band</div>
         </div>
-        <div className="w-px bg-[#1c2d38]" />
+        <div className="w-px bg-[#1a6080]" />
         <div>
           <div className="text-white font-bold text-lg">{formatTime(elapsed)}</div>
-          <div className="text-[#5c6c7a] text-xs">Searching</div>
+          <div className="text-[#7ab5cc] text-xs">Searching</div>
         </div>
-        <div className="w-px bg-[#1c2d38]" />
+        <div className="w-px bg-[#1a6080]" />
         <div>
-          <div className="text-[#a8b3bc] font-bold text-lg">9 Qs</div>
-          <div className="text-[#5c6c7a] text-xs">Match length</div>
+          <div className="text-[#c5e8f0] font-bold text-lg">9 Qs</div>
+          <div className="text-[#7ab5cc] text-xs">Match length</div>
         </div>
       </div>
 
@@ -165,18 +162,11 @@ export default function QueuePage() {
         onClick={handleCancel}
         disabled={cancelling}
         variant="outline"
-        className="border-[#3d4f5b] text-[#a8b3bc] rounded-full px-6 hover:bg-[#1c2d38] flex items-center gap-2"
+        className="border-[#2a7a9a] text-[#c5e8f0] rounded-full px-6 hover:bg-[#0a4f66] flex items-center gap-2"
       >
         <X size={14} />
         {cancelling ? "Cancelling…" : "Cancel search"}
       </Button>
-
-      <style>{`
-        @keyframes queueBounce {
-          0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
-          40% { transform: scale(1); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

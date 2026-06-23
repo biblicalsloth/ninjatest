@@ -22,6 +22,7 @@ export default async function LeaderboardPage() {
   const entries = ((rows ?? []) as any[]) as {
     rank: number;
     username: string;
+    display_name: string | null;
     elo: number;
     wins: number;
     losses: number;
@@ -81,7 +82,7 @@ export default async function LeaderboardPage() {
                   {/* Name */}
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-medium truncate">
-                      {entry.username}
+                      {entry.display_name ?? entry.username}
                       {isMe && (
                         <span className="ml-2 text-[#00ed64] text-xs">(you)</span>
                       )}
@@ -110,19 +111,20 @@ export default async function LeaderboardPage() {
   );
 }
 
-function PodiumCard({ entry, pos }: { entry: { username: string; elo: number; avatar_url: string | null }; pos: number }) {
+function PodiumCard({ entry, pos }: { entry: { username: string; display_name: string | null; elo: number; avatar_url: string | null }; pos: number }) {
   const heights = { 1: "h-28", 2: "h-20", 3: "h-16" };
   const labels = ["🥇", "🥈", "🥉"];
+  const name = entry.display_name ?? entry.username;
 
   return (
     <div className="flex flex-col items-center gap-2 flex-1">
       <Avatar className={`${pos === 1 ? "w-14 h-14" : "w-10 h-10"}`}>
         <AvatarImage src={entry.avatar_url ?? undefined} />
         <AvatarFallback className="bg-[#003d4f] text-[#00ed64] font-bold">
-          {entry.username.slice(0, 2).toUpperCase()}
+          {name.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <p className="text-white text-xs font-medium truncate max-w-[80px] text-center">{entry.username}</p>
+      <p className="text-white text-xs font-medium truncate max-w-[80px] text-center">{name}</p>
       <p className="text-[#00ed64] font-bold text-sm">{entry.elo}</p>
       <div className={`w-full ${heights[pos as 1|2|3]} bg-[#1c2d38] rounded-t-xl flex items-start justify-center pt-2`}>
         <span className="text-xl">{labels[pos - 1]}</span>

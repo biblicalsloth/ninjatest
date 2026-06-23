@@ -116,7 +116,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                   {myProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="text-white text-sm font-semibold truncate">{myProfile.username}</p>
+              <p className="text-white text-sm font-semibold truncate">{myProfile.display_name ?? myProfile.username}</p>
               <p className="text-[#00ed64] text-2xl font-bold">{myScore}</p>
               <p className="text-[#5c6c7a] text-xs">{myCorrect}/9 correct</p>
             </div>
@@ -133,7 +133,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                   {oppProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <p className="text-white text-sm font-semibold truncate">{oppProfile.username}</p>
+              <p className="text-white text-sm font-semibold truncate">{oppProfile.display_name ?? oppProfile.username}</p>
               <p className="text-white text-2xl font-bold">{oppScore}</p>
               <p className="text-[#5c6c7a] text-xs">{oppCorrect}/9 correct</p>
             </div>
@@ -148,8 +148,8 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
           )}>
             <h3 className="text-[#5c6c7a] text-xs font-medium uppercase tracking-wider mb-4">Rating change</h3>
             <div className="grid grid-cols-2 gap-6">
-              <EloChange username={myProfile.username} before={myEloBefore} after={myEloAfter} delta={myDelta} />
-              <EloChange username={oppProfile.username} before={oppEloBefore} after={oppEloAfter} delta={oppDelta} />
+              <EloChange username={myProfile.display_name ?? myProfile.username} before={myEloBefore} after={myEloAfter} delta={myDelta} />
+              <EloChange username={oppProfile.display_name ?? oppProfile.username} before={oppEloBefore} after={oppEloAfter} delta={oppDelta} />
             </div>
           </div>
         )}
