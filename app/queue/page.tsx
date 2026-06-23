@@ -106,9 +106,9 @@ export default function QueuePage() {
     router.push("/lobby");
   }
 
-  const bandBase = 100;
-  const bandGrowth = 20;
-  const currentBand = Math.min(1000, bandBase + elapsed * bandGrowth);
+  // Band grows 20 ELO/sec from base 100, capped at 1000.
+  // Server uses GREATEST(my_band, opp_band), so actual match range may be wider.
+  const currentBand = Math.min(1000, 100 + elapsed * 20);
 
   if (verifying) {
     return (
@@ -141,7 +141,7 @@ export default function QueuePage() {
 
       <h1 className="text-white text-2xl font-bold mb-1">Finding your opponent…</h1>
       <p className="text-[#5c6c7a] text-sm mb-8">
-        Matched within ±{currentBand} ELO · {formatTime(elapsed)} elapsed
+        Your band: ±{currentBand} ELO{currentBand >= 1000 ? " (any)" : ""} · {formatTime(elapsed)} elapsed
       </p>
 
       <div className="flex gap-6 mb-10 text-center">
