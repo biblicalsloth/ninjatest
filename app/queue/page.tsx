@@ -12,6 +12,7 @@ export default function QueuePage() {
   const router = useRouter();
   const [elapsed, setElapsed] = useState(0);
   const [cancelling, setCancelling] = useState(false);
+  const [verifying, setVerifying] = useState(true);
   const startRef = useRef(Date.now());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
@@ -24,8 +25,9 @@ export default function QueuePage() {
     return () => clearInterval(id);
   }, []);
 
-  /* Listen for queue row becoming matched via Postgres Changes */
+  /* Verify in queue + listen for match */
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
 
     async function setup() {
@@ -34,6 +36,33 @@ export default function QueuePage() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/auth/login"); return; }
+
+      // Verify user actually has a waiting queue row; if not, join now
+      const { data: queueRowRaw } = await supabase
+        .from("matchmaking_queue")
+        .select("status, match_id")
+        .eq("user_id", user.id)
+        .order("enqueued_at", { ascending: false })
+        .limit(1)
+        .single();
+      const queueRow = queueRowRaw as { status: string; match_id: string | null } | null;
+
+      if (queueRow?.status === "matched" && queueRow.match_id) {
+        router.push(`/match/${queueRow.match_id}`);
+        return;
+      }
+
+      if (!queueRow || queueRow.status !== "waiting") {
+        // Not in queue — join now
+        const { error } = await supabase.rpc("join_queue");
+        if (error) {
+          toast.error("Failed to join queue");
+          router.push("/lobby");
+          return;
+        }
+      }
+
+      setVerifying(false);
 
       const channel = supabase
         .channel(`queue:${user.id}`)
@@ -80,6 +109,14 @@ export default function QueuePage() {
   const bandBase = 100;
   const bandGrowth = 20;
   const currentBand = Math.min(1000, bandBase + elapsed * bandGrowth);
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-[#001e2b] flex items-center justify-center">
+        <p className="text-[#5c6c7a] text-sm">Joining queue…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#001e2b] flex flex-col items-center justify-center px-4">

@@ -53,7 +53,7 @@ export default function SignupPage() {
           <p className="text-[#a8b3bc] text-sm">Create your account</p>
         </div>
 
-        <div className="bg-[#1c2d38] rounded-xl border border-[#1c2d38] p-6">
+        <div className="bg-[#1c2d38] rounded-xl border border-[#3d4f5b] p-6">
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="username" className="text-[#a8b3bc] text-sm">Username</Label>
@@ -66,7 +66,7 @@ export default function SignupPage() {
                 required
                 minLength={3}
                 maxLength={20}
-                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] focus:border-[#00ed64] focus:ring-0 h-11"
+                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] h-11"
               />
               <p className="text-[#5c6c7a] text-xs">3–20 chars, letters/numbers/underscores</p>
             </div>
@@ -80,7 +80,7 @@ export default function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] focus:border-[#00ed64] focus:ring-0 h-11"
+                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] h-11"
               />
             </div>
 
@@ -94,7 +94,7 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 required
                 minLength={8}
-                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] focus:border-[#00ed64] focus:ring-0 h-11"
+                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] h-11"
               />
             </div>
 

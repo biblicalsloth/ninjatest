@@ -61,8 +61,8 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
       <header className="border-b border-[#1c2d38] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-[#00ed64] flex items-center justify-center">
-              <span className="text-[#001e2b] font-bold text-xs">N</span>
+            <div className="w-8 h-8 rounded-full bg-[#00ed64] flex items-center justify-center">
+              <span className="text-[#001e2b] font-bold text-sm">N</span>
             </div>
             <span className="font-semibold text-white tracking-tight">Ninjatest</span>
           </div>

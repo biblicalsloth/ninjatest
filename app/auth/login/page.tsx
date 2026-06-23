@@ -44,7 +44,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-[#1c2d38] rounded-xl border border-[#1c2d38] p-6">
+        <div className="bg-[#1c2d38] rounded-xl border border-[#3d4f5b] p-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-[#a8b3bc] text-sm">Email</Label>
@@ -55,7 +55,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] focus:border-[#00ed64] focus:ring-0 h-11"
+                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] h-11"
               />
             </div>
 
@@ -68,7 +68,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] focus:border-[#00ed64] focus:ring-0 h-11"
+                className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#5c6c7a] h-11"
               />
             </div>
 

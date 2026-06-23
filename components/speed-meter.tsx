@@ -31,7 +31,7 @@ export function SpeedMeter({ progress, section, capMs, timeRemaining }: Props) {
       </div>
       <div className="h-1.5 rounded-full bg-[#1c2d38] overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-100 ${isUrgent ? "bg-red-400" : "bg-[#00ed64]"}`}
+          className={`h-full rounded-full transition-[width,background-color] duration-100 ${isUrgent ? "bg-red-400" : "bg-[#00ed64]"}`}
           style={{ width: `${pct * 100}%` }}
         />
       </div>

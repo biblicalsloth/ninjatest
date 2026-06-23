@@ -154,30 +154,35 @@
   }
 }
 
-/* Countdown ring animation */
-@keyframes countdown-ring {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: var(--ring-circumference); }
+/* Queue searching pulse */
+@keyframes queueBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
-.countdown-ring-progress {
-  animation: countdown-ring linear forwards;
-  animation-duration: var(--cap-ms, 90000ms);
-}
-
-/* Speed bonus meter pulse */
-@keyframes grace-tick {
-  0%, 90% { opacity: 1; }
-  95%, 100% { opacity: 0.4; }
-}
-
-/* Smooth ELO delta animation */
+/* ELO delta pop-in */
 @keyframes elo-pop {
-  0% { transform: scale(0.8) translateY(8px); opacity: 0; }
-  60% { transform: scale(1.15) translateY(-2px); opacity: 1; }
+  0% { transform: scale(0.85) translateY(6px); opacity: 0; }
   100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
 .elo-pop {
-  animation: elo-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: elo-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .elo-pop {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .queue-dot {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.queue-dot {
+  /* animation applied via inline style; reduced-motion override above */
 }

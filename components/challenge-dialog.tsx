@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -26,6 +26,12 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
   const [code, setCode] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   async function handleCreate() {
     setCreating(true);
@@ -39,6 +45,19 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
     }
     setCode(data as string);
     setCreating(false);
+
+    const EXPIRY_SECS = 15 * 60;
+    setSecondsLeft(EXPIRY_SECS);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timerRef.current!);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
   }
 
   function handleCopy() {
@@ -53,7 +72,15 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
   function handleClose() {
     setCode(null);
     setIsRated(true);
+    setSecondsLeft(0);
+    if (timerRef.current) clearInterval(timerRef.current);
     onOpenChange(false);
+  }
+
+  function fmtTime(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
   }
 
   return (
@@ -123,9 +150,16 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
               {copied ? "Copied!" : "Copy invite link"}
             </Button>
 
-            <p className="text-[#5c6c7a] text-xs text-center">
-              Share this link with your friend. Waiting for them to join…
-            </p>
+            <div className="flex items-center justify-center gap-1.5 text-xs">
+              <Clock size={12} className={secondsLeft <= 60 ? "text-red-400" : "text-[#5c6c7a]"} />
+              {secondsLeft > 0 ? (
+                <span className={secondsLeft <= 60 ? "text-red-400 font-medium" : "text-[#5c6c7a]"}>
+                  Expires in {fmtTime(secondsLeft)}
+                </span>
+              ) : (
+                <span className="text-red-400 font-medium">Link expired</span>
+              )}
+            </div>
           </div>
         )}
       </DialogContent>
