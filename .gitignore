@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase local temp (linked project metadata, not secrets but not needed in repo)
+supabase/.temp/
