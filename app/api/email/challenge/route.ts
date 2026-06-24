@@ -20,9 +20,7 @@ export async function POST(req: NextRequest) {
     ?? (profile as { display_name: string | null; username: string } | null)?.username
     ?? "Someone";
 
-  const origin = req.headers.get("origin") ?? "https://ninjatest.vercel.app";
-
-  const { error } = await sendChallengeInvite({ to, fromUsername, code, isRated: is_rated, origin });
+  const { error } = await sendChallengeInvite({ to, fromUsername, code, isRated: is_rated });
   if (error) return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
 
   return NextResponse.json({ ok: true });

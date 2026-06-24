@@ -45,8 +45,6 @@ export async function POST(req: NextRequest) {
     : match.winner_id === null && match.status === "completed" ? "draw"
     : "loss";
 
-  const origin = req.headers.get("origin") ?? "https://ninjatest.vercel.app";
-
   const { error } = await sendMatchResult({
     to: userEmail,
     username: myProfile.display_name ?? myProfile.username,
@@ -56,7 +54,6 @@ export async function POST(req: NextRequest) {
     result,
     eloDelta,
     isRated: match.is_rated,
-    origin,
   });
 
   if (error) return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
