@@ -56,9 +56,9 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
   const winRate = getWinRate(profile.wins, profile.matches_played);
 
   return (
-    <div className="min-h-screen bg-[#073b4c] text-white">
+    <div className="min-h-screen bg-black text-white">
       {/* Nav */}
-      <header className="border-b border-[#1a6080] px-4 py-3">
+      <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-[#06d6a0] flex items-center justify-center">
@@ -70,7 +70,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <Link href={`/profile/${profile.username}`}>
               <Avatar className="w-8 h-8 cursor-pointer">
                 <AvatarImage src={profile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
+                <AvatarFallback className="bg-[#111111] text-[#06d6a0] text-xs font-bold">
                   {profile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -87,10 +87,10 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         {/* Profile card */}
-        <div className="bg-[#0a4f66] rounded-xl p-5 flex items-center gap-4">
+        <div className="bg-[#111111] rounded-xl p-5 flex items-center gap-4">
           <Avatar className="w-14 h-14">
             <AvatarImage src={profile.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] font-bold text-lg">
+            <AvatarFallback className="bg-black text-[#06d6a0] font-bold text-lg">
               {profile.username.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -125,7 +125,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
           <Button
             onClick={() => setShowChallenge(true)}
             variant="outline"
-            className="w-full h-12 border-[#2a7a9a] text-white font-semibold rounded-full hover:bg-[#0a4f66] transition-colors flex items-center gap-2"
+            className="w-full h-12 border-[#333333] text-white font-semibold rounded-full hover:bg-[#111111] transition-colors flex items-center gap-2"
           >
             <Users size={16} />
             Challenge a Friend
@@ -135,7 +135,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <Link href="/leaderboard">
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#0a4f66] rounded-lg flex items-center gap-2"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2"
               >
                 <Trophy size={16} />
                 Leaderboard
@@ -144,7 +144,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <Link href={`/profile/${profile.username}`}>
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#0a4f66] rounded-lg flex items-center gap-2"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2"
               >
                 <User size={16} />
                 My Profile
@@ -161,11 +161,11 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
               {recentMatches.map((m) => (
                 <div
                   key={m.match_id}
-                  className="bg-[#0a4f66] rounded-lg px-4 py-3 flex items-center gap-3"
+                  className="bg-[#111111] rounded-lg px-4 py-3 flex items-center gap-3"
                 >
                   <Avatar className="w-8 h-8 shrink-0">
                     <AvatarImage src={m.opponent_avatar ?? undefined} />
-                    <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xs font-bold">
+                    <AvatarFallback className="bg-black text-[#06d6a0] text-xs font-bold">
                       {m.opponent.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -195,7 +195,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
 
 function StatCard({ label, value, accent, gold }: { label: string; value: string; accent?: boolean; gold?: boolean }) {
   return (
-    <div className="bg-[#0a4f66] rounded-xl p-4 text-center">
+    <div className="bg-[#111111] rounded-xl p-4 text-center">
       <div className={`text-xl font-bold ${gold ? "text-[#ffd166]" : accent ? "text-[#06d6a0]" : "text-white"}`}>{value}</div>
       <div className="text-[#7ab5cc] text-xs mt-0.5">{label}</div>
     </div>

@@ -31,8 +31,8 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
   const matches = recentMatches as RecentMatch[];
 
   return (
-    <div className="min-h-screen bg-[#073b4c] text-white">
-      <header className="border-b border-[#1a6080] px-4 py-3">
+    <div className="min-h-screen bg-black text-white">
+      <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Link href="/lobby" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
             <ArrowLeft size={14} />
@@ -58,7 +58,7 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
         <div className="flex items-center gap-4">
           <Avatar className="w-20 h-20">
             <AvatarImage src={profile.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-2xl font-bold">
+            <AvatarFallback className="bg-[#111111] text-[#06d6a0] text-2xl font-bold">
               {profile.username.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -91,7 +91,7 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
 
         {/* ELO graph */}
         {curve.length > 1 ? (
-          <div className="bg-[#0a4f66] rounded-xl p-5">
+          <div className="bg-[#111111] rounded-xl p-5">
             <h2 className="text-[#7ab5cc] text-sm font-medium mb-4 flex items-center gap-1.5">
               <Trophy size={14} />
               Rating history
@@ -99,18 +99,18 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
             <EloGraph data={curve} />
           </div>
         ) : (
-          <div className="bg-[#0a4f66] rounded-xl p-8 text-center">
+          <div className="bg-[#111111] rounded-xl p-8 text-center">
             <p className="text-[#4a8fa8] text-sm">Play rated matches to see your ELO graph.</p>
           </div>
         )}
 
         {/* Recent rating changes */}
         {curve.length > 0 && (
-          <div className="bg-[#0a4f66] rounded-xl p-5">
+          <div className="bg-[#111111] rounded-xl p-5">
             <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent rating changes</h2>
             <div className="space-y-2">
               {[...curve].reverse().slice(0, 8).map((c: { elo: number; at: string; delta: number }, i: number) => (
-                <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#073b4c] last:border-0">
+                <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#1a1a1a] last:border-0">
                   <div>
                     <span className="text-white text-sm font-medium">{c.elo}</span>
                     <span className="text-[#7ab5cc] text-xs ml-2">{new Date(c.at).toLocaleDateString()}</span>
@@ -126,18 +126,18 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
 
         {/* Match history */}
         {matches.length > 0 && (
-          <div className="bg-[#0a4f66] rounded-xl p-5">
+          <div className="bg-[#111111] rounded-xl p-5">
             <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent matches</h2>
             <div className="space-y-2">
               {matches.map((m) => {
                 const inner = (
                   <div className={cn(
-                    "flex items-center gap-3 py-2 border-b border-[#073b4c] last:border-0 transition-opacity",
+                    "flex items-center gap-3 py-2 border-b border-[#1a1a1a] last:border-0 transition-opacity",
                     isOwnProfile && "hover:opacity-80 cursor-pointer"
                   )}>
                     <Avatar className="w-8 h-8 shrink-0">
                       <AvatarImage src={m.opponent_avatar ?? undefined} />
-                      <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xs font-bold">
+                      <AvatarFallback className="bg-black text-[#06d6a0] text-xs font-bold">
                         {m.opponent.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -173,7 +173,7 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
 
 function StatBox({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="bg-[#0a4f66] rounded-xl p-3 text-center">
+    <div className="bg-[#111111] rounded-xl p-3 text-center">
       <div className={cn("font-bold text-lg", accent ? "text-[#06d6a0]" : "text-white")}>{value}</div>
       <div className="text-[#7ab5cc] text-xs">{label}</div>
     </div>

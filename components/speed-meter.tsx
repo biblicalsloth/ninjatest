@@ -29,7 +29,7 @@ export function SpeedMeter({ progress, section, capMs, timeRemaining }: Props) {
           +{gracePoints} pts
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-[#0a4f66] overflow-hidden">
+      <div className="h-1.5 rounded-full bg-[#111111] overflow-hidden">
         <div
           className="h-full rounded-full transition-[width,background-color] duration-100"
           style={{

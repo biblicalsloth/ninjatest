@@ -34,7 +34,7 @@ export function CountdownRing({ progress, remaining, size = 56, section }: Props
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#0a4f66"
+          stroke="#111111"
           strokeWidth={stroke}
         />
         {/* Progress */}

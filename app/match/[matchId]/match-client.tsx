@@ -280,7 +280,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   if (showReveal && revealData && question) {
     const options = question.options as string[];
     return (
-      <div className="min-h-screen bg-[#073b4c] flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-2xl space-y-5">
           {/* Result badge */}
           <div className="flex items-center justify-between">
@@ -289,7 +289,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               revealData.is_correct
                 ? "bg-[#06d6a0]/15 text-[#06d6a0]"
                 : selected === null
-                ? "bg-[#0a4f66] text-[#c5e8f0]"
+                ? "bg-[#111111] text-[#c5e8f0]"
                 : "bg-[#ef476f]/15 text-[#ef476f]"
             )}>
               {revealData.is_correct ? `+${revealData.points_awarded} pts` : selected === null ? "Skipped · 0 pts" : `${revealData.points_awarded} pts`}
@@ -318,7 +318,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
                       ? "border-[#06d6a0] bg-[#06d6a0]/10 text-white"
                       : isMyPick && !isCorrect
                       ? "border-[#ef476f]/60 bg-[#ef476f]/10 text-white"
-                      : "border-[#1a6080] bg-[#0a4f66]/40 text-[#7ab5cc]"
+                      : "border-[#222222] bg-[#111111]/40 text-[#7ab5cc]"
                   )}
                 >
                   <span className={cn("font-mono mr-2.5", isCorrect ? "text-[#06d6a0]" : isMyPick ? "text-[#ef476f]" : "text-[#7ab5cc]")}>
@@ -334,7 +334,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
 
           {/* Explanation */}
           {revealData.explanation && (
-            <div className="bg-[#0a4f66] rounded-xl px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed">
+            <div className="bg-[#111111] rounded-xl px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed">
               <span className="text-[#06d6a0] font-semibold mr-1">Why:</span>
               {revealData.explanation}
             </div>
@@ -346,7 +346,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
 
   if (!question) {
     return (
-      <div className="min-h-screen bg-[#073b4c] flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-[#7ab5cc] text-sm">Loading question…</div>
       </div>
     );
@@ -358,9 +358,9 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const options = question.options as string[];
 
   return (
-    <div className="min-h-screen bg-[#073b4c] flex flex-col">
+    <div className="min-h-screen bg-black flex flex-col">
       {/* Top bar */}
-      <div className="bg-[#073b4c] border-b border-[#1a6080] px-4 py-3">
+      <div className="bg-black border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto">
           {/* Question dots */}
           <div className="flex items-center justify-center gap-1.5 mb-3">
@@ -433,8 +433,8 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
                   submitted && selected === i
                     ? "border-[#06d6a0]/60 bg-[#06d6a0]/10 text-white"
                     : submitted
-                    ? "border-[#1a6080] bg-[#0a4f66]/40 text-[#7ab5cc] cursor-not-allowed"
-                    : "border-[#1a6080] bg-[#0a4f66] text-white hover:border-[#06d6a0]/40 hover:bg-[#06d6a0]/5 active:scale-[0.99]"
+                    ? "border-[#222222] bg-[#111111]/40 text-[#7ab5cc] cursor-not-allowed"
+                    : "border-[#222222] bg-[#111111] text-white hover:border-[#06d6a0]/40 hover:bg-[#06d6a0]/5 active:scale-[0.99]"
                 )}
               >
                 <span className="text-[#7ab5cc] font-mono mr-2.5">
@@ -489,7 +489,7 @@ function PlayerBar({
     <div className={cn("flex-1 flex items-center gap-2", isMe ? "flex-row" : "flex-row-reverse")}>
       <Avatar className="w-9 h-9 shrink-0">
         <AvatarImage src={profile.avatar_url ?? undefined} />
-        <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xs font-bold">
+        <AvatarFallback className="bg-black text-[#06d6a0] text-xs font-bold">
           {profile.username.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>

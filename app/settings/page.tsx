@@ -41,10 +41,11 @@ export default function SettingsPage() {
         .single();
 
       if (profile) {
+        const p = profile as { username: string; display_name: string | null; avatar_url: string | null };
         setUserId(user.id);
-        setUsername((profile as { username: string; display_name: string | null; avatar_url: string | null }).username);
-        setDisplayName((profile as { username: string; display_name: string | null; avatar_url: string | null }).display_name ?? "");
-        setAvatarUrl((profile as { username: string; display_name: string | null; avatar_url: string | null }).avatar_url);
+        setUsername(p.username);
+        setDisplayName(p.display_name ?? "");
+        setAvatarUrl(p.avatar_url);
       }
       setLoading(false);
     }
@@ -121,17 +122,17 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#001e2b] flex items-center justify-center">
-        <Loader2 className="text-[#00ed64] animate-spin" size={24} />
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="text-[#06d6a0] animate-spin" size={24} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#001e2b] text-white">
-      <header className="border-b border-[#1c2d38] px-4 py-3">
+    <div className="min-h-screen bg-black text-white">
+      <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center">
-          <Link href={`/profile/${username}`} className="text-[#5c6c7a] hover:text-white flex items-center gap-1.5 text-sm">
+          <Link href={`/profile/${username}`} className="text-[#7ab5cc] hover:text-white flex items-center gap-1.5 text-sm transition-colors">
             <ArrowLeft size={14} />
             Back
           </Link>
@@ -139,16 +140,16 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-lg mx-auto px-4 py-8 space-y-6">
 
         {/* Avatar */}
-        <section className="bg-[#1c2d38] rounded-xl p-6">
-          <h2 className="text-[#a8b3bc] text-sm font-medium mb-4">Profile photo</h2>
+        <section className="bg-[#111111] rounded-xl p-6">
+          <h2 className="text-[#7ab5cc] text-sm font-medium mb-4">Profile photo</h2>
           <div className="flex items-center gap-5">
             <div className="relative">
               <Avatar className="w-20 h-20">
                 <AvatarImage src={avatarUrl ?? undefined} />
-                <AvatarFallback className="bg-[#003d4f] text-[#00ed64] text-2xl font-bold">
+                <AvatarFallback className="bg-black text-[#06d6a0] text-2xl font-bold">
                   {username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -171,74 +172,74 @@ export default function SettingsPage() {
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
-                className="border-[#3d4f5b] text-[#a8b3bc] hover:text-white hover:bg-[#1c2d38] flex items-center gap-1.5"
+                className="border-[#333333] text-[#c5e8f0] hover:text-white hover:bg-[#111111] flex items-center gap-1.5"
               >
                 <Camera size={14} />
                 Change photo
               </Button>
-              <p className="text-[#3d4f5b] text-xs mt-1.5">JPG, PNG, WebP · max 2 MB</p>
+              <p className="text-[#4a8fa8] text-xs mt-1.5">JPG, PNG, WebP · max 2 MB</p>
             </div>
           </div>
         </section>
 
         {/* Profile info */}
-        <section className="bg-[#1c2d38] rounded-xl p-6 space-y-4">
-          <h2 className="text-[#a8b3bc] text-sm font-medium">Profile info</h2>
+        <section className="bg-[#111111] rounded-xl p-6 space-y-4">
+          <h2 className="text-[#7ab5cc] text-sm font-medium">Profile info</h2>
           <div className="space-y-1">
-            <Label className="text-[#5c6c7a] text-xs">Username</Label>
+            <Label className="text-[#7ab5cc] text-xs">Username</Label>
             <Input
               value={username}
               disabled
-              className="bg-[#001e2b] border-[#3d4f5b] text-[#5c6c7a] cursor-not-allowed"
+              className="bg-black border-[#333333] text-[#4a8fa8] cursor-not-allowed"
             />
-            <p className="text-[#3d4f5b] text-xs">Username cannot be changed.</p>
+            <p className="text-[#4a8fa8] text-xs">Username cannot be changed.</p>
           </div>
           <div className="space-y-1">
-            <Label className="text-[#5c6c7a] text-xs">Display name</Label>
+            <Label className="text-[#7ab5cc] text-xs">Display name</Label>
             <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="How you appear to others"
-              className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#3d4f5b] focus:border-[#00ed64]"
+              className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
             />
           </div>
           <Button
             onClick={handleSaveProfile}
             disabled={saving}
-            className="bg-[#00ed64] text-[#001e2b] font-semibold rounded-lg hover:bg-[#00b545]"
+            className="bg-[#06d6a0] text-[#073b4c] font-semibold rounded-lg hover:bg-[#05b088]"
           >
             {saving ? "Saving…" : "Save changes"}
           </Button>
         </section>
 
         {/* Password */}
-        <section className="bg-[#1c2d38] rounded-xl p-6 space-y-4">
-          <h2 className="text-[#a8b3bc] text-sm font-medium">Change password</h2>
+        <section className="bg-[#111111] rounded-xl p-6 space-y-4">
+          <h2 className="text-[#7ab5cc] text-sm font-medium">Change password</h2>
           <div className="space-y-1">
-            <Label className="text-[#5c6c7a] text-xs">New password</Label>
+            <Label className="text-[#7ab5cc] text-xs">New password</Label>
             <Input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Min 8 characters"
-              className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#3d4f5b] focus:border-[#00ed64]"
+              className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[#5c6c7a] text-xs">Confirm new password</Label>
+            <Label className="text-[#7ab5cc] text-xs">Confirm new password</Label>
             <Input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat password"
-              className="bg-[#001e2b] border-[#3d4f5b] text-white placeholder:text-[#3d4f5b] focus:border-[#00ed64]"
+              className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
             />
           </div>
           <Button
             onClick={handleChangePassword}
             disabled={saving || !newPassword}
             variant="outline"
-            className="border-[#3d4f5b] text-white hover:bg-[#001e2b] rounded-lg"
+            className="border-[#333333] text-white hover:bg-[#111111] rounded-lg"
           >
             {saving ? "Updating…" : "Update password"}
           </Button>

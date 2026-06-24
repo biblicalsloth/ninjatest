@@ -21,10 +21,10 @@
   --color-ocean: #118ab2;
   --color-ocean-soft: #d0eaf5;
   --color-teal-deep: #073b4c;
-  --color-teal-surface: #0a4f66;
-  --color-teal-elevated: #1a6b8a;
-  --color-hairline: #1a6080;
-  --color-hairline-strong: #2a7a9a;
+  --color-teal-surface: #111111;
+  --color-teal-elevated: #1c1c1c;
+  --color-hairline: #222222;
+  --color-hairline-strong: #333333;
   --color-ink: #ffffff;
   --color-text-secondary: #c5e8f0;
   --color-text-muted: #7ab5cc;
@@ -107,36 +107,36 @@
 
 /* Dark mode — default for Ninjatest */
 .dark {
-  --background: #073b4c;
+  --background: #000000;
   --foreground: #ffffff;
-  --card: #0a4f66;
+  --card: #111111;
   --card-foreground: #ffffff;
-  --popover: #0a4f66;
+  --popover: #111111;
   --popover-foreground: #ffffff;
   --primary: #06d6a0;
   --primary-foreground: #073b4c;
   --secondary: #118ab2;
   --secondary-foreground: #ffffff;
-  --muted: #0a4f66;
+  --muted: #111111;
   --muted-foreground: #7ab5cc;
   --accent: #ffd166;
   --accent-foreground: #073b4c;
   --destructive: #ef476f;
-  --border: #1a6080;
-  --input: #0a4f66;
+  --border: #222222;
+  --input: #111111;
   --ring: #06d6a0;
   --chart-1: #06d6a0;
   --chart-2: #ffd166;
   --chart-3: #118ab2;
   --chart-4: #ef476f;
   --chart-5: #073b4c;
-  --sidebar: #0a4f66;
+  --sidebar: #111111;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #06d6a0;
   --sidebar-primary-foreground: #073b4c;
-  --sidebar-accent: #1a6b8a;
+  --sidebar-accent: #1c1c1c;
   --sidebar-accent-foreground: #06d6a0;
-  --sidebar-border: #1a6080;
+  --sidebar-border: #222222;
   --sidebar-ring: #06d6a0;
 }
 

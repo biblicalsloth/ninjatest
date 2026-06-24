@@ -29,8 +29,8 @@ export default async function LeaderboardPage() {
   }[];
 
   return (
-    <div className="min-h-screen bg-[#073b4c] text-white">
-      <header className="border-b border-[#1a6080] px-4 py-3">
+    <div className="min-h-screen bg-black text-white">
+      <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Link href="/lobby" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
             <ArrowLeft size={14} />
@@ -58,7 +58,7 @@ export default async function LeaderboardPage() {
             const winRate = getWinRate(entry.wins, entry.wins + entry.losses);
             return (
               <Link key={entry.username} href={`/profile/${entry.username}`}>
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-[#0a4f66] ${
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-[#111111] ${
                   isMe ? "bg-[#06d6a0]/5 border border-[#06d6a0]/20" : ""
                 }`}>
                   {/* Rank */}
@@ -73,7 +73,7 @@ export default async function LeaderboardPage() {
                   {/* Avatar */}
                   <Avatar className="w-8 h-8 shrink-0">
                     <AvatarImage src={entry.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
+                    <AvatarFallback className="bg-[#111111] text-[#06d6a0] text-xs font-bold">
                       {entry.username.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -119,13 +119,13 @@ function PodiumCard({ entry, pos }: { entry: { username: string; display_name: s
     <div className="flex flex-col items-center gap-2 flex-1">
       <Avatar className={`${pos === 1 ? "w-14 h-14" : "w-10 h-10"}`}>
         <AvatarImage src={entry.avatar_url ?? undefined} />
-        <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] font-bold">
+        <AvatarFallback className="bg-[#111111] text-[#06d6a0] font-bold">
           {name.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <p className="text-white text-xs font-medium truncate max-w-[80px] text-center">{name}</p>
       <p className="text-[#ffd166] font-bold text-sm">{entry.elo}</p>
-      <div className={`w-full ${heights[pos as 1|2|3]} bg-[#0a4f66] rounded-t-xl flex items-start justify-center pt-2`}>
+      <div className={`w-full ${heights[pos as 1|2|3]} bg-[#111111] rounded-t-xl flex items-start justify-center pt-2`}>
         <span className="text-xl">{labels[pos - 1]}</span>
       </div>
     </div>
