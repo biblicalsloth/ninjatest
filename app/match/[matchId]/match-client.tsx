@@ -32,6 +32,8 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const forfeitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoSubmitFiredRef = useRef(false);
+  const currentMatchRef = useRef(match);
+  const questionRef = useRef<MatchQuestion | null>(null);
 
   const [currentMatch, setCurrentMatch] = useState(match);
   const [question, setQuestion] = useState<MatchQuestion | null>(null);
@@ -75,8 +77,24 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       toast.error("Failed to load question");
       return;
     }
-    setQuestion(data[0] as unknown as MatchQuestion);
+    const q = data[0] as unknown as MatchQuestion;
+    questionRef.current = q;
+    setQuestion(q);
   }, [currentMatch.id, supabase]);
+
+  /* Rehydrate match state from DB — called on reconnect or channel error */
+  const rehydrate = useCallback(async () => {
+    const { data } = await supabase.from("matches").select("*").eq("id", match.id).single();
+    if (!data) { router.push(`/result/${match.id}`); return; }
+    const m = data as Match;
+    if (m.status === "completed" || m.status === "abandoned") {
+      router.push(`/result/${match.id}`);
+      return;
+    }
+    currentMatchRef.current = m;
+    setCurrentMatch(m);
+    await fetchQuestion(m.current_index);
+  }, [match.id, supabase, router, fetchQuestion]);
 
   /* Start match if pending, then load Q0 */
   useEffect(() => {
@@ -127,6 +145,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           const pending = pendingAdvanceRef.current;
           if (pending) {
             pendingAdvanceRef.current = null;
+            currentMatchRef.current = pending.matchState;
             setCurrentMatch(pending.matchState);
             fetchQuestion(pending.newIndex);
           }
@@ -163,11 +182,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
         filter: `id=eq.${currentMatch.id}`,
       }, async (payload) => {
         const updated = payload.new as Match;
-        const prevIndex = currentMatch.current_index;
+        const prevIndex = currentMatchRef.current.current_index;
 
         if (updated.status === "completed" || updated.status === "abandoned") {
           clearForfeit();
-          if (question) {
+          if (questionRef.current) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any).rpc("get_answer_reveal", {
               p_match_id: match.id,
@@ -196,6 +215,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
             setShowReveal(true);
             pendingAdvanceRef.current = { newIndex: updated.current_index, matchState: updated };
           } else {
+            currentMatchRef.current = updated;
             setCurrentMatch(updated);
             await fetchQuestion(updated.current_index);
           }
@@ -211,16 +231,23 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
         else if (!forfeitTimerRef.current) scheduleForfeit();
       })
       .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") await channel.track({ user_id: userId });
+        if (status === "SUBSCRIBED") {
+          await channel.track({ user_id: userId });
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          await rehydrate();
+        }
       });
 
     channelRef.current = channel;
+
+    window.addEventListener("online", rehydrate);
     return () => {
       clearForfeit();
+      window.removeEventListener("online", rehydrate);
       channel.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMatch.id, currentMatch.current_index, fetchQuestion, router, supabase]);
+  }, [currentMatch.id, fetchQuestion, rehydrate, router, supabase]);
 
   /* Submit answer (null = skip) */
   async function handleSubmit(optionIndex: number | null) {
@@ -467,7 +494,7 @@ function PlayerBar({
         </AvatarFallback>
       </Avatar>
       <div className={cn("min-w-0", isMe ? "text-left" : "text-right")}>
-        <p className="text-white text-sm font-semibold truncate">{profile.username}</p>
+        <p className="text-white text-sm font-semibold truncate">{profile.display_name ?? profile.username}</p>
         <p className="text-[#ffd166] font-bold text-lg leading-none">{score}</p>
         {!isMe && answered && (
           <p className="text-[#7ab5cc] text-xs">answered</p>

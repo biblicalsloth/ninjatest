@@ -11,9 +11,9 @@ interface Props {
 }
 
 const SECTION_COLOR: Record<CatSection, string> = {
-  VARC: "#60a5fa",
-  DILR: "#fb923c",
-  QUANT: "#00ed64",
+  VARC: "#118ab2",
+  DILR: "#ffd166",
+  QUANT: "#06d6a0",
 };
 
 export function CountdownRing({ progress, remaining, size = 56, section }: Props) {
@@ -34,7 +34,7 @@ export function CountdownRing({ progress, remaining, size = 56, section }: Props
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#1c2d38"
+          stroke="#0a4f66"
           strokeWidth={stroke}
         />
         {/* Progress */}
@@ -43,7 +43,7 @@ export function CountdownRing({ progress, remaining, size = 56, section }: Props
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={isUrgent ? "#ef4444" : color}
+          stroke={isUrgent ? "#ef476f" : color}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -55,7 +55,7 @@ export function CountdownRing({ progress, remaining, size = 56, section }: Props
       <div className="absolute inset-0 flex items-center justify-center">
         <span
           className="font-bold text-xs tabular-nums"
-          style={{ color: isUrgent ? "#ef4444" : "white" }}
+          style={{ color: isUrgent ? "#ef476f" : "white" }}
         >
           {formatMs(remaining)}
         </span>

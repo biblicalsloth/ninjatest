@@ -132,22 +132,22 @@ export default function JoinChallengePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#001e2b] flex items-center justify-center">
-        <p className="text-[#5c6c7a]">Loading challenge…</p>
+      <div className="min-h-screen bg-[#073b4c] flex items-center justify-center">
+        <p className="text-[#7ab5cc]">Loading challenge…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#001e2b] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#073b4c] flex items-center justify-center px-4">
         <div className="text-center space-y-4">
           <div className="text-4xl">😵</div>
           <h1 className="text-white text-xl font-bold">Challenge unavailable</h1>
-          <p className="text-[#5c6c7a] text-sm max-w-xs">{error}</p>
+          <p className="text-[#7ab5cc] text-sm max-w-xs">{error}</p>
           <Button
             onClick={() => router.push("/lobby")}
-            className="bg-[#00ed64] text-[#001e2b] font-semibold rounded-full px-6"
+            className="bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full px-6"
           >
             Go to Lobby
           </Button>
@@ -167,59 +167,59 @@ export default function JoinChallengePage() {
     : "Expired";
 
   return (
-    <div className="min-h-screen bg-[#001e2b] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#073b4c] flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         {/* Header */}
         <div className="text-center">
-          <div className="w-10 h-10 rounded-full bg-[#00ed64] flex items-center justify-center mx-auto mb-3">
-            <span className="text-[#001e2b] font-bold text-sm">N</span>
+          <div className="w-10 h-10 rounded-full bg-[#06d6a0] flex items-center justify-center mx-auto mb-3">
+            <span className="text-[#073b4c] font-bold text-sm">N</span>
           </div>
           <h1 className="text-white text-2xl font-bold">Battle Challenge</h1>
-          <p className="text-[#5c6c7a] text-sm mt-1">You&apos;ve been challenged!</p>
+          <p className="text-[#7ab5cc] text-sm mt-1">You&apos;ve been challenged!</p>
         </div>
 
         {/* Challenger card */}
-        <div className="bg-[#1c2d38] rounded-xl p-5 text-center space-y-3">
+        <div className="bg-[#0a4f66] rounded-xl p-5 text-center space-y-3">
           <Avatar className="w-16 h-16 mx-auto">
             <AvatarImage src={info.host_avatar ?? undefined} />
-            <AvatarFallback className="bg-[#003d4f] text-[#00ed64] text-xl font-bold">
+            <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xl font-bold">
               {info.host_username.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
             <p className="text-white font-bold text-lg">{info.host_username}</p>
-            <p className="text-[#00ed64] font-semibold">{info.host_elo} ELO</p>
+            <p className="text-[#06d6a0] font-semibold">{info.host_elo} ELO</p>
           </div>
 
           <div className="flex items-center justify-center gap-4 text-sm">
             <div className="flex items-center gap-1.5">
               {info.is_rated ? (
                 <>
-                  <Sword size={14} className="text-[#00ed64]" />
-                  <span className="text-[#00ed64] font-medium">Rated match</span>
+                  <Sword size={14} className="text-[#06d6a0]" />
+                  <span className="text-[#06d6a0] font-medium">Rated match</span>
                 </>
               ) : (
                 <>
-                  <Shield size={14} className="text-[#a8b3bc]" />
-                  <span className="text-[#a8b3bc]">Unrated / practice</span>
+                  <Shield size={14} className="text-[#c5e8f0]" />
+                  <span className="text-[#c5e8f0]">Unrated / practice</span>
                 </>
               )}
             </div>
-            <div className={`flex items-center gap-1 ${secondsLeft <= 60 ? "text-red-400" : "text-[#5c6c7a]"}`}>
+            <div className={`flex items-center gap-1 ${secondsLeft <= 60 ? "text-[#ef476f]" : "text-[#7ab5cc]"}`}>
               <Clock size={12} />
               <span className="text-xs font-medium">{expiryLabel}</span>
             </div>
           </div>
 
-          <p className="text-[#5c6c7a] text-xs">
+          <p className="text-[#7ab5cc] text-xs">
             9 questions · VARC + DILR + Quant · Synchronized timer
           </p>
         </div>
 
         {/* Match type disclaimer */}
         {info.is_rated && (
-          <div className="bg-[#00ed64]/5 border border-[#00ed64]/20 rounded-lg px-4 py-3 text-xs text-[#a8b3bc]">
-            This is a <span className="text-[#00ed64] font-semibold">rated match</span>. Your ELO will change based on the outcome.
+          <div className="bg-[#06d6a0]/5 border border-[#06d6a0]/20 rounded-lg px-4 py-3 text-xs text-[#c5e8f0]">
+            This is a <span className="text-[#06d6a0] font-semibold">rated match</span>. Your ELO will change based on the outcome.
           </div>
         )}
 
@@ -227,7 +227,7 @@ export default function JoinChallengePage() {
         <Button
           onClick={handleAccept}
           disabled={accepting || secondsLeft === 0}
-          className="w-full h-14 bg-[#00ed64] text-[#001e2b] font-bold text-base rounded-full hover:bg-[#00b545] transition-colors disabled:opacity-50"
+          className="w-full h-14 bg-[#06d6a0] text-[#073b4c] font-bold text-base rounded-full hover:bg-[#05b088] transition-colors disabled:opacity-50"
         >
           {accepting ? "Starting match…" : secondsLeft === 0 ? "Link expired" : "Accept Challenge"}
         </Button>
@@ -235,7 +235,7 @@ export default function JoinChallengePage() {
         <Button
           onClick={() => router.push("/lobby")}
           variant="ghost"
-          className="w-full text-[#5c6c7a] hover:text-white"
+          className="w-full text-[#7ab5cc] hover:text-white"
         >
           Decline
         </Button>

@@ -16,13 +16,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const profileData = data as any;
   const isOwn = user?.id === profileData?.profile?.id;
 
-  // Fetch recent matches only for own profile (RPC uses auth.uid())
-  let recentMatches: unknown[] = [];
-  if (isOwn) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rm } = await (supabase as any).rpc("get_recent_matches", { p_limit: 10 });
-    recentMatches = rm ?? [];
-  }
+  // Fetch match history for any profile using the public RPC
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rm } = await (supabase as any).rpc("get_profile_matches", { p_username: username, p_limit: 10 });
+  const recentMatches: unknown[] = rm ?? [];
 
   return (
     <ProfileClient

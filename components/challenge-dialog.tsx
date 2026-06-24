@@ -29,6 +29,8 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  void router;
+
   useEffect(() => {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
@@ -85,10 +87,10 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-[#1c2d38] border-[#3d4f5b] text-white max-w-sm">
+      <DialogContent className="bg-[#0a4f66] border-[#2a7a9a] text-white max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-white">Challenge a Friend</DialogTitle>
-          <DialogDescription className="text-[#5c6c7a]">
+          <DialogDescription className="text-[#7ab5cc]">
             Share a link for a 1v1 match. Link expires in 15 minutes.
           </DialogDescription>
         </DialogHeader>
@@ -97,14 +99,14 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
           <div className="space-y-5 pt-2">
             {/* Rated toggle */}
             <div>
-              <Label className="text-[#a8b3bc] text-sm mb-3 block">Match type</Label>
+              <Label className="text-[#c5e8f0] text-sm mb-3 block">Match type</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setIsRated(true)}
                   className={`rounded-lg px-4 py-3 text-sm font-medium border transition-colors ${
                     isRated
-                      ? "bg-[#00ed64]/10 border-[#00ed64]/50 text-[#00ed64]"
-                      : "bg-[#001e2b] border-[#3d4f5b] text-[#5c6c7a] hover:border-[#5c6c7a]"
+                      ? "bg-[#06d6a0]/10 border-[#06d6a0]/50 text-[#06d6a0]"
+                      : "bg-[#073b4c] border-[#2a7a9a] text-[#7ab5cc] hover:border-[#4a8fa8]"
                   }`}
                 >
                   <div className="font-semibold">Rated</div>
@@ -114,8 +116,8 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
                   onClick={() => setIsRated(false)}
                   className={`rounded-lg px-4 py-3 text-sm font-medium border transition-colors ${
                     !isRated
-                      ? "bg-[#a8b3bc]/10 border-[#a8b3bc]/50 text-[#a8b3bc]"
-                      : "bg-[#001e2b] border-[#3d4f5b] text-[#5c6c7a] hover:border-[#5c6c7a]"
+                      ? "bg-[#c5e8f0]/10 border-[#c5e8f0]/50 text-[#c5e8f0]"
+                      : "bg-[#073b4c] border-[#2a7a9a] text-[#7ab5cc] hover:border-[#4a8fa8]"
                   }`}
                 >
                   <div className="font-semibold">Unrated</div>
@@ -127,37 +129,37 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
             <Button
               onClick={handleCreate}
               disabled={creating}
-              className="w-full h-11 bg-[#00ed64] text-[#001e2b] font-semibold rounded-full hover:bg-[#00b545] transition-colors"
+              className="w-full h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088] transition-colors"
             >
               {creating ? "Creating…" : "Create Challenge Link"}
             </Button>
           </div>
         ) : (
           <div className="space-y-4 pt-2">
-            <div className="bg-[#001e2b] rounded-lg p-4 text-center">
-              <p className="text-[#5c6c7a] text-xs mb-1">Challenge code</p>
-              <p className="text-[#00ed64] font-mono text-2xl font-bold tracking-widest uppercase">
+            <div className="bg-[#073b4c] rounded-lg p-4 text-center">
+              <p className="text-[#7ab5cc] text-xs mb-1">Challenge code</p>
+              <p className="text-[#06d6a0] font-mono text-2xl font-bold tracking-widest uppercase">
                 {code}
               </p>
-              <p className="text-[#5c6c7a] text-xs mt-1">{isRated ? "Rated match" : "Unrated match"}</p>
+              <p className="text-[#7ab5cc] text-xs mt-1">{isRated ? "Rated match" : "Unrated match"}</p>
             </div>
 
             <Button
               onClick={handleCopy}
-              className="w-full h-11 bg-[#1c2d38] border border-[#3d4f5b] text-white font-semibold rounded-full hover:bg-[#003d4f] transition-colors flex items-center gap-2"
+              className="w-full h-11 bg-[#0a4f66] border border-[#2a7a9a] text-white font-semibold rounded-full hover:bg-[#1a6b8a] transition-colors flex items-center gap-2"
             >
-              {copied ? <Check size={16} className="text-[#00ed64]" /> : <Copy size={16} />}
+              {copied ? <Check size={16} className="text-[#06d6a0]" /> : <Copy size={16} />}
               {copied ? "Copied!" : "Copy invite link"}
             </Button>
 
             <div className="flex items-center justify-center gap-1.5 text-xs">
-              <Clock size={12} className={secondsLeft <= 60 ? "text-red-400" : "text-[#5c6c7a]"} />
+              <Clock size={12} className={secondsLeft <= 60 ? "text-[#ef476f]" : "text-[#7ab5cc]"} />
               {secondsLeft > 0 ? (
-                <span className={secondsLeft <= 60 ? "text-red-400 font-medium" : "text-[#5c6c7a]"}>
+                <span className={secondsLeft <= 60 ? "text-[#ef476f] font-medium" : "text-[#7ab5cc]"}>
                   Expires in {fmtTime(secondsLeft)}
                 </span>
               ) : (
-                <span className="text-red-400 font-medium">Link expired</span>
+                <span className="text-[#ef476f] font-medium">Link expired</span>
               )}
             </div>
           </div>

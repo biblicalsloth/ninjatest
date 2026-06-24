@@ -165,6 +165,7 @@ export interface Database {
         Returns: {
           rank: number;
           username: string;
+          display_name: string | null;
           elo: number;
           wins: number;
           losses: number;

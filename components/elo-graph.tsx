@@ -38,40 +38,40 @@ export function EloGraph({ data }: Props) {
         <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <XAxis
             dataKey="match"
-            tick={{ fill: "#5c6c7a", fontSize: 11 }}
+            tick={{ fill: "#7ab5cc", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            label={{ value: "Match #", position: "insideBottom", offset: -2, fill: "#3d4f5b", fontSize: 10 }}
+            label={{ value: "Match #", position: "insideBottom", offset: -2, fill: "#4a8fa8", fontSize: 10 }}
           />
           <YAxis
             domain={[minElo - padding, maxElo + padding]}
-            tick={{ fill: "#5c6c7a", fontSize: 11 }}
+            tick={{ fill: "#7ab5cc", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#1c2d38",
-              border: "1px solid #3d4f5b",
+              backgroundColor: "#0a4f66",
+              border: "1px solid #2a7a9a",
               borderRadius: 8,
               color: "#ffffff",
               fontSize: 12,
             }}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          formatter={(value: any, name: any) => {
+            formatter={(value: any, name: any) => {
               if (name === "elo") return [`${value} ELO`, "Rating"];
               return [value > 0 ? `+${value}` : value, "Change"];
             }}
             labelFormatter={(label) => `Match ${label}`}
           />
-          <ReferenceLine y={1000} stroke="#3d4f5b" strokeDasharray="3 3" />
+          <ReferenceLine y={1000} stroke="#2a7a9a" strokeDasharray="3 3" />
           <Line
             type="monotone"
             dataKey="elo"
-            stroke="#00ed64"
+            stroke="#06d6a0"
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: "#00ed64", stroke: "#001e2b", strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: "#06d6a0", stroke: "#073b4c", strokeWidth: 2 }}
           />
         </LineChart>
       </ResponsiveContainer>

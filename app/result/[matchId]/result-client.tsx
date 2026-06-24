@@ -19,12 +19,11 @@ interface Props {
   myAnswers: MatchAnswer[];
 }
 
-// Questions 0-2 = VARC, 3-5 = DILR, 6-8 = QUANT (fixed by try_match/accept_challenge order)
 const Q_SECTION = ["VARC", "VARC", "VARC", "DILR", "DILR", "DILR", "QUANT", "QUANT", "QUANT"] as const;
 const SECTION_COLORS: Record<string, string> = {
-  VARC: "text-blue-400",
-  DILR: "text-purple-400",
-  QUANT: "text-[#00ed64]",
+  VARC: "text-[#118ab2]",
+  DILR: "text-[#ffd166]",
+  QUANT: "text-[#06d6a0]",
 };
 
 export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, myAnswers }: Props) {
@@ -46,6 +45,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   const myDelta = myEloAfter != null && myEloBefore != null ? myEloAfter - myEloBefore : null;
   const oppDelta = oppEloAfter != null && oppEloBefore != null ? oppEloAfter - oppEloBefore : null;
 
+  const isAbandoned = match.status === "abandoned";
   const iWon = match.winner_id === myProfile.id;
   const isDraw = match.winner_id === null && match.status === "completed";
 
@@ -54,7 +54,6 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
     return () => clearTimeout(timer);
   }, []);
 
-  // suppress unused router warning — keep for future nav
   void router;
 
   async function handleRematch() {
@@ -81,61 +80,67 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   }
 
   return (
-    <div className="min-h-screen bg-[#001e2b] flex flex-col items-center justify-start px-4 py-8">
+    <div className="min-h-screen bg-[#073b4c] flex flex-col items-center justify-start px-4 py-8">
       <div className="w-full max-w-md space-y-6">
 
         {/* Result banner */}
         <div className={cn(
           "rounded-2xl p-6 text-center border",
-          iWon ? "bg-[#00ed64]/10 border-[#00ed64]/30"
-            : isDraw ? "bg-[#5c6c7a]/10 border-[#5c6c7a]/30"
-            : "bg-red-500/10 border-red-500/30"
+          isAbandoned
+            ? "bg-[#7ab5cc]/10 border-[#7ab5cc]/30"
+            : iWon ? "bg-[#06d6a0]/10 border-[#06d6a0]/30"
+            : isDraw ? "bg-[#7ab5cc]/10 border-[#7ab5cc]/30"
+            : "bg-[#ef476f]/10 border-[#ef476f]/30"
         )}>
-          {iWon ? (
-            <><Trophy className="mx-auto mb-2 text-[#00ed64]" size={36} />
-              <h1 className="text-[#00ed64] text-3xl font-bold">Victory!</h1>
-              <p className="text-[#a8b3bc] text-sm mt-1">You won this match</p></>
+          {isAbandoned ? (
+            <><div className="text-4xl mb-2">🏃</div>
+              <h1 className="text-[#c5e8f0] text-3xl font-bold text-balance">{iWon ? "Won by forfeit" : "Match abandoned"}</h1>
+              <p className="text-[#7ab5cc] text-sm mt-1">Opponent disconnected</p></>
+          ) : iWon ? (
+            <><Trophy className="mx-auto mb-2 text-[#06d6a0]" size={36} />
+              <h1 className="text-[#06d6a0] text-3xl font-bold text-balance">Victory!</h1>
+              <p className="text-[#c5e8f0] text-sm mt-1">You won this match</p></>
           ) : isDraw ? (
             <><div className="text-4xl mb-2">🤝</div>
-              <h1 className="text-[#a8b3bc] text-3xl font-bold">Draw</h1>
-              <p className="text-[#5c6c7a] text-sm mt-1">Perfectly balanced</p></>
+              <h1 className="text-[#c5e8f0] text-3xl font-bold text-balance">Draw</h1>
+              <p className="text-[#7ab5cc] text-sm mt-1">Perfectly balanced</p></>
           ) : (
             <><div className="text-4xl mb-2">💀</div>
-              <h1 className="text-red-400 text-3xl font-bold">Defeat</h1>
-              <p className="text-[#a8b3bc] text-sm mt-1">Better luck next time</p></>
+              <h1 className="text-[#ef476f] text-3xl font-bold text-balance">Defeat</h1>
+              <p className="text-[#c5e8f0] text-sm mt-1">Better luck next time</p></>
           )}
         </div>
 
         {/* Score comparison */}
-        <div className="bg-[#1c2d38] rounded-xl p-5">
+        <div className="bg-[#0a4f66] rounded-xl p-5">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
                 <AvatarImage src={myProfile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-[#003d4f] text-[#00ed64] font-bold">
+                <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] font-bold">
                   {myProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <p className="text-white text-sm font-semibold truncate">{myProfile.display_name ?? myProfile.username}</p>
-              <p className="text-[#00ed64] text-2xl font-bold">{myScore}</p>
-              <p className="text-[#5c6c7a] text-xs">{myCorrect}/9 correct</p>
+              <p className="text-[#ffd166] text-2xl font-bold">{myScore}</p>
+              <p className="text-[#7ab5cc] text-xs">{myCorrect}/9 correct</p>
             </div>
             <div className="flex flex-col items-center justify-center gap-1">
-              <span className="text-[#3d4f5b] font-bold text-xl">vs</span>
-              <span className={match.is_rated ? "text-[#00ed64]/70 text-xs" : "text-[#5c6c7a] text-xs"}>
+              <span className="text-[#4a8fa8] font-bold text-xl">vs</span>
+              <span className={match.is_rated ? "text-[#06d6a0]/70 text-xs" : "text-[#7ab5cc] text-xs"}>
                 {match.is_rated ? "Rated" : "Unrated"}
               </span>
             </div>
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
                 <AvatarImage src={oppProfile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-[#003d4f] text-[#a8b3bc] font-bold">
+                <AvatarFallback className="bg-[#073b4c] text-[#c5e8f0] font-bold">
                   {oppProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <p className="text-white text-sm font-semibold truncate">{oppProfile.display_name ?? oppProfile.username}</p>
               <p className="text-white text-2xl font-bold">{oppScore}</p>
-              <p className="text-[#5c6c7a] text-xs">{oppCorrect}/9 correct</p>
+              <p className="text-[#7ab5cc] text-xs">{oppCorrect}/9 correct</p>
             </div>
           </div>
         </div>
@@ -143,10 +148,10 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
         {/* ELO changes */}
         {match.is_rated && (
           <div className={cn(
-            "bg-[#1c2d38] rounded-xl p-5 transition-all duration-500",
+            "bg-[#0a4f66] rounded-xl p-5 motion-safe:transition-[opacity,transform] motion-safe:duration-500",
             showElo ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           )}>
-            <h3 className="text-[#5c6c7a] text-xs font-medium uppercase tracking-wider mb-4">Rating change</h3>
+            <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Rating change</h3>
             <div className="grid grid-cols-2 gap-6">
               <EloChange username={myProfile.display_name ?? myProfile.username} before={myEloBefore} after={myEloAfter} delta={myDelta} />
               <EloChange username={oppProfile.display_name ?? oppProfile.username} before={oppEloBefore} after={oppEloAfter} delta={oppDelta} />
@@ -155,8 +160,8 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
         )}
 
         {/* Per-question breakdown by section */}
-        <div className="bg-[#1c2d38] rounded-xl p-5">
-          <h3 className="text-[#5c6c7a] text-xs font-medium uppercase tracking-wider mb-4">Your answers</h3>
+        <div className="bg-[#0a4f66] rounded-xl p-5">
+          <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Your answers</h3>
           {(["VARC", "DILR", "QUANT"] as const).map((sec) => {
             const indices = Q_SECTION.map((s, i) => (s === sec ? i : -1)).filter((i) => i >= 0);
             return (
@@ -182,23 +187,23 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
             <Button
               onClick={handleRematch}
               disabled={creatingRematch}
-              className="h-11 bg-[#00ed64] text-[#001e2b] font-semibold rounded-full hover:bg-[#00b545] flex items-center gap-1.5"
+              className="h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088] flex items-center gap-1.5"
             >
               <RotateCcw size={14} />
               {creatingRematch ? "…" : "Rematch"}
             </Button>
             <Link href="/lobby">
-              <Button variant="outline" className="w-full h-11 border-[#3d4f5b] text-white rounded-full hover:bg-[#1c2d38] flex items-center gap-1.5">
+              <Button variant="outline" className="w-full h-11 border-[#2a7a9a] text-white rounded-full hover:bg-[#0a4f66] flex items-center gap-1.5">
                 <Home size={14} />
                 Home
               </Button>
             </Link>
           </div>
         ) : (
-          <div className="bg-[#1c2d38] rounded-xl p-4 space-y-3">
-            <p className="text-[#a8b3bc] text-sm font-medium">Share this link with your opponent:</p>
+          <div className="bg-[#0a4f66] rounded-xl p-4 space-y-3">
+            <p className="text-[#c5e8f0] text-sm font-medium">Share this link with your opponent:</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-[#001e2b] text-[#00ed64] text-xs px-3 py-2 rounded-lg truncate">
+              <code className="flex-1 bg-[#073b4c] text-[#06d6a0] text-xs px-3 py-2 rounded-lg truncate">
                 {typeof window !== "undefined"
                   ? `${window.location.origin}/c/${rematchCode}`
                   : `/c/${rematchCode}`}
@@ -206,13 +211,13 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
               <Button
                 onClick={handleCopyLink}
                 size="sm"
-                className="shrink-0 bg-[#00ed64] text-[#001e2b] hover:bg-[#00b545] rounded-lg px-3"
+                className="shrink-0 bg-[#06d6a0] text-[#073b4c] hover:bg-[#05b088] rounded-lg px-3"
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
               </Button>
             </div>
             <Link href="/lobby">
-              <Button variant="ghost" className="w-full text-[#5c6c7a] hover:text-white text-sm">
+              <Button variant="ghost" className="w-full text-[#7ab5cc] hover:text-white text-sm">
                 Back to lobby
               </Button>
             </Link>
@@ -228,14 +233,14 @@ function EloChange({ username, before, after, delta }: {
 }) {
   return (
     <div className="text-center">
-      <p className="text-[#5c6c7a] text-xs truncate mb-1">{username}</p>
+      <p className="text-[#7ab5cc] text-xs truncate mb-1">{username}</p>
       <p className="text-white font-bold text-lg">{after ?? before ?? "—"}</p>
       {delta !== null && (
-        <p className={cn("text-sm font-semibold", delta > 0 ? "text-[#00ed64]" : delta < 0 ? "text-red-400" : "text-[#5c6c7a]")}>
+        <p className={cn("text-sm font-semibold elo-pop", delta > 0 ? "text-[#06d6a0]" : delta < 0 ? "text-[#ef476f]" : "text-[#7ab5cc]")}>
           {formatPoints(delta)}
         </p>
       )}
-      {before !== null && <p className="text-[#3d4f5b] text-xs">from {before}</p>}
+      {before !== null && <p className="text-[#4a8fa8] text-xs">from {before}</p>}
     </div>
   );
 }
@@ -244,19 +249,19 @@ function AnswerDot({ status, points, qNum }: {
   status: "correct" | "wrong" | "skipped" | "unanswered"; points: number; qNum: number;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 bg-[#001e2b] rounded-lg py-2">
-      <span className="text-[#3d4f5b] text-[9px]">Q{qNum}</span>
+    <div className="flex flex-col items-center gap-1 bg-[#073b4c] rounded-lg py-2">
+      <span className="text-[#4a8fa8] text-[9px]">Q{qNum}</span>
       <div className={cn(
         "w-6 h-6 rounded-full border flex items-center justify-center",
-        status === "correct" ? "bg-[#00ed64]/20 border-[#00ed64]/50"
-          : status === "wrong" ? "bg-red-500/20 border-red-500/50"
-          : "bg-[#1c2d38] border-[#3d4f5b]"
+        status === "correct" ? "bg-[#06d6a0]/20 border-[#06d6a0]/50"
+          : status === "wrong" ? "bg-[#ef476f]/20 border-[#ef476f]/50"
+          : "bg-[#0a4f66] border-[#2a7a9a]"
       )}>
-        {status === "correct" && <span className="text-[#00ed64] text-[9px]">✓</span>}
-        {status === "wrong" && <span className="text-red-400 text-[9px]">✗</span>}
+        {status === "correct" && <span className="text-[#06d6a0] text-[9px]">✓</span>}
+        {status === "wrong" && <span className="text-[#ef476f] text-[9px]">✗</span>}
       </div>
       <span className={cn("text-[9px] font-medium tabular-nums",
-        points > 0 ? "text-[#00ed64]" : points < 0 ? "text-red-400" : "text-[#3d4f5b]"
+        points > 0 ? "text-[#06d6a0]" : points < 0 ? "text-[#ef476f]" : "text-[#4a8fa8]"
       )}>
         {points > 0 ? `+${points}` : points || "—"}
       </span>

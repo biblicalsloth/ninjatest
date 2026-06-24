@@ -38,14 +38,17 @@ export async function updateSession(request: NextRequest) {
     url.pathname.startsWith("/leaderboard") ||
     url.pathname.startsWith("/profile");
 
-  if (!user && !isAuthRoute && !isPublicRoute) {
-    url.pathname = "/auth/login";
-    return NextResponse.redirect(url);
-  }
+  const devBypass = process.env.DEV_BYPASS === "true";
 
-  if (user && isAuthRoute) {
-    url.pathname = "/lobby";
-    return NextResponse.redirect(url);
+  if (!devBypass) {
+    if (!user && !isAuthRoute && !isPublicRoute) {
+      url.pathname = "/auth/login";
+      return NextResponse.redirect(url);
+    }
+    if (user && isAuthRoute) {
+      url.pathname = "/lobby";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

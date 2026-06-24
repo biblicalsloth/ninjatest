@@ -24,6 +24,18 @@ export default function SignupPage() {
     }
     setLoading(true);
     const supabase = createClient();
+
+    // Pre-check username availability before creating auth user
+    const { count } = await supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("username", username);
+    if (count && count > 0) {
+      toast.error("Username already taken. Choose another.");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,

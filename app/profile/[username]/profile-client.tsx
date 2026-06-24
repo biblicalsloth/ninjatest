@@ -31,21 +31,21 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
   const matches = recentMatches as RecentMatch[];
 
   return (
-    <div className="min-h-screen bg-[#001e2b] text-white">
-      <header className="border-b border-[#1c2d38] px-4 py-3">
+    <div className="min-h-screen bg-[#073b4c] text-white">
+      <header className="border-b border-[#1a6080] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/lobby" className="text-[#5c6c7a] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
+          <Link href="/lobby" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
             <ArrowLeft size={14} />
             Back
           </Link>
           <div className="flex items-center gap-3">
             {isOwnProfile && (
-              <Badge className="bg-[#00ed64]/10 text-[#00ed64] border-[#00ed64]/30 text-xs">
+              <Badge className="bg-[#06d6a0]/10 text-[#06d6a0] border-[#06d6a0]/30 text-xs">
                 Your profile
               </Badge>
             )}
             {isOwnProfile && (
-              <Link href="/settings" className="text-[#5c6c7a] hover:text-white transition-colors">
+              <Link href="/settings" className="text-[#7ab5cc] hover:text-white transition-colors">
                 <Settings size={16} />
               </Link>
             )}
@@ -58,7 +58,7 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
         <div className="flex items-center gap-4">
           <Avatar className="w-20 h-20">
             <AvatarImage src={profile.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-[#003d4f] text-[#00ed64] text-2xl font-bold">
+            <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-2xl font-bold">
               {profile.username.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -66,16 +66,16 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
             <h1 className="text-white text-xl font-bold truncate">
               {profile.display_name ?? profile.username}
             </h1>
-            <p className="text-[#5c6c7a] text-sm">@{profile.username}</p>
+            <p className="text-[#7ab5cc] text-sm">@{profile.username}</p>
             <div className="flex items-center gap-3 mt-2">
               <div>
-                <span className="text-[#00ed64] font-bold text-xl">{profile.elo}</span>
-                <span className="text-[#5c6c7a] text-xs ml-1">ELO</span>
+                <span className="text-[#ffd166] font-bold text-xl">{profile.elo}</span>
+                <span className="text-[#7ab5cc] text-xs ml-1">ELO</span>
               </div>
-              <div className="w-px h-4 bg-[#3d4f5b]" />
+              <div className="w-px h-4 bg-[#2a7a9a]" />
               <div>
                 <span className="text-white font-semibold">{profile.peak_elo}</span>
-                <span className="text-[#5c6c7a] text-xs ml-1">Peak</span>
+                <span className="text-[#7ab5cc] text-xs ml-1">Peak</span>
               </div>
             </div>
           </div>
@@ -91,31 +91,31 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
 
         {/* ELO graph */}
         {curve.length > 1 ? (
-          <div className="bg-[#1c2d38] rounded-xl p-5">
-            <h2 className="text-[#a8b3bc] text-sm font-medium mb-4 flex items-center gap-1.5">
+          <div className="bg-[#0a4f66] rounded-xl p-5">
+            <h2 className="text-[#7ab5cc] text-sm font-medium mb-4 flex items-center gap-1.5">
               <Trophy size={14} />
               Rating history
             </h2>
             <EloGraph data={curve} />
           </div>
         ) : (
-          <div className="bg-[#1c2d38] rounded-xl p-8 text-center">
-            <p className="text-[#5c6c7a] text-sm">Play rated matches to see your ELO graph.</p>
+          <div className="bg-[#0a4f66] rounded-xl p-8 text-center">
+            <p className="text-[#4a8fa8] text-sm">Play rated matches to see your ELO graph.</p>
           </div>
         )}
 
         {/* Recent rating changes */}
         {curve.length > 0 && (
-          <div className="bg-[#1c2d38] rounded-xl p-5">
-            <h2 className="text-[#a8b3bc] text-sm font-medium mb-3">Recent rating changes</h2>
+          <div className="bg-[#0a4f66] rounded-xl p-5">
+            <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent rating changes</h2>
             <div className="space-y-2">
               {[...curve].reverse().slice(0, 8).map((c: { elo: number; at: string; delta: number }, i: number) => (
-                <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#001e2b] last:border-0">
+                <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#073b4c] last:border-0">
                   <div>
                     <span className="text-white text-sm font-medium">{c.elo}</span>
-                    <span className="text-[#5c6c7a] text-xs ml-2">{new Date(c.at).toLocaleDateString()}</span>
+                    <span className="text-[#7ab5cc] text-xs ml-2">{new Date(c.at).toLocaleDateString()}</span>
                   </div>
-                  <span className={cn("text-sm font-semibold", c.delta >= 0 ? "text-[#00ed64]" : "text-red-400")}>
+                  <span className={cn("text-sm font-semibold", c.delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]")}>
                     {formatPoints(c.delta)}
                   </span>
                 </div>
@@ -124,35 +124,45 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
           </div>
         )}
 
-        {/* Match history (own profile only) */}
-        {isOwnProfile && matches.length > 0 && (
-          <div className="bg-[#1c2d38] rounded-xl p-5">
-            <h2 className="text-[#a8b3bc] text-sm font-medium mb-3">Recent matches</h2>
+        {/* Match history */}
+        {matches.length > 0 && (
+          <div className="bg-[#0a4f66] rounded-xl p-5">
+            <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent matches</h2>
             <div className="space-y-2">
-              {matches.map((m) => (
-                <Link key={m.match_id} href={`/result/${m.match_id}`}>
-                  <div className="flex items-center gap-3 py-2 border-b border-[#001e2b] last:border-0 hover:opacity-80 transition-opacity cursor-pointer">
+              {matches.map((m) => {
+                const inner = (
+                  <div className={cn(
+                    "flex items-center gap-3 py-2 border-b border-[#073b4c] last:border-0 transition-opacity",
+                    isOwnProfile && "hover:opacity-80 cursor-pointer"
+                  )}>
                     <Avatar className="w-8 h-8 shrink-0">
                       <AvatarImage src={m.opponent_avatar ?? undefined} />
-                      <AvatarFallback className="bg-[#003d4f] text-[#00ed64] text-xs font-bold">
+                      <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xs font-bold">
                         {m.opponent.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm font-medium truncate">{m.opponent}</p>
-                      <p className="text-[#5c6c7a] text-xs">
+                      <p className="text-[#7ab5cc] text-xs">
                         {m.my_score} — {m.opp_score} · {new Date(m.played_at).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
                       <ResultBadge result={m.result} />
-                      <p className={cn("text-xs font-medium mt-0.5", m.elo_delta >= 0 ? "text-[#00ed64]" : "text-red-400")}>
-                        {formatPoints(m.elo_delta)}
-                      </p>
+                      {m.elo_delta !== 0 && (
+                        <p className={cn("text-xs font-medium mt-0.5", m.elo_delta > 0 ? "text-[#06d6a0]" : "text-[#ef476f]")}>
+                          {formatPoints(m.elo_delta)}
+                        </p>
+                      )}
                     </div>
                   </div>
-                </Link>
-              ))}
+                );
+                return isOwnProfile ? (
+                  <Link key={m.match_id} href={`/result/${m.match_id}`}>{inner}</Link>
+                ) : (
+                  <div key={m.match_id}>{inner}</div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -163,15 +173,15 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
 
 function StatBox({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="bg-[#1c2d38] rounded-xl p-3 text-center">
-      <div className={cn("font-bold text-lg", accent ? "text-[#00ed64]" : "text-white")}>{value}</div>
-      <div className="text-[#5c6c7a] text-xs">{label}</div>
+    <div className="bg-[#0a4f66] rounded-xl p-3 text-center">
+      <div className={cn("font-bold text-lg", accent ? "text-[#06d6a0]" : "text-white")}>{value}</div>
+      <div className="text-[#7ab5cc] text-xs">{label}</div>
     </div>
   );
 }
 
 function ResultBadge({ result }: { result: "win" | "loss" | "draw" }) {
-  if (result === "win") return <span className="text-xs font-bold text-[#00ed64]">W</span>;
-  if (result === "loss") return <span className="text-xs font-bold text-red-400">L</span>;
-  return <span className="text-xs font-bold text-[#a8b3bc]">D</span>;
+  if (result === "win") return <span className="text-xs font-bold text-[#06d6a0]">W</span>;
+  if (result === "loss") return <span className="text-xs font-bold text-[#ef476f]">L</span>;
+  return <span className="text-xs font-bold text-[#7ab5cc]">D</span>;
 }

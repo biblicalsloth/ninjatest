@@ -18,9 +18,9 @@ export function formatMs(ms: number): string {
 
 export function getSectionBadgeClass(section: CatSection): string {
   switch (section) {
-    case "VARC": return "bg-blue-500/20 text-blue-300 border border-blue-500/30";
-    case "DILR": return "bg-orange-500/20 text-orange-300 border border-orange-500/30";
-    case "QUANT": return "bg-[#00ed64]/20 text-[#00ed64] border border-[#00ed64]/30";
+    case "VARC": return "bg-[#118ab2]/20 text-[#c5e8f0] border border-[#118ab2]/40";
+    case "DILR": return "bg-[#ffd166]/20 text-[#ffd166] border border-[#ffd166]/40";
+    case "QUANT": return "bg-[#06d6a0]/20 text-[#06d6a0] border border-[#06d6a0]/30";
     default: return "";
   }
 }
