@@ -109,14 +109,14 @@ export default function QueuePage() {
 
   if (verifying) {
     return (
-      <div className="min-h-screen bg-[#073b4c] flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <p className="text-[#7ab5cc] text-sm">Joining queue…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#073b4c] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-4">
       {/* Animated search indicator */}
       <div className="relative mb-8">
         <div className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/20 motion-safe:animate-ping" style={{ transform: "scale(1.5)" }} />
@@ -146,12 +146,12 @@ export default function QueuePage() {
           <div className="text-[#ffd166] font-bold text-lg">{currentBand}</div>
           <div className="text-[#7ab5cc] text-xs">ELO band</div>
         </div>
-        <div className="w-px bg-[#1a6080]" />
+        <div className="w-px bg-[#222222]" />
         <div>
           <div className="text-white font-bold text-lg">{formatTime(elapsed)}</div>
           <div className="text-[#7ab5cc] text-xs">Searching</div>
         </div>
-        <div className="w-px bg-[#1a6080]" />
+        <div className="w-px bg-[#222222]" />
         <div>
           <div className="text-[#c5e8f0] font-bold text-lg">9 Qs</div>
           <div className="text-[#7ab5cc] text-xs">Match length</div>

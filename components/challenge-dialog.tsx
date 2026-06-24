@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Check, Clock } from "lucide-react";
+import { Copy, Check, Clock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   open: boolean;
@@ -27,6 +28,9 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   void router;
@@ -71,10 +75,31 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
     toast.success("Link copied!");
   }
 
+  async function handleSendEmail() {
+    if (!code || !inviteEmail) return;
+    setSendingEmail(true);
+    try {
+      const res = await fetch("/api/email/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: inviteEmail, code, is_rated: isRated }),
+      });
+      if (!res.ok) throw new Error();
+      setEmailSent(true);
+      toast.success("Invite sent!");
+    } catch {
+      toast.error("Failed to send email");
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
   function handleClose() {
     setCode(null);
     setIsRated(true);
     setSecondsLeft(0);
+    setInviteEmail("");
+    setEmailSent(false);
     if (timerRef.current) clearInterval(timerRef.current);
     onOpenChange(false);
   }
@@ -87,7 +112,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-[#0a4f66] border-[#2a7a9a] text-white max-w-sm">
+      <DialogContent className="bg-[#111111] border-[#333333] text-white max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-white">Challenge a Friend</DialogTitle>
           <DialogDescription className="text-[#7ab5cc]">
@@ -106,7 +131,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
                   className={`rounded-lg px-4 py-3 text-sm font-medium border transition-colors ${
                     isRated
                       ? "bg-[#06d6a0]/10 border-[#06d6a0]/50 text-[#06d6a0]"
-                      : "bg-[#073b4c] border-[#2a7a9a] text-[#7ab5cc] hover:border-[#4a8fa8]"
+                      : "bg-black border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
                   }`}
                 >
                   <div className="font-semibold">Rated</div>
@@ -117,7 +142,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
                   className={`rounded-lg px-4 py-3 text-sm font-medium border transition-colors ${
                     !isRated
                       ? "bg-[#c5e8f0]/10 border-[#c5e8f0]/50 text-[#c5e8f0]"
-                      : "bg-[#073b4c] border-[#2a7a9a] text-[#7ab5cc] hover:border-[#4a8fa8]"
+                      : "bg-black border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
                   }`}
                 >
                   <div className="font-semibold">Unrated</div>
@@ -136,7 +161,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
           </div>
         ) : (
           <div className="space-y-4 pt-2">
-            <div className="bg-[#073b4c] rounded-lg p-4 text-center">
+            <div className="bg-black rounded-lg p-4 text-center">
               <p className="text-[#7ab5cc] text-xs mb-1">Challenge code</p>
               <p className="text-[#06d6a0] font-mono text-2xl font-bold tracking-widest uppercase">
                 {code}
@@ -146,11 +171,34 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
 
             <Button
               onClick={handleCopy}
-              className="w-full h-11 bg-[#0a4f66] border border-[#2a7a9a] text-white font-semibold rounded-full hover:bg-[#1a6b8a] transition-colors flex items-center gap-2"
+              className="w-full h-11 bg-[#111111] border border-[#333333] text-white font-semibold rounded-full hover:bg-[#1c1c1c] transition-colors flex items-center gap-2"
             >
               {copied ? <Check size={16} className="text-[#06d6a0]" /> : <Copy size={16} />}
               {copied ? "Copied!" : "Copy invite link"}
             </Button>
+
+            {/* Email invite */}
+            <div className="space-y-2">
+              <Label className="text-[#7ab5cc] text-xs">Or invite by email</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="friend@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => { setInviteEmail(e.target.value); setEmailSent(false); }}
+                  className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] h-9 text-sm flex-1"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSendEmail}
+                  disabled={sendingEmail || !inviteEmail || emailSent}
+                  className="h-9 px-3 bg-[#06d6a0]/10 border border-[#06d6a0]/30 text-[#06d6a0] hover:bg-[#06d6a0]/20 shrink-0"
+                >
+                  {emailSent ? <Check size={14} /> : <Mail size={14} />}
+                </Button>
+              </div>
+              {emailSent && <p className="text-[#06d6a0] text-xs">Invite sent to {inviteEmail}</p>}
+            </div>
 
             <div className="flex items-center justify-center gap-1.5 text-xs">
               <Clock size={12} className={secondsLeft <= 60 ? "text-[#ef476f]" : "text-[#7ab5cc]"} />

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, RotateCcw, Home, Copy, Check } from "lucide-react";
+import { Trophy, RotateCcw, Home, Copy, Check, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -32,6 +32,8 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   const [rematchCode, setRematchCode] = useState<string | null>(null);
   const [creatingRematch, setCreatingRematch] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const myScore = isPlayerA ? match.score_a : match.score_b;
   const oppScore = isPlayerA ? match.score_b : match.score_a;
@@ -55,6 +57,23 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   }, []);
 
   void router;
+
+  async function handleEmailResult() {
+    setSendingEmail(true);
+    try {
+      const res = await fetch("/api/email/result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ match_id: match.id }),
+      });
+      if (!res.ok) throw new Error();
+      setEmailSent(true);
+    } catch {
+      toast.error("Failed to send email");
+    } finally {
+      setSendingEmail(false);
+    }
+  }
 
   async function handleRematch() {
     setCreatingRematch(true);
@@ -80,7 +99,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   }
 
   return (
-    <div className="min-h-screen bg-[#073b4c] flex flex-col items-center justify-start px-4 py-8">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-start px-4 py-8">
       <div className="w-full max-w-md space-y-6">
 
         {/* Result banner */}
@@ -112,12 +131,12 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
         </div>
 
         {/* Score comparison */}
-        <div className="bg-[#0a4f66] rounded-xl p-5">
+        <div className="bg-[#111111] rounded-xl p-5">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
                 <AvatarImage src={myProfile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] font-bold">
+                <AvatarFallback className="bg-black text-[#06d6a0] font-bold">
                   {myProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -134,7 +153,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
                 <AvatarImage src={oppProfile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-[#073b4c] text-[#c5e8f0] font-bold">
+                <AvatarFallback className="bg-black text-[#c5e8f0] font-bold">
                   {oppProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -148,7 +167,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
         {/* ELO changes */}
         {match.is_rated && (
           <div className={cn(
-            "bg-[#0a4f66] rounded-xl p-5 motion-safe:transition-[opacity,transform] motion-safe:duration-500",
+            "bg-[#111111] rounded-xl p-5 motion-safe:transition-[opacity,transform] motion-safe:duration-500",
             showElo ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           )}>
             <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Rating change</h3>
@@ -160,7 +179,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
         )}
 
         {/* Per-question breakdown by section */}
-        <div className="bg-[#0a4f66] rounded-xl p-5">
+        <div className="bg-[#111111] rounded-xl p-5">
           <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Your answers</h3>
           {(["VARC", "DILR", "QUANT"] as const).map((sec) => {
             const indices = Q_SECTION.map((s, i) => (s === sec ? i : -1)).filter((i) => i >= 0);
@@ -181,6 +200,16 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
           })}
         </div>
 
+        {/* Email results */}
+        <button
+          onClick={handleEmailResult}
+          disabled={sendingEmail || emailSent}
+          className="w-full flex items-center justify-center gap-2 text-[#7ab5cc] hover:text-white text-sm py-2 transition-colors disabled:opacity-50"
+        >
+          {emailSent ? <Check size={14} className="text-[#06d6a0]" /> : <Mail size={14} />}
+          {emailSent ? "Result emailed!" : sendingEmail ? "Sending…" : "Email me these results"}
+        </button>
+
         {/* Rematch */}
         {!rematchCode ? (
           <div className="grid grid-cols-2 gap-3">
@@ -193,17 +222,17 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
               {creatingRematch ? "…" : "Rematch"}
             </Button>
             <Link href="/lobby">
-              <Button variant="outline" className="w-full h-11 border-[#2a7a9a] text-white rounded-full hover:bg-[#0a4f66] flex items-center gap-1.5">
+              <Button variant="outline" className="w-full h-11 border-[#333333] text-white rounded-full hover:bg-[#111111] flex items-center gap-1.5">
                 <Home size={14} />
                 Home
               </Button>
             </Link>
           </div>
         ) : (
-          <div className="bg-[#0a4f66] rounded-xl p-4 space-y-3">
+          <div className="bg-[#111111] rounded-xl p-4 space-y-3">
             <p className="text-[#c5e8f0] text-sm font-medium">Share this link with your opponent:</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-[#073b4c] text-[#06d6a0] text-xs px-3 py-2 rounded-lg truncate">
+              <code className="flex-1 bg-black text-[#06d6a0] text-xs px-3 py-2 rounded-lg truncate">
                 {typeof window !== "undefined"
                   ? `${window.location.origin}/c/${rematchCode}`
                   : `/c/${rematchCode}`}
@@ -249,13 +278,13 @@ function AnswerDot({ status, points, qNum }: {
   status: "correct" | "wrong" | "skipped" | "unanswered"; points: number; qNum: number;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 bg-[#073b4c] rounded-lg py-2">
+    <div className="flex flex-col items-center gap-1 bg-black rounded-lg py-2">
       <span className="text-[#4a8fa8] text-[9px]">Q{qNum}</span>
       <div className={cn(
         "w-6 h-6 rounded-full border flex items-center justify-center",
         status === "correct" ? "bg-[#06d6a0]/20 border-[#06d6a0]/50"
           : status === "wrong" ? "bg-[#ef476f]/20 border-[#ef476f]/50"
-          : "bg-[#0a4f66] border-[#2a7a9a]"
+          : "bg-[#111111] border-[#333333]"
       )}>
         {status === "correct" && <span className="text-[#06d6a0] text-[9px]">✓</span>}
         {status === "wrong" && <span className="text-[#ef476f] text-[9px]">✗</span>}
