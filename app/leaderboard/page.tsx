@@ -25,6 +25,7 @@ export default async function LeaderboardPage() {
     elo: number;
     wins: number;
     losses: number;
+    draws: number;
     avatar_url: string | null;
   }[];
 
@@ -55,7 +56,7 @@ export default async function LeaderboardPage() {
         <div className="space-y-1">
           {entries.map((entry) => {
             const isMe = myProfile?.username === entry.username;
-            const winRate = getWinRate(entry.wins, entry.wins + entry.losses);
+            const winRate = getWinRate(entry.wins, entry.wins + entry.losses + entry.draws);
             return (
               <Link key={entry.username} href={`/profile/${entry.username}`}>
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-[#111111] ${

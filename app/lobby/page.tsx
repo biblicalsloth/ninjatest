@@ -1,13 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DEV_BYPASS, DEV_PROFILE } from "@/lib/dev-user";
 import LobbyClient from "./lobby-client";
 
 export default async function LobbyPage() {
-  if (DEV_BYPASS) {
-    return <LobbyClient profile={DEV_PROFILE} recentMatches={[]} />;
-  }
-
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");

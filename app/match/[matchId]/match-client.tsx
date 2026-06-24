@@ -47,6 +47,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const [revealData, setRevealData] = useState<RevealData | null>(null);
   const [revealCountdown, setRevealCountdown] = useState(3);
   const pendingAdvanceRef = useRef<{ newIndex: number; matchState: Match } | null>(null);
+  const matchStartedRef = useRef(match.status !== "pending");
 
   const myScore = isPlayerA ? currentMatch.score_a : currentMatch.score_b;
   const oppScore = isPlayerA ? currentMatch.score_b : currentMatch.score_a;
@@ -96,16 +97,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     await fetchQuestion(m.current_index);
   }, [match.id, supabase, router, fetchQuestion]);
 
-  /* Start match if pending, then load Q0 */
+  /* Load Q0 if match already active (pending waits for presence to fire start_match) */
   useEffect(() => {
-    async function init() {
-      if (currentMatch.status === "pending") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).rpc("start_match", { p_match_id: currentMatch.id });
-      }
-      await fetchQuestion(currentMatch.current_index);
+    if (match.status !== "pending") {
+      fetchQuestion(match.current_index);
     }
-    init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -227,8 +223,20 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{ user_id: string }>();
         const oppOnline = Object.values(state).flat().some((p) => p.user_id === oppId);
-        if (oppOnline) clearForfeit();
-        else if (!forfeitTimerRef.current) scheduleForfeit();
+        if (oppOnline) {
+          clearForfeit();
+          // Both present: start match if still pending (idempotent on server)
+          if (!matchStartedRef.current) {
+            matchStartedRef.current = true;
+            void (async () => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (supabase as any).rpc("start_match", { p_match_id: match.id });
+              await fetchQuestion(currentMatchRef.current.current_index);
+            })();
+          }
+        } else if (!forfeitTimerRef.current) {
+          scheduleForfeit();
+        }
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
