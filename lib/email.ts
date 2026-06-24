@@ -1,6 +1,8 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 const FROM = "Ninjatest <battles@ninjatest.vercel.app>";
 
@@ -18,7 +20,7 @@ export async function sendChallengeInvite({
   origin: string;
 }) {
   const link = `${origin}/c/${code}`;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${fromUsername} challenged you to a CAT battle`,
@@ -92,7 +94,7 @@ export async function sendMatchResult({
     ? `<p style="color:${eloDelta >= 0 ? "#06d6a0" : "#ef476f"};font-size:18px;font-weight:700;margin:8px 0 0;">${eloDelta >= 0 ? "+" : ""}${eloDelta} ELO</p>`
     : "";
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `Match result: ${resultLabel} vs ${opponent}`,
