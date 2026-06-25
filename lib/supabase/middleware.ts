@@ -2,7 +2,25 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/supabase/types";
 
+const WAITLIST_ALLOWED = ["/", "/api/waitlist"];
+
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Waitlist mode: block all app routes
+  if (process.env.NEXT_PUBLIC_APP_MODE === "waitlist") {
+    const allowed = WAITLIST_ALLOWED.some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+    if (!allowed) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next({ request });
+  }
+
+  // Live mode: full auth middleware
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
@@ -26,29 +44,23 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
   const isPublicRoute =
-    url.pathname === "/" ||
-    url.pathname.startsWith("/auth") ||
-    url.pathname.startsWith("/c/") ||
-    url.pathname.startsWith("/leaderboard") ||
-    url.pathname.startsWith("/profile");
+    pathname === "/" ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/c/") ||
+    pathname.startsWith("/leaderboard") ||
+    pathname.startsWith("/profile");
 
-  const devBypass = process.env.DEV_BYPASS === "true";
-
-  if (!devBypass) {
-    if (!user && !isPublicRoute) {
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-    if (user && url.pathname.startsWith("/auth")) {
-      url.pathname = "/lobby";
-      return NextResponse.redirect(url);
-    }
+  if (!user && !isPublicRoute) {
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+  if (user && pathname.startsWith("/auth")) {
+    url.pathname = "/lobby";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
