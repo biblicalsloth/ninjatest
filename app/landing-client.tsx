@@ -14,10 +14,10 @@ const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false }
 const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
 
 /* ── Airport-board flip word ── */
-const EXAMS = ["CAT", "XAT", "GMAT", "SSC", "Bank", "IT"];
+const EXAMS = ["CAT", "XAT", "GMAT", "SSC", "Bank", "JEE", "NEET"];
 function FlipTile({ word }: { word: string }) {
   return (
-    <span style={{ display: "inline-block", color: "#06d6a0", animation: "examFlip 0.28s ease-out" }}>
+    <span style={{ display: "inline-block", color: "#06d6a0", animation: "examFlip 0.18s ease-out" }}>
       {word}
     </span>
   );
@@ -25,7 +25,7 @@ function FlipTile({ word }: { word: string }) {
 function FlipWord() {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setIdx(i => (i + 1) % EXAMS.length), 1900);
+    const id = setInterval(() => setIdx(i => (i + 1) % EXAMS.length), 1100);
     return () => clearInterval(id);
   }, []);
   return <FlipTile key={idx} word={EXAMS[idx]} />;
