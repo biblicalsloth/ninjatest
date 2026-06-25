@@ -209,3 +209,7 @@
   .animate-marquee { animation: none; }
   .pulse-dot { animation: none; opacity: 0.5; }
 }
+
+/* Hide scrollbar visually while keeping scroll */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
