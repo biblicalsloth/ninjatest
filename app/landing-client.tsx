@@ -17,7 +17,7 @@ const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
 const EXAMS = ["CAT", "XAT", "GMAT", "SSC", "Bank", "JEE", "NEET"];
 function FlipTile({ word }: { word: string }) {
   return (
-    <span style={{ display: "inline-block", color: "#06d6a0", animation: "examFlip 0.18s ease-out" }}>
+    <span style={{ display: "inline-block", color: "#06d6a0", animation: "examFlip 0.32s cubic-bezier(0.22,1,0.36,1)" }}>
       {word}
     </span>
   );
