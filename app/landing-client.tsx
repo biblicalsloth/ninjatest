@@ -13,6 +13,24 @@ const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false }
 
 const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
 
+/* ── Airport-board flip word ── */
+const EXAMS = ["CAT", "XAT", "GMAT", "SSC", "Bank", "IT"];
+function FlipTile({ word }: { word: string }) {
+  return (
+    <span style={{ display: "inline-block", color: "#06d6a0", animation: "examFlip 0.28s ease-out" }}>
+      {word}
+    </span>
+  );
+}
+function FlipWord() {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIdx(i => (i + 1) % EXAMS.length), 1900);
+    return () => clearInterval(id);
+  }, []);
+  return <FlipTile key={idx} word={EXAMS[idx]} />;
+}
+
 /* ── Survey questions ── */
 type Answer = { name: string; email: string; phone: string; year: string; percentile: string; section: string };
 const QUESTIONS = [
@@ -202,7 +220,7 @@ export default function LandingClient() {
           <section className="overflow-hidden">
             <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-16 pb-16">
               <h1 className="text-[clamp(3.2rem,6.5vw,6rem)] font-black leading-[0.88] tracking-[-0.03em] text-balance">
-                your CAT<br />prep era<br />
+                your <FlipWord /><br />prep era<br />
                 <span className="text-[#06d6a0]">starts now.</span>
               </h1>
               <p className="mt-8 text-white/50 text-lg font-light max-w-[42ch] leading-relaxed">
