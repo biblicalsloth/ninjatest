@@ -220,8 +220,8 @@ export default function LandingClient() {
           <section className="overflow-hidden">
             <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-16 pb-16">
               <h1 className="text-[clamp(3.2rem,6.5vw,6rem)] font-black leading-[0.88] tracking-[-0.03em] text-balance">
-                Make <FlipWord /> prep<br />a sport.<br />
-                <span className="text-[#06d6a0]">Own the ladder.</span>
+                <FlipWord /> prep just got<br />
+                <span className="text-[#06d6a0]">1-v-1 ranked mode.</span>
               </h1>
               <p className="mt-8 text-white/50 text-lg font-light max-w-[42ch] leading-relaxed">
                 1v1 battles. real rankings. the grind hits different when someone&apos;s watching.
