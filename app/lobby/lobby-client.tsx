@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
 import type { Profile } from "@/lib/supabase/types";
 import { formatPoints, getWinRate } from "@/lib/utils";
+import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
 interface RecentMatch {
   match_id: string;
@@ -34,6 +35,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
   const router = useRouter();
   const [joining, setJoining] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
+  const onlineCount = useOnlineCount(profile.id);
 
   async function handleFindMatch() {
     setJoining(true);
@@ -68,6 +70,12 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             <span className="font-semibold text-white tracking-tight">Ninjatest</span>
           </div>
           <div className="flex items-center gap-3">
+            {onlineCount !== null && (
+              <div className="flex items-center gap-1.5 bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#06d6a0] animate-pulse" />
+                <span className="text-[#06d6a0] text-xs font-medium">{onlineCount} online</span>
+              </div>
+            )}
             <Link href={`/profile/${profile.username}`}>
               <Avatar className="w-8 h-8 cursor-pointer">
                 <AvatarImage src={profile.avatar_url ?? undefined} />

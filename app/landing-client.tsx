@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { NinjaLogo } from "@/components/ninja-logo";
 import dynamic from "next/dynamic";
+import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
 
@@ -21,6 +22,30 @@ export default function LandingClient() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const c = container;
+    let rafId: number;
+    function update() {
+      const els = c.querySelectorAll<HTMLElement>("[data-parallax]");
+      const vh = window.innerHeight;
+      els.forEach(el => {
+        const speed = parseFloat(el.dataset.parallax ?? "0.06");
+        const rect = el.getBoundingClientRect();
+        el.style.transform = `translateY(${(rect.top + rect.height / 2 - vh / 2) * speed}px)`;
+      });
+    }
+    function onScroll() {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(update);
+    }
+    c.addEventListener("scroll", onScroll, { passive: true });
+    update();
+    return () => { c.removeEventListener("scroll", onScroll); cancelAnimationFrame(rafId); };
+  }, []);
 
   function handlePlay() {
     setPhase("expanding");
@@ -60,6 +85,7 @@ export default function LandingClient() {
 
   const isIdle = phase === "idle";
   const isAuth = phase === "auth";
+  const onlineCount = useOnlineCount(); // no userId — subscribe-only, no tracking
 
   return (
     <div className="flex h-screen bg-[#120F17] overflow-hidden" style={{ width: "100vw" }}>
@@ -87,7 +113,7 @@ export default function LandingClient() {
         </div>
 
         {/* Scrollable content */}
-        <div className="relative h-full overflow-y-auto overflow-x-hidden" style={{ zIndex: 1 }}>
+        <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden no-scrollbar" style={{ zIndex: 1 }}>
 
           {/* Nav */}
           <nav className="px-10 pt-8 flex items-center justify-between sticky top-0 bg-[#120F17]/60 backdrop-blur-sm z-10 py-5">
@@ -98,9 +124,14 @@ export default function LandingClient() {
               <span className="font-semibold tracking-tight">Ninjatest</span>
             </div>
             <div className="flex items-center gap-7">
-              <a href="#elo" className="text-white/45 hover:text-white text-sm transition-colors">ELO</a>
-              <a href="#challenge" className="text-white/45 hover:text-white text-sm transition-colors">Challenge</a>
+              <a href="#how-it-works" className="text-white/45 hover:text-white text-sm transition-colors">How it works</a>
               <Link href="/leaderboard" className="text-white/45 hover:text-white text-sm transition-colors">Leaderboard</Link>
+              {onlineCount !== null && onlineCount > 0 && (
+                <div className="flex items-center gap-1.5 bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#06d6a0] animate-pulse" />
+                  <span className="text-[#06d6a0] text-xs font-medium">{onlineCount} online</span>
+                </div>
+              )}
               <button
                 onClick={handlePlay}
                 className="text-[#06d6a0] hover:text-white text-sm font-semibold transition-colors"
@@ -111,30 +142,38 @@ export default function LandingClient() {
           </nav>
 
           {/* ── Hero ── */}
-          <section className="px-10 pt-16 pb-16">
-            <h1 className="text-[clamp(3.2rem,6.5vw,6rem)] font-black leading-[0.88] tracking-[-0.03em] text-balance">
-              your CAT<br />prep era<br />
-              <span className="text-[#06d6a0]">starts now.</span>
-            </h1>
-            <p className="mt-8 text-white/50 text-lg font-light max-w-[42ch] leading-relaxed">
-              1v1 battles. real rankings. the grind hits different when someone&apos;s watching.
-            </p>
-            <div className="mt-10 flex items-center gap-5">
-              <button
-                onClick={handlePlay}
-                className="inline-flex items-center gap-2 text-[#06d6a0] font-semibold text-sm border border-[#06d6a0]/30 rounded-full px-5 py-2.5 hover:bg-[#06d6a0]/10 transition-colors"
-              >
-                enter the arena →
-              </button>
-              <span className="text-white/20 text-xs font-mono">9 questions · 3 sections · elo rated</span>
+          <section className="overflow-hidden">
+            <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-16 pb-16">
+              <h1 className="text-[clamp(3.2rem,6.5vw,6rem)] font-black leading-[0.88] tracking-[-0.03em] text-balance">
+                your CAT<br />prep era<br />
+                <span className="text-[#06d6a0]">starts now.</span>
+              </h1>
+              <p className="mt-8 text-white/50 text-lg font-light max-w-[42ch] leading-relaxed">
+                1v1 battles. real rankings. the grind hits different when someone&apos;s watching.
+              </p>
+              <div className="mt-10 flex items-center gap-5">
+                <button
+                  onClick={handlePlay}
+                  className="inline-flex items-center gap-2 text-[#06d6a0] font-semibold text-sm border border-[#06d6a0]/30 rounded-full px-5 py-2.5 hover:bg-[#06d6a0]/10 transition-colors"
+                >
+                  enter the arena →
+                </button>
+                <span className="text-white/20 text-xs font-mono">9 questions · 3 sections · elo rated</span>
+              </div>
+              {onlineCount !== null && onlineCount > 0 && (
+                <div className="mt-5 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#06d6a0] animate-pulse" />
+                  <span className="text-white/40 text-sm font-mono">
+                    <span className="text-[#06d6a0] font-bold">{onlineCount}</span> ninja{onlineCount !== 1 ? "s" : ""} in the arena right now
+                  </span>
+                </div>
+              )}
             </div>
           </section>
 
           {/* ── ELO section ── text left, ring right */}
-          <section
-            id="elo"
-            className="flex items-center gap-8 px-10 py-20 min-h-[60vh] border-t border-[#9f84bd]/10"
-          >
+          <section id="elo" className="overflow-hidden min-h-[60vh] border-t border-[#9f84bd]/10">
+          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pr-4">
               <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
                 your elo<br />don&apos;t lie.
@@ -144,17 +183,18 @@ export default function LandingClient() {
                 vibes-based ranking. just math.
               </p>
               <p className="text-white/30 text-sm leading-relaxed max-w-[40ch]">
-                score margin matters — a close loss costs less than a blowout. K-factor scales
-                with your match count. peak ELO tracked forever.
+                squeaked by? barely lose elo. got destroyed? that&apos;s gonna sting. the gap between you two decides everything.
               </p>
             </div>
             <div className="shrink-0 flex items-center justify-center w-[220px]">
               <EloRing />
             </div>
+          </div>
           </section>
 
           {/* ── Matchmaking section ── anim left, text right */}
-          <section className="flex flex-row-reverse items-center gap-8 px-10 py-20 min-h-[55vh] border-t border-[#9f84bd]/10">
+          <section id="how-it-works" className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
+          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex flex-row-reverse items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pl-4">
               <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
                 matched<br />in seconds.
@@ -178,10 +218,12 @@ export default function LandingClient() {
             <div className="shrink-0 w-[230px] flex items-center justify-center">
               <MatchAnimation />
             </div>
+          </div>
           </section>
 
           {/* ── Speed section ── text left, timer right */}
-          <section className="flex items-center gap-8 px-10 py-20 min-h-[55vh] border-t border-[#9f84bd]/10">
+          <section className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
+          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pr-4">
               <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
                 fast fingers<br />bag more<br />points.
@@ -190,20 +232,19 @@ export default function LandingClient() {
                 right answer at 10 seconds beats right answer at 90. DILR and Quant reward speed
                 twice as hard. big brain energy required.
               </p>
-              <p className="text-white/25 text-xs font-mono tracking-wide">
-                pts = BASE + SPEED_MULT × ⌊(cap − time_ms) / 5000⌋
+              <p className="text-white/30 text-sm leading-relaxed max-w-[40ch]">
+                slow and correct is not the vibe. everyone gets the answer eventually. only the fast ones get rewarded.
               </p>
             </div>
             <div className="shrink-0 w-[200px] flex items-center justify-center">
               <SpeedTimer />
             </div>
+          </div>
           </section>
 
           {/* ── Challenge section ── card left, text right */}
-          <section
-            id="challenge"
-            className="flex flex-row-reverse items-center gap-8 px-10 py-20 min-h-[55vh] border-t border-[#9f84bd]/10"
-          >
+          <section id="challenge" className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
+          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex flex-row-reverse items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pl-4">
               <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
                 think you&apos;re<br />better?<br />prove it.
@@ -216,10 +257,12 @@ export default function LandingClient() {
             <div className="shrink-0 w-[270px]">
               <ChallengeCard />
             </div>
+          </div>
           </section>
 
           {/* ── Leaderboard section ── text left, table right */}
-          <section className="flex items-center gap-8 px-10 py-20 min-h-[55vh] border-t border-[#9f84bd]/10">
+          <section className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
+          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pr-4">
               <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
                 the board<br />doesn&apos;t cap.
@@ -238,6 +281,7 @@ export default function LandingClient() {
             <div className="shrink-0 w-[270px]">
               <LeaderboardPreview />
             </div>
+          </div>
           </section>
 
           {/* Marquee */}
