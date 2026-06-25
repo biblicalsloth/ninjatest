@@ -2,26 +2,20 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { toast } from "sonner";
 import { NinjaLogo } from "@/components/ninja-logo";
 import dynamic from "next/dynamic";
 import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
 
-type Phase = "idle" | "expanding" | "auth";
-type Mode = "signin" | "signup";
+type Phase = "idle" | "expanding" | "form";
 
 export default function LandingClient() {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,45 +41,42 @@ export default function LandingClient() {
     return () => { c.removeEventListener("scroll", onScroll); cancelAnimationFrame(rafId); };
   }, []);
 
-  function handlePlay() {
+  function handleOpen() {
     setPhase("expanding");
-    setTimeout(() => setPhase("auth"), 550);
+    setTimeout(() => setPhase("form"), 550);
   }
 
   function handleBack() {
     setPhase("expanding");
-    setTimeout(() => { setPhase("idle"); setEmail(""); setPassword(""); setUsername(""); }, 550);
+    setTimeout(() => { setPhase("idle"); setEmail(""); setError(null); }, 550);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const supabase = createClient();
-
-    if (mode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { toast.error(error.message); setLoading(false); return; }
-      router.push("/lobby");
-    } else {
-      if (username.length < 3) { toast.error("Username must be at least 3 characters"); setLoading(false); return; }
-      const { count } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("username", username);
-      if (count && count > 0) { toast.error("Username already taken"); setLoading(false); return; }
-      const { error } = await supabase.auth.signUp({
-        email, password,
-        options: { data: { username, display_name: username } },
+    setError(null);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (error) { toast.error(error.message); setLoading(false); return; }
-      toast.success("Check your email to confirm your account!");
-      setLoading(false);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError((body as { error?: string }).error ?? "Something went wrong");
+        setLoading(false);
+        return;
+      }
+      setDone(true);
+    } catch {
+      setError("Network error. Try again.");
     }
+    setLoading(false);
   }
 
   const isIdle = phase === "idle";
-  const isAuth = phase === "auth";
-  const onlineCount = useOnlineCount(); // no userId — subscribe-only, no tracking
+  const isForm = phase === "form";
+  const onlineCount = useOnlineCount();
 
   return (
     <div className="flex h-screen bg-[#120F17] overflow-hidden" style={{ width: "100vw" }}>
@@ -99,7 +90,6 @@ export default function LandingClient() {
           transition: "width 500ms ease-in-out, opacity 200ms ease-in-out",
         }}
       >
-        {/* Grainient – fixed bg */}
         <div className="absolute inset-0 pointer-events-none">
           <Grainient
             color1="#120F17" color2="#120F17" color3="#9f84bd"
@@ -112,7 +102,6 @@ export default function LandingClient() {
           />
         </div>
 
-        {/* Scrollable content */}
         <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden no-scrollbar" style={{ zIndex: 1 }}>
 
           {/* Nav */}
@@ -125,7 +114,6 @@ export default function LandingClient() {
             </div>
             <div className="flex items-center gap-7">
               <a href="#how-it-works" className="text-white/45 hover:text-white text-sm transition-colors">How it works</a>
-              <Link href="/leaderboard" className="text-white/45 hover:text-white text-sm transition-colors">Leaderboard</Link>
               {onlineCount !== null && onlineCount > 0 && (
                 <div className="flex items-center gap-1.5 bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#06d6a0] animate-pulse" />
@@ -133,10 +121,10 @@ export default function LandingClient() {
                 </div>
               )}
               <button
-                onClick={handlePlay}
+                onClick={handleOpen}
                 className="text-[#06d6a0] hover:text-white text-sm font-semibold transition-colors"
               >
-                Sign in →
+                Join Waitlist →
               </button>
             </div>
           </nav>
@@ -153,10 +141,10 @@ export default function LandingClient() {
               </p>
               <div className="mt-10 flex items-center gap-5">
                 <button
-                  onClick={handlePlay}
+                  onClick={handleOpen}
                   className="inline-flex items-center gap-2 text-[#06d6a0] font-semibold text-sm border border-[#06d6a0]/30 rounded-full px-5 py-2.5 hover:bg-[#06d6a0]/10 transition-colors"
                 >
-                  enter the arena →
+                  join the waitlist →
                 </button>
                 <span className="text-white/20 text-xs font-mono">9 questions · 3 sections · elo rated</span>
               </div>
@@ -171,7 +159,7 @@ export default function LandingClient() {
             </div>
           </section>
 
-          {/* ── ELO section ── text left, ring right */}
+          {/* ── ELO section ── */}
           <section id="elo" className="overflow-hidden min-h-[60vh] border-t border-[#9f84bd]/10">
           <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pr-4">
@@ -192,7 +180,7 @@ export default function LandingClient() {
           </div>
           </section>
 
-          {/* ── Matchmaking section ── anim left, text right */}
+          {/* ── Matchmaking section ── */}
           <section id="how-it-works" className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
           <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex flex-row-reverse items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pl-4">
@@ -221,7 +209,7 @@ export default function LandingClient() {
           </div>
           </section>
 
-          {/* ── Speed section ── text left, timer right */}
+          {/* ── Speed section ── */}
           <section className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
           <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pr-4">
@@ -242,7 +230,7 @@ export default function LandingClient() {
           </div>
           </section>
 
-          {/* ── Challenge section ── card left, text right */}
+          {/* ── Challenge section ── */}
           <section id="challenge" className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
           <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex flex-row-reverse items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pl-4">
@@ -260,7 +248,7 @@ export default function LandingClient() {
           </div>
           </section>
 
-          {/* ── Leaderboard section ── text left, table right */}
+          {/* ── Leaderboard section ── */}
           <section className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
           <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
             <div className="flex-1 min-w-0 pr-4">
@@ -271,12 +259,6 @@ export default function LandingClient() {
                 weekly resets keep it fresh. monthly tracks who actually put in the work.
                 either way, your name&apos;s either on it or it&apos;s not.
               </p>
-              <Link
-                href="/leaderboard"
-                className="text-[#06d6a0] text-sm font-semibold hover:underline underline-offset-4"
-              >
-                see full leaderboard →
-              </Link>
             </div>
             <div className="shrink-0 w-[270px]">
               <LeaderboardPreview />
@@ -284,7 +266,6 @@ export default function LandingClient() {
           </div>
           </section>
 
-          {/* Marquee */}
           <LogoMarquee />
 
           {/* Footer */}
@@ -303,9 +284,6 @@ export default function LandingClient() {
                 <a href="/terms" className="text-white/35 hover:text-white/60 text-xs transition-colors">
                   Terms &amp; Conditions
                 </a>
-                <Link href="/leaderboard" className="text-white/35 hover:text-white/60 text-xs transition-colors">
-                  Leaderboard
-                </Link>
               </div>
             </div>
             <p className="text-white/20 text-xs mt-6 font-mono">
@@ -316,7 +294,7 @@ export default function LandingClient() {
         </div>
       </div>
 
-      {/* ── Right: green Play / Auth panel ── */}
+      {/* ── Right: waitlist panel ── */}
       <div
         className="shrink-0 bg-[#06d6a0] h-screen relative overflow-hidden"
         style={{
@@ -325,46 +303,42 @@ export default function LandingClient() {
           transition: "width 500ms cubic-bezier(0.76, 0, 0.24, 1)",
         }}
       >
-        {/* Play button */}
+        {/* Collapsed CTA */}
         <button
-          onClick={handlePlay}
+          onClick={handleOpen}
           disabled={phase !== "idle"}
           className="absolute inset-0 flex flex-col items-center justify-center group w-full"
           style={{
-            opacity: isAuth ? 0 : 1,
+            opacity: isForm ? 0 : 1,
             pointerEvents: phase === "idle" ? "auto" : "none",
             transition: "opacity 200ms ease-in-out",
           }}
-          aria-label="Play"
+          aria-label="Join Waitlist"
         >
           <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
           <div className="relative z-10 flex flex-col items-center gap-6">
-            <svg
-              viewBox="0 0 100 120"
-              className="w-[clamp(32px,5vw,72px)] drop-shadow-lg group-hover:scale-110 transition-transform duration-200"
-              aria-hidden
-            >
+            <svg viewBox="0 0 100 120" className="w-[clamp(32px,5vw,72px)] drop-shadow-lg group-hover:scale-110 transition-transform duration-200" aria-hidden>
               <polygon points="10,0 100,60 10,120" fill="#120F17" />
             </svg>
             <p
               className="text-[#120F17] font-black text-xs uppercase"
               style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)", letterSpacing: "0.5em" }}
             >
-              PLAY
+              WAITLIST
             </p>
           </div>
           <p className="absolute bottom-6 text-[#120F17]/60 text-[10px] font-mono tracking-widest uppercase">
-            Sign in / up
+            Join early
           </p>
         </button>
 
-        {/* Auth form */}
+        {/* Waitlist form */}
         <div
           className="absolute inset-0 flex flex-col items-end justify-center pr-[8vw]"
           style={{
-            opacity: isAuth ? 1 : 0,
-            pointerEvents: isAuth ? "auto" : "none",
-            transition: `opacity 300ms ease-in-out${isAuth ? " 350ms" : ""}`,
+            opacity: isForm ? 1 : 0,
+            pointerEvents: isForm ? "auto" : "none",
+            transition: `opacity 300ms ease-in-out${isForm ? " 350ms" : ""}`,
           }}
         >
           <button
@@ -375,77 +349,56 @@ export default function LandingClient() {
           </button>
 
           <div className="w-full max-w-sm">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden">
-                  <NinjaLogo color="#06d6a0" className="w-5 h-5" />
+            {done ? (
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-[#120F17] flex items-center justify-center mx-auto mb-5">
+                  <span className="text-[#06d6a0] text-2xl">✓</span>
                 </div>
-                <span className="text-[#120F17] font-bold text-xl tracking-tight">Ninjatest</span>
+                <h2 className="text-[#120F17] font-black text-2xl mb-2">You&apos;re in.</h2>
+                <p className="text-[#120F17]/60 text-sm leading-relaxed">
+                  We&apos;ll drop you a line when Ninjatest opens. Get ready to grind.
+                </p>
               </div>
-              <p className="text-[#120F17]/60 text-sm">
-                {mode === "signin" ? "Welcome back." : "Join the arena."}
-              </p>
-            </div>
+            ) : (
+              <>
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden">
+                      <NinjaLogo color="#06d6a0" className="w-5 h-5" />
+                    </div>
+                    <span className="text-[#120F17] font-bold text-xl tracking-tight">Ninjatest</span>
+                  </div>
+                  <p className="text-[#120F17]/60 text-sm">
+                    Be first in the arena.
+                  </p>
+                </div>
 
-            <div className="flex bg-[#120F17]/10 rounded-full p-1 mb-5">
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                className={`flex-1 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
-                  mode === "signin" ? "bg-[#120F17] text-[#06d6a0]" : "text-[#120F17]/50 hover:text-[#120F17]"
-                }`}
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("signup")}
-                className={`flex-1 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
-                  mode === "signup" ? "bg-[#120F17] text-[#06d6a0]" : "text-[#120F17]/50 hover:text-[#120F17]"
-                }`}
-              >
-                Sign up
-              </button>
-            </div>
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    className="w-full h-11 px-4 rounded-xl bg-[#120F17]/10 border border-[#120F17]/20 text-[#120F17] placeholder:text-[#120F17]/40 text-sm outline-none focus:border-[#120F17]/50 transition-all"
+                  />
+                  {error && (
+                    <p className="text-[#ef476f] text-xs px-1">{error}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-11 bg-[#120F17] text-[#06d6a0] font-bold text-sm rounded-full hover:bg-[#120F17]/80 transition-colors disabled:opacity-50 mt-1"
+                  >
+                    {loading ? "…" : "Join Waitlist →"}
+                  </button>
+                </form>
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              {mode === "signup" && (
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                  placeholder="Username"
-                  required
-                  minLength={3}
-                  maxLength={20}
-                  className="w-full h-11 px-4 rounded-xl bg-[#120F17]/10 border border-[#120F17]/20 text-[#120F17] placeholder:text-[#120F17]/40 text-sm outline-none focus:border-[#120F17]/50 transition-all"
-                />
-              )}
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                required
-                className="w-full h-11 px-4 rounded-xl bg-[#120F17]/10 border border-[#120F17]/20 text-[#120F17] placeholder:text-[#120F17]/40 text-sm outline-none focus:border-[#120F17]/50 transition-all"
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                required
-                minLength={8}
-                className="w-full h-11 px-4 rounded-xl bg-[#120F17]/10 border border-[#120F17]/20 text-[#120F17] placeholder:text-[#120F17]/40 text-sm outline-none focus:border-[#120F17]/50 transition-all"
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full h-11 bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-full hover:bg-[#06d6a0]/80 transition-colors disabled:opacity-50 mt-1"
-              >
-                {loading ? "…" : mode === "signin" ? "Enter the arena →" : "Create account →"}
-              </button>
-            </form>
+                <p className="text-[#120F17]/40 text-xs text-center mt-4">
+                  No spam. Just launch day.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -506,18 +459,10 @@ function EloRing() {
           transform="rotate(-90 100 100)"
           style={{ transition: "stroke-dashoffset 1.6s cubic-bezier(0.16, 1, 0.3, 1)" }}
         />
-        <text
-          x="100" y="95"
-          textAnchor="middle" fill="white" fontSize="32" fontWeight="900"
-          style={{ fontFamily: "var(--font-geist-mono, monospace)" }}
-        >
+        <text x="100" y="95" textAnchor="middle" fill="white" fontSize="32" fontWeight="900" style={{ fontFamily: "var(--font-geist-mono, monospace)" }}>
           {count}
         </text>
-        <text
-          x="100" y="115"
-          textAnchor="middle" fill="rgba(159,132,189,0.55)" fontSize="10"
-          style={{ fontFamily: "var(--font-geist-mono, monospace)", letterSpacing: "0.2em" }}
-        >
+        <text x="100" y="115" textAnchor="middle" fill="rgba(159,132,189,0.55)" fontSize="10" style={{ fontFamily: "var(--font-geist-mono, monospace)", letterSpacing: "0.2em" }}>
           ELO
         </text>
       </svg>
@@ -557,39 +502,28 @@ function MatchAnimation() {
       </div>
 
       <div className="flex items-center gap-5 justify-center w-full">
-        {/* You */}
         <div className="flex flex-col items-center gap-2">
           <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center text-2xl transition-all duration-500 ${
-            found
-              ? "border-[#06d6a0] bg-[#06d6a0]/10 shadow-[0_0_18px_rgba(6,214,160,0.2)]"
-              : "border-[#9f84bd]/25 bg-[#9f84bd]/5"
+            found ? "border-[#06d6a0] bg-[#06d6a0]/10 shadow-[0_0_18px_rgba(6,214,160,0.2)]" : "border-[#9f84bd]/25 bg-[#9f84bd]/5"
           }`}>
             🥷
           </div>
           <span className="text-white/35 text-[9px] font-mono uppercase tracking-wider">you</span>
         </div>
 
-        {/* Connector */}
         <div className="flex flex-col gap-2 items-center">
           {found ? (
             <span className="text-white/50 text-xs font-black font-mono">VS</span>
           ) : (
             [0, 1, 2].map(i => (
-              <div
-                key={i}
-                className="w-1 h-1 rounded-full bg-[#9f84bd]/30 pulse-dot"
-                style={{ animationDelay: `${i * 0.22}s` }}
-              />
+              <div key={i} className="w-1 h-1 rounded-full bg-[#9f84bd]/30 pulse-dot" style={{ animationDelay: `${i * 0.22}s` }} />
             ))
           )}
         </div>
 
-        {/* Opponent */}
         <div className="flex flex-col items-center gap-2">
           <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
-            found
-              ? "border-[#06d6a0] bg-[#06d6a0]/10 shadow-[0_0_18px_rgba(6,214,160,0.2)] text-2xl"
-              : "border-dashed border-[#9f84bd]/15"
+            found ? "border-[#06d6a0] bg-[#06d6a0]/10 shadow-[0_0_18px_rgba(6,214,160,0.2)] text-2xl" : "border-dashed border-[#9f84bd]/15"
           }`}>
             {found ? "👾" : <span className="text-[#9f84bd]/20 text-[10px] font-mono">???</span>}
           </div>
@@ -661,10 +595,7 @@ function SpeedTimer() {
         </div>
       </div>
       <div className="text-center">
-        <p
-          className="font-black text-2xl transition-colors leading-none"
-          style={{ color: strokeColor, fontFamily: "var(--font-geist-mono, monospace)" }}
-        >
+        <p className="font-black text-2xl transition-colors leading-none" style={{ color: strokeColor, fontFamily: "var(--font-geist-mono, monospace)" }}>
           +{pts} pts
         </p>
         <p className="text-white/20 text-[10px] mt-1.5 font-mono">answer now for max</p>
@@ -695,7 +626,7 @@ function ChallengeCard() {
 
       <div className="flex items-center gap-2 bg-[#120F17]/80 rounded-lg p-3 mb-4 border border-[#9f84bd]/8">
         <span className="text-[#9f84bd]/35 text-[10px] flex-1 truncate font-mono">
-          ninjatest.vercel.app/c/abc123
+          ninjatest.app/c/abc123
         </span>
         <button
           onClick={handleCopy}
@@ -751,9 +682,7 @@ function LeaderboardPreview() {
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-3 text-[9px] font-black tracking-[0.18em] uppercase transition-colors border-b ${
-              tab === t
-                ? "text-[#06d6a0] border-[#06d6a0]/50"
-                : "text-[#9f84bd]/30 border-[#9f84bd]/8 hover:text-[#9f84bd]/55"
+              tab === t ? "text-[#06d6a0] border-[#06d6a0]/50" : "text-[#9f84bd]/30 border-[#9f84bd]/8 hover:text-[#9f84bd]/55"
             }`}
           >
             {t === "weekly" ? "this week" : "this month"}
@@ -770,15 +699,11 @@ function LeaderboardPreview() {
                 : <span className="text-[#9f84bd]/30 text-[10px] font-mono">#{row.rank}</span>
               }
             </span>
-            <span className={`text-sm flex-1 truncate ${
-              row.name === "arcxx1995" ? "text-[#06d6a0] font-bold" : "text-white/75"
-            }`}>
+            <span className={`text-sm flex-1 truncate ${row.name === "arcxx1995" ? "text-[#06d6a0] font-bold" : "text-white/75"}`}>
               {row.name}
             </span>
             <span className="text-[#ffd166] font-black text-sm font-mono shrink-0">{row.elo}</span>
-            <span className={`text-[10px] font-bold font-mono w-9 text-right shrink-0 ${
-              row.delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]"
-            }`}>
+            <span className={`text-[10px] font-bold font-mono w-9 text-right shrink-0 ${row.delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]"}`}>
               {row.delta >= 0 ? "+" : ""}{row.delta}
             </span>
           </div>

@@ -1,55 +1,20 @@
-import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import type { Database } from "@/lib/supabase/types";
+
+// Main branch = waitlist mode. Only / and /api/waitlist are accessible.
+const WAITLIST_ALLOWED = ["/", "/api/waitlist"];
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
 
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
+  const allowed = WAITLIST_ALLOWED.some(
+    (p) => pathname === p || pathname.startsWith(p + "/")
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const url = request.nextUrl.clone();
-  const isPublicRoute =
-    url.pathname === "/" ||
-    url.pathname.startsWith("/auth") ||
-    url.pathname.startsWith("/c/") ||
-    url.pathname.startsWith("/leaderboard") ||
-    url.pathname.startsWith("/profile");
-
-  const devBypass = process.env.DEV_BYPASS === "true";
-
-  if (!devBypass) {
-    if (!user && !isPublicRoute) {
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-    if (user && url.pathname.startsWith("/auth")) {
-      url.pathname = "/lobby";
-      return NextResponse.redirect(url);
-    }
+  if (!allowed) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
   }
 
-  return supabaseResponse;
+  return NextResponse.next({ request });
 }
