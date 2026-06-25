@@ -405,9 +405,11 @@ export default function LandingClient() {
                     ))}
                   </div>
 
-                  <p className="text-[#120F17]/50 text-xs font-mono mb-2 uppercase tracking-widest">
-                    {step + 1} / {QUESTIONS.length}
-                  </p>
+                  {step > 0 && (
+                    <p className="text-[#120F17]/50 text-xs font-mono mb-2 uppercase tracking-widest">
+                      {step} / {QUESTIONS.length - 1}
+                    </p>
+                  )}
                   <h2 className="text-[#120F17] font-black text-2xl mb-6 leading-tight">{q.label}</h2>
 
                   {/* Input */}
