@@ -131,7 +131,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
                   className={`rounded-lg px-4 py-3 text-sm font-medium border transition-colors ${
                     isRated
                       ? "bg-[#06d6a0]/10 border-[#06d6a0]/50 text-[#06d6a0]"
-                      : "bg-black border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
+                      : "bg-[#120F17] border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
                   }`}
                 >
                   <div className="font-semibold">Rated</div>
@@ -142,7 +142,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
                   className={`rounded-lg px-4 py-3 text-sm font-medium border transition-colors ${
                     !isRated
                       ? "bg-[#c5e8f0]/10 border-[#c5e8f0]/50 text-[#c5e8f0]"
-                      : "bg-black border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
+                      : "bg-[#120F17] border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
                   }`}
                 >
                   <div className="font-semibold">Unrated</div>
@@ -161,7 +161,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
           </div>
         ) : (
           <div className="space-y-4 pt-2">
-            <div className="bg-black rounded-lg p-4 text-center">
+            <div className="bg-[#120F17] rounded-lg p-4 text-center">
               <p className="text-[#7ab5cc] text-xs mb-1">Challenge code</p>
               <p className="text-[#06d6a0] font-mono text-2xl font-bold tracking-widest uppercase">
                 {code}
@@ -186,7 +186,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
                   placeholder="friend@example.com"
                   value={inviteEmail}
                   onChange={(e) => { setInviteEmail(e.target.value); setEmailSent(false); }}
-                  className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] h-9 text-sm flex-1"
+                  className="bg-[#120F17] border-[#333333] text-white placeholder:text-[#4a8fa8] h-9 text-sm flex-1"
                 />
                 <Button
                   size="sm"

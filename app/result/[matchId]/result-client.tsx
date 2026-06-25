@@ -99,7 +99,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   }
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-start px-4 py-8">
+    <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-start px-4 py-8">
       <div className="w-full max-w-md space-y-6">
 
         {/* Result banner */}
@@ -136,7 +136,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
                 <AvatarImage src={myProfile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-black text-[#06d6a0] font-bold">
+                <AvatarFallback className="bg-[#120F17] text-[#06d6a0] font-bold">
                   {myProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -153,7 +153,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
                 <AvatarImage src={oppProfile.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-black text-[#c5e8f0] font-bold">
+                <AvatarFallback className="bg-[#120F17] text-[#c5e8f0] font-bold">
                   {oppProfile.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -232,7 +232,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
           <div className="bg-[#111111] rounded-xl p-4 space-y-3">
             <p className="text-[#c5e8f0] text-sm font-medium">Share this link with your opponent:</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 bg-black text-[#06d6a0] text-xs px-3 py-2 rounded-lg truncate">
+              <code className="flex-1 bg-[#120F17] text-[#06d6a0] text-xs px-3 py-2 rounded-lg truncate">
                 {typeof window !== "undefined"
                   ? `${window.location.origin}/c/${rematchCode}`
                   : `/c/${rematchCode}`}
@@ -278,7 +278,7 @@ function AnswerDot({ status, points, qNum }: {
   status: "correct" | "wrong" | "skipped" | "unanswered"; points: number; qNum: number;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 bg-black rounded-lg py-2">
+    <div className="flex flex-col items-center gap-1 bg-[#120F17] rounded-lg py-2">
       <span className="text-[#4a8fa8] text-[9px]">Q{qNum}</span>
       <div className={cn(
         "w-6 h-6 rounded-full border flex items-center justify-center",

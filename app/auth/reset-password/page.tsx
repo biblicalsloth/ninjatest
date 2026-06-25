@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { NinjaLogo } from "@/components/ninja-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +44,8 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#06d6a0] flex items-center justify-center">
-              <span className="text-[#073b4c] font-bold text-sm">N</span>
+            <div className="w-8 h-8 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden">
+              <NinjaLogo color="#073b4c" className="w-5 h-5" />
             </div>
             <span className="text-white font-semibold text-xl tracking-tight">Ninjatest</span>
           </div>

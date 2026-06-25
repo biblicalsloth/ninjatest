@@ -31,7 +31,7 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
   const matches = recentMatches as RecentMatch[];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#120F17] text-white">
       <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Link href="/lobby" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
@@ -137,7 +137,7 @@ export default function ProfileClient({ profileData, isOwnProfile, recentMatches
                   )}>
                     <Avatar className="w-8 h-8 shrink-0">
                       <AvatarImage src={m.opponent_avatar ?? undefined} />
-                      <AvatarFallback className="bg-black text-[#06d6a0] text-xs font-bold">
+                      <AvatarFallback className="bg-[#120F17] text-[#06d6a0] text-xs font-bold">
                         {m.opponent.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>

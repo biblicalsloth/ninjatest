@@ -31,9 +31,9 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
-  const isAuthRoute = url.pathname.startsWith("/auth");
   const isPublicRoute =
     url.pathname === "/" ||
+    url.pathname.startsWith("/auth") ||
     url.pathname.startsWith("/c/") ||
     url.pathname.startsWith("/leaderboard") ||
     url.pathname.startsWith("/profile");
@@ -41,11 +41,11 @@ export async function updateSession(request: NextRequest) {
   const devBypass = process.env.DEV_BYPASS === "true";
 
   if (!devBypass) {
-    if (!user && !isAuthRoute && !isPublicRoute) {
-      url.pathname = "/auth/login";
+    if (!user && !isPublicRoute) {
+      url.pathname = "/";
       return NextResponse.redirect(url);
     }
-    if (user && isAuthRoute) {
+    if (user && url.pathname.startsWith("/auth")) {
       url.pathname = "/lobby";
       return NextResponse.redirect(url);
     }

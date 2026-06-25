@@ -71,7 +71,7 @@ export function EloGraph({ data }: Props) {
             stroke="#06d6a0"
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: "#06d6a0", stroke: "#000000", strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: "#06d6a0", stroke: "#120F17", strokeWidth: 2 }}
           />
         </LineChart>
       </ResponsiveContainer>

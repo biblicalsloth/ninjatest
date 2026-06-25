@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Sword, Shield, Clock } from "lucide-react";
+import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -171,8 +172,8 @@ export default function JoinChallengePage() {
       <div className="w-full max-w-sm space-y-6">
         {/* Header */}
         <div className="text-center">
-          <div className="w-10 h-10 rounded-full bg-[#06d6a0] flex items-center justify-center mx-auto mb-3">
-            <span className="text-[#073b4c] font-bold text-sm">N</span>
+          <div className="w-10 h-10 rounded-full bg-[#06d6a0] flex items-center justify-center mx-auto mb-3 overflow-hidden">
+            <NinjaLogo color="#073b4c" className="w-6 h-6" />
           </div>
           <h1 className="text-white text-2xl font-bold">Battle Challenge</h1>
           <p className="text-[#7ab5cc] text-sm mt-1">You&apos;ve been challenged!</p>

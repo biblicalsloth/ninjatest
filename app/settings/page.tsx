@@ -122,14 +122,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[#120F17] flex items-center justify-center">
         <Loader2 className="text-[#06d6a0] animate-spin" size={24} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#120F17] text-white">
       <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center">
           <Link href={`/profile/${username}`} className="text-[#7ab5cc] hover:text-white flex items-center gap-1.5 text-sm transition-colors">
@@ -149,12 +149,12 @@ export default function SettingsPage() {
             <div className="relative">
               <Avatar className="w-20 h-20">
                 <AvatarImage src={avatarUrl ?? undefined} />
-                <AvatarFallback className="bg-black text-[#06d6a0] text-2xl font-bold">
+                <AvatarFallback className="bg-[#120F17] text-[#06d6a0] text-2xl font-bold">
                   {username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               {uploadingAvatar && (
-                <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-[#120F17]/60 flex items-center justify-center">
                   <Loader2 className="text-white animate-spin" size={18} />
                 </div>
               )}
@@ -190,7 +190,7 @@ export default function SettingsPage() {
             <Input
               value={username}
               disabled
-              className="bg-black border-[#333333] text-[#4a8fa8] cursor-not-allowed"
+              className="bg-[#120F17] border-[#333333] text-[#4a8fa8] cursor-not-allowed"
             />
             <p className="text-[#4a8fa8] text-xs">Username cannot be changed.</p>
           </div>
@@ -200,7 +200,7 @@ export default function SettingsPage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="How you appear to others"
-              className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
+              className="bg-[#120F17] border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
             />
           </div>
           <Button
@@ -222,7 +222,7 @@ export default function SettingsPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Min 8 characters"
-              className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
+              className="bg-[#120F17] border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
             />
           </div>
           <div className="space-y-1">
@@ -232,7 +232,7 @@ export default function SettingsPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat password"
-              className="bg-black border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
+              className="bg-[#120F17] border-[#333333] text-white placeholder:text-[#4a8fa8] focus:border-[#06d6a0]"
             />
           </div>
           <Button

@@ -30,7 +30,7 @@ export default async function LeaderboardPage() {
   }[];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#120F17] text-white">
       <header className="border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <Link href="/lobby" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
