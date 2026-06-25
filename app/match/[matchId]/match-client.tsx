@@ -163,10 +163,12 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     }
     function scheduleForfeit() {
       clearForfeit();
+      // 30s total: 10s page-load buffer + 20s spec grace = 30s before forfeit fires.
+      // Server-side guard still enforces the 20s minimum from question_started_at.
       forfeitTimerRef.current = setTimeout(async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase as any).rpc("forfeit_match", { p_match_id: match.id });
-      }, 20_000);
+      }, 30_000);
     }
 
     const channel = supabase
@@ -288,7 +290,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   if (showReveal && revealData && question) {
     const options = question.options as string[];
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-2xl space-y-5">
           {/* Result badge */}
           <div className="flex items-center justify-between">
@@ -354,7 +356,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
 
   if (!question) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[#120F17] flex items-center justify-center">
         <div className="text-[#7ab5cc] text-sm">Loading question…</div>
       </div>
     );
@@ -366,9 +368,9 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const options = question.options as string[];
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="min-h-screen bg-[#120F17] flex flex-col">
       {/* Top bar */}
-      <div className="bg-black border-b border-[#222222] px-4 py-3">
+      <div className="bg-[#120F17] border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto">
           {/* Question dots */}
           <div className="flex items-center justify-center gap-1.5 mb-3">
@@ -497,7 +499,7 @@ function PlayerBar({
     <div className={cn("flex-1 flex items-center gap-2", isMe ? "flex-row" : "flex-row-reverse")}>
       <Avatar className="w-9 h-9 shrink-0">
         <AvatarImage src={profile.avatar_url ?? undefined} />
-        <AvatarFallback className="bg-black text-[#06d6a0] text-xs font-bold">
+        <AvatarFallback className="bg-[#120F17] text-[#06d6a0] text-xs font-bold">
           {profile.username.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>

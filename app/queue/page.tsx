@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function QueuePage() {
@@ -13,6 +13,7 @@ export default function QueuePage() {
   const [elapsed, setElapsed] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [verifying, setVerifying] = useState(true);
+  const [matchFound, setMatchFound] = useState<{ matchId: string; opponent: string | null } | null>(null);
   const startRef = useRef(Date.now());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
@@ -29,6 +30,25 @@ export default function QueuePage() {
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
+
+    async function handleMatched(matchId: string, sb: typeof supabase) {
+      // Fetch opponent username for the "found" screen
+      const { data: matchRaw } = await sb.from("matches").select("player_a, player_b").eq("id", matchId).single();
+      const { data: { user } } = await sb.auth.getUser();
+      let opponent: string | null = null;
+      if (matchRaw && user) {
+        const oppId = (matchRaw as { player_a: string; player_b: string }).player_a === user.id
+          ? (matchRaw as { player_a: string; player_b: string }).player_b
+          : (matchRaw as { player_a: string; player_b: string }).player_a;
+        const { data: profile } = await sb.from("profiles").select("display_name, username").eq("id", oppId).single();
+        if (profile) {
+          const p = profile as { display_name: string | null; username: string };
+          opponent = p.display_name ?? p.username;
+        }
+      }
+      setMatchFound({ matchId, opponent });
+      setTimeout(() => router.push(`/match/${matchId}`), 1500);
+    }
 
     async function setup() {
       const { createClient } = await import("@/lib/supabase/client");
@@ -48,7 +68,7 @@ export default function QueuePage() {
       const queueRow = queueRowRaw as { status: string; match_id: string | null } | null;
 
       if (queueRow?.status === "matched" && queueRow.match_id) {
-        router.push(`/match/${queueRow.match_id}`);
+        await handleMatched(queueRow.match_id, supabase);
         return;
       }
 
@@ -73,10 +93,10 @@ export default function QueuePage() {
             table: "matchmaking_queue",
             filter: `user_id=eq.${user.id}`,
           },
-          (payload: { new: { status: string; match_id: string | null } }) => {
+          async (payload: { new: { status: string; match_id: string | null } }) => {
             const row = payload.new;
             if (row.status === "matched" && row.match_id) {
-              router.push(`/match/${row.match_id}`);
+              await handleMatched(row.match_id, supabase);
             }
           }
         )
@@ -90,6 +110,7 @@ export default function QueuePage() {
     return () => {
       channelRef.current?.unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   async function handleCancel() {
@@ -109,14 +130,29 @@ export default function QueuePage() {
 
   if (verifying) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[#120F17] flex items-center justify-center">
         <p className="text-[#7ab5cc] text-sm">Joining queue…</p>
       </div>
     );
   }
 
+  if (matchFound) {
+    return (
+      <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
+        <div className="w-20 h-20 rounded-full bg-[#06d6a0]/10 border-2 border-[#06d6a0] flex items-center justify-center mb-6 animate-pulse">
+          <Zap size={32} className="text-[#06d6a0]" />
+        </div>
+        <h1 className="text-white text-2xl font-bold mb-2">Opponent found!</h1>
+        {matchFound.opponent && (
+          <p className="text-[#7ab5cc] text-sm mb-1">vs <span className="text-white font-semibold">{matchFound.opponent}</span></p>
+        )}
+        <p className="text-[#4a8fa8] text-xs">Loading match…</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
       {/* Animated search indicator */}
       <div className="relative mb-8">
         <div className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/20 motion-safe:animate-ping" style={{ transform: "scale(1.5)" }} />
