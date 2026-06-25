@@ -8,7 +8,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = await createClient() as any;
   const { error } = await supabase.from("waitlist").insert({ email: email.toLowerCase().trim() });
 
   if (error) {

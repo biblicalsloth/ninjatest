@@ -133,6 +133,11 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["challenges"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["challenges"]["Insert"]>;
       };
+      waitlist: {
+        Row: { id: string; email: string; created_at: string };
+        Insert: { email: string };
+        Update: Partial<{ email: string }>;
+      };
     };
     Functions: {
       join_queue: { Args: Record<string, never>; Returns: void };
