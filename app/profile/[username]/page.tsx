@@ -6,26 +6,36 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const { username } = await params;
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const [
+    { data: { user } },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { data },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { data: rm },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { data: ss },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_profile", { p_username: username }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_profile_matches", { p_username: username, p_limit: 20 }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_section_stats", { p_username: username }),
+  ]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any).rpc("get_profile", { p_username: username });
   if (!data) notFound();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profileData = data as any;
   const isOwn = user?.id === profileData?.profile?.id;
 
-  // Fetch match history for any profile using the public RPC
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rm } = await (supabase as any).rpc("get_profile_matches", { p_username: username, p_limit: 10 });
-  const recentMatches: unknown[] = rm ?? [];
-
   return (
     <ProfileClient
       profileData={profileData}
       isOwnProfile={isOwn}
-      recentMatches={recentMatches}
+      recentMatches={rm ?? []}
+      sectionStats={ss ?? []}
     />
   );
 }
