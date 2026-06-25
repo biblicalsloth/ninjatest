@@ -12,37 +12,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
 
-  const apiKey = process.env.AIRTABLE_API_KEY;
-  const baseId = process.env.AIRTABLE_BASE_ID;
-  const tableName = process.env.AIRTABLE_TABLE_NAME ?? "Waitlist";
-
-  if (!apiKey || !baseId) {
-    // Airtable not configured yet — log and succeed silently
-    console.warn("Airtable env vars missing — submission not saved", { name, email });
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn("GOOGLE_SHEETS_WEBHOOK_URL not set");
     return NextResponse.json({ ok: true });
   }
 
-  const res = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`, {
+  const res = await fetch(webhookUrl, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      fields: {
-        Name: name ?? "",
-        Email: email.toLowerCase().trim(),
-        Phone: phone ?? "",
-        "CAT Target Year": year ?? "",
-        "Mock Percentile": percentile ?? "",
-        "Weakest Section": section ?? "",
-      },
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email: email.toLowerCase().trim(), phone, year, percentile, section }),
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    console.error("Airtable error", err);
+    console.error("Google Sheets webhook error", res.status);
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });
   }
 
