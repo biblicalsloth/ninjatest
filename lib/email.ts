@@ -4,8 +4,8 @@ function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
 }
 
-const FROM = "Ninjatest <battles@ninjatest.vercel.app>";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ninjatest.vercel.app";
+const FROM = "Ninjatest <battles@ninjatest.app>";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ninjatest.app";
 
 function esc(s: string): string {
   return s
