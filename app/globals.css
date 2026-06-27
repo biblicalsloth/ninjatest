@@ -209,3 +209,17 @@
   .animate-marquee { animation: none; }
   .pulse-dot { animation: none; opacity: 0.5; }
 }
+
+/* Hide scrollbar visually while keeping scroll */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Landing: exam name flip (airport-board shutter) */
+@keyframes examFlip {
+  0%   { transform: perspective(280px) rotateX(90deg); opacity: 0; filter: blur(6px); }
+  45%  { opacity: 1; filter: blur(2px); }
+  100% { transform: perspective(280px) rotateX(0deg); opacity: 1; filter: blur(0px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exam-flip { animation: none !important; opacity: 1; }
+}

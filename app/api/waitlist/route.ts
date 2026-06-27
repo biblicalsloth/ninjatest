@@ -1,23 +1,32 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
-  const { email } = await req.json();
-
-  if (!email || typeof email !== "string" || !email.includes("@")) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = await createClient() as any;
-  const { error } = await supabase.from("waitlist").insert({ email: email.toLowerCase().trim() });
+  const { name, email, phone, year, percentile, section } = body as Record<string, string>;
 
-  if (error) {
-    if (error.code === "23505") {
-      // unique violation — already on list, treat as success
-      return NextResponse.json({ ok: true });
-    }
-    return NextResponse.json({ error: "Failed to join waitlist" }, { status: 500 });
+  if (!email || !email.includes("@")) {
+    return NextResponse.json({ error: "Valid email required" }, { status: 400 });
+  }
+
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn("GOOGLE_SHEETS_WEBHOOK_URL not set");
+    return NextResponse.json({ ok: true });
+  }
+
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email: email.toLowerCase().trim(), phone, year, percentile, section }),
+  });
+
+  if (!res.ok) {
+    console.error("Google Sheets webhook error", res.status);
+    return NextResponse.json({ error: "Failed to save" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
