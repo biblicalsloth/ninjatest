@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Settings, Swords, Trophy, BarChart2, History } from "lucide-react";
@@ -34,7 +34,6 @@ interface SectionStat {
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profileData: any;
-  isOwnProfile: boolean;
   recentMatches: unknown[];
   sectionStats: unknown[];
 }
@@ -53,11 +52,21 @@ const SECTION_BAR: Record<string, string> = {
   QUANT: "bg-[#06d6a0]",
 };
 
-export default function ProfileClient({ profileData, isOwnProfile, recentMatches, sectionStats }: Props) {
+export default function ProfileClient({ profileData, recentMatches, sectionStats }: Props) {
   const { profile, curve, rank } = profileData;
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [challenging, setChallenging] = useState(false);
+
+  // Computed client-side so the page itself can be statically/ISR cached
+  // (reading the auth cookie on the server would force per-request rendering).
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsOwnProfile(!!data.user && data.user.id === profile?.id);
+    });
+  }, [profile?.id]);
 
   const winRate = getWinRate(profile.wins, profile.matches_played);
   const matches = recentMatches as RecentMatch[];

@@ -44,7 +44,12 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally (asymmetric signing keys) instead of
+  // making an Auth-server round-trip on every request like getUser() does. It
+  // still refreshes the session cookie via the handlers above. This is the
+  // single biggest per-request cost reduction for Fluid Compute + Supabase Auth.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const isAuthed = !!claimsData?.claims?.sub;
 
   const url = request.nextUrl.clone();
   const isPublicRoute =
@@ -54,11 +59,11 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/leaderboard") ||
     pathname.startsWith("/profile");
 
-  if (!user && !isPublicRoute) {
+  if (!isAuthed && !isPublicRoute) {
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
-  if (user && pathname.startsWith("/auth")) {
+  if (isAuthed && pathname.startsWith("/auth")) {
     url.pathname = "/lobby";
     return NextResponse.redirect(url);
   }

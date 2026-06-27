@@ -1,13 +1,18 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
 import ProfileClient from "./profile-client";
+
+// Public, crawlable page. Cache at the edge and revalidate every 60s instead of
+// re-running 3 RPCs on every visitor/bot hit. No auth cookie is read here, so
+// the route stays statically renderable; "is this my profile" is resolved
+// client-side in ProfileClient.
+export const revalidate = 60;
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  const supabase = await createClient();
+  const supabase = createPublicClient();
 
   const [
-    { data: { user } },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     { data },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,7 +20,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     { data: ss },
   ] = await Promise.all([
-    supabase.auth.getUser(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc("get_profile", { p_username: username }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,12 +32,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profileData = data as any;
-  const isOwn = user?.id === profileData?.profile?.id;
 
   return (
     <ProfileClient
       profileData={profileData}
-      isOwnProfile={isOwn}
       recentMatches={rm ?? []}
       sectionStats={ss ?? []}
     />
