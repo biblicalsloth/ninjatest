@@ -246,6 +246,8 @@ export default function LandingClient() {
             </div>
           </section>
 
+          <LogoMarquee />
+
           {/* ELO */}
           <section id="elo" className="overflow-hidden min-h-[60vh] border-t border-[#9f84bd]/10">
           <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
@@ -337,8 +339,6 @@ export default function LandingClient() {
           </div>
           </section>
 
-          <LogoMarquee />
-
           <footer className="px-10 py-12 border-t border-[#9f84bd]/10">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2">
@@ -392,7 +392,7 @@ export default function LandingClient() {
 
         {/* Expanded panel content */}
         <div
-          className="absolute inset-0 flex flex-col items-end justify-center pr-[8vw]"
+          className="absolute inset-0 flex flex-col items-center justify-center px-6"
           style={{ opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? "auto" : "none", transition: `opacity 300ms ease-in-out${isOpen ? " 350ms" : ""}` }}
         >
           <button onClick={handleBack} className="absolute top-6 left-6 text-[#120F17]/60 hover:text-[#120F17] text-sm font-medium transition-colors">
@@ -402,6 +402,14 @@ export default function LandingClient() {
           {IS_WAITLIST ? (
             /* ── Waitlist survey ── */
             <div className="w-full max-w-sm">
+              {/* Logo header */}
+              <div className="flex items-center justify-center gap-2 mb-8">
+                <div className="w-9 h-9 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden shrink-0">
+                  <NinjaLogo color="#06d6a0" className="w-6 h-6" />
+                </div>
+                <span className="text-[#120F17] font-black text-2xl tracking-tight">Ninjatest</span>
+              </div>
+
               {surveyDone ? (
                 <div className="text-center">
                   <div className="w-16 h-16 rounded-full bg-[#120F17] flex items-center justify-center mx-auto mb-5">
