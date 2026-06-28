@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { NinjaLogo } from "@/components/ninja-logo";
 import dynamic from "next/dynamic";
-import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
 
@@ -64,7 +63,11 @@ export default function LandingClient() {
   const [surveyLoading, setSurveyLoading] = useState(false);
   const [surveyError, setSurveyError] = useState<string | null>(null);
 
-  const onlineCount = useOnlineCount();
+  // Live online count is intentionally NOT subscribed on the public landing
+  // page: it would open a Supabase Realtime WebSocket for every anonymous
+  // visitor (incl. bots/crawlers), the top concurrent-connection / billing
+  // risk. The live count lives in the authenticated lobby instead.
+  const onlineCount: number | null = null;
 
   useEffect(() => {
     const container = scrollRef.current;

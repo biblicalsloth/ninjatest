@@ -1,33 +1,21 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getWinRate } from "@/lib/utils";
+import { LeaderboardTable, type LeaderboardEntry } from "./leaderboard-table";
 
+// Fully public page. Cache + revalidate every 60s with a cookie-less anon
+// client so it does NOT run a fresh ranked scan of `profiles` (+ an auth
+// lookup) on every visitor/bot hit. The "(you)" highlight is resolved
+// client-side in <LeaderboardTable/>.
 export const revalidate = 60;
 
 export default async function LeaderboardPage() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rows } = await (supabase as any).rpc("get_leaderboard", { p_limit: 100, p_offset: 0 });
-  const { data: { user } } = await supabase.auth.getUser();
 
-  const myProfileResult = user
-    ? await supabase.from("profiles").select("username").eq("id", user.id).single()
-    : { data: null };
-  const myProfile = myProfileResult.data as { username: string } | null;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const entries = ((rows ?? []) as any[]) as {
-    rank: number;
-    username: string;
-    display_name: string | null;
-    elo: number;
-    wins: number;
-    losses: number;
-    draws: number;
-    avatar_url: string | null;
-  }[];
+  const entries = ((rows ?? []) as unknown[]) as LeaderboardEntry[];
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
@@ -53,53 +41,7 @@ export default async function LeaderboardPage() {
         )}
 
         {/* Table */}
-        <div className="space-y-1">
-          {entries.map((entry) => {
-            const isMe = myProfile?.username === entry.username;
-            const winRate = getWinRate(entry.wins, entry.wins + entry.losses + entry.draws);
-            return (
-              <Link key={entry.username} href={`/profile/${entry.username}`}>
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-[#111111] ${
-                  isMe ? "bg-[#06d6a0]/5 border border-[#06d6a0]/20" : ""
-                }`}>
-                  {/* Rank */}
-                  <div className="w-8 text-center shrink-0">
-                    {entry.rank <= 3 ? (
-                      <span className="text-lg">{["🥇","🥈","🥉"][entry.rank - 1]}</span>
-                    ) : (
-                      <span className="text-[#4a8fa8] text-sm font-mono">#{entry.rank}</span>
-                    )}
-                  </div>
-
-                  {/* Avatar */}
-                  <Avatar className="w-8 h-8 shrink-0">
-                    <AvatarImage src={entry.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-[#111111] text-[#06d6a0] text-xs font-bold">
-                      {entry.username.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  {/* Name */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">
-                      {entry.display_name ?? entry.username}
-                      {isMe && (
-                        <span className="ml-2 text-[#06d6a0] text-xs">(you)</span>
-                      )}
-                    </p>
-                    <p className="text-[#7ab5cc] text-xs">{winRate} win rate</p>
-                  </div>
-
-                  {/* ELO */}
-                  <div className="text-right shrink-0">
-                    <p className="text-[#ffd166] font-bold">{entry.elo}</p>
-                    <p className="text-[#4a8fa8] text-xs">{entry.wins}W {entry.losses}L</p>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <LeaderboardTable entries={entries} />
 
         {entries.length === 0 && (
           <div className="text-center py-16">
