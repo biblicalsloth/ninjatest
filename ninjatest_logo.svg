@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 72" fill="none">
+  <!-- circle mark -->
+  <circle cx="36" cy="36" r="36" fill="#06d6a0"/>
+  <!-- ninja face (scaled to fit 24x24 grid centered in 72x72 circle) -->
+  <g transform="translate(12, 12) scale(2)">
+    <rect x="3" y="2.5" width="18" height="8" rx="3" fill="#120F17"/>
+    <rect x="3" y="13.5" width="18" height="8" rx="3" fill="#120F17"/>
+    <ellipse cx="8.5" cy="12" rx="2.2" ry="1.4" fill="#120F17"/>
+    <ellipse cx="15.5" cy="12" rx="2.2" ry="1.4" fill="#120F17"/>
+  </g>
+  <!-- wordmark -->
+  <text x="86" y="50" font-family="'Geist', -apple-system, system-ui, sans-serif" font-weight="700" font-size="40" letter-spacing="-1.5" fill="#ffffff">Ninjatest</text>
+</svg>
