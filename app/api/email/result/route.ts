@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendMatchResult } from "@/lib/email";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { match_id } = await req.json() as { match_id: string };
+  const rl = rateLimit(`email-result:${user.id}`, { limit: 10, windowMs: 60_000 });
+  const rlIp = rateLimit(`email-result-ip:${clientIp(req)}`, { limit: 20, windowMs: 60_000 });
+  if (!rl.ok || !rlIp.ok) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(Math.max(rl.retryAfter, rlIp.retryAfter)) } }
+    );
+  }
+
+  const body = await req.json().catch(() => null);
+  const match_id = typeof body?.match_id === "string" ? body.match_id : "";
   if (!match_id) return NextResponse.json({ error: "Missing match_id" }, { status: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,12 +31,14 @@ export async function POST(req: NextRequest) {
   const isPlayerA = match.player_a === user.id;
   const opponentId = isPlayerA ? match.player_b : match.player_a;
 
+  // Recipient is always the authenticated user's own auth email (user.email);
+  // `profiles` has no email column, so we never select one here.
   const [{ data: myProfileRaw }, { data: oppProfileRaw }] = await Promise.all([
-    supabase.from("profiles").select("username, display_name, email").eq("id", user.id).single(),
+    supabase.from("profiles").select("username, display_name").eq("id", user.id).single(),
     supabase.from("profiles").select("username, display_name").eq("id", opponentId).single(),
   ]);
 
-  type ProfileRow = { username: string; display_name: string | null; email?: string };
+  type ProfileRow = { username: string; display_name: string | null };
   const myProfile = myProfileRaw as ProfileRow | null;
   const oppProfile = oppProfileRaw as ProfileRow | null;
 
