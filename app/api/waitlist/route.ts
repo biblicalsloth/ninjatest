@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { createPublicClient } from "@/lib/supabase/server";
 
@@ -53,17 +53,23 @@ export async function POST(req: Request) {
 
   // Google Sheets is a best-effort mirror for the marketing team's workflow —
   // its failure (e.g. a stale Apps Script deployment) must not fail the signup.
+  // Run via after() so the serverless function stays alive long enough for the
+  // fetch to actually complete instead of being frozen the instant the
+  // response is sent (a bare un-awaited fetch here can silently never finish).
   const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (webhookUrl) {
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then((res) => {
+    after(async () => {
+      try {
+        const res = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
         if (!res.ok) console.error("Google Sheets webhook error", res.status);
-      })
-      .catch((err) => console.error("Google Sheets webhook error", err));
+      } catch (err) {
+        console.error("Google Sheets webhook error", err);
+      }
+    });
   }
 
   return NextResponse.json({ ok: true });
