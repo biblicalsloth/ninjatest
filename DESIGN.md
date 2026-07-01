@@ -1,3 +1,5 @@
+> **Note:** This file is a captured design analysis of MongoDB's website — used as inspiration during early build. Ninjatest's shipped UI does **not** literally implement these tokens (e.g. accent is `#06d6a0`, not `#00ed64`; font is Geist Mono, not Euclid Circular A). For the actual live design tokens, see `app/globals.css:7-32` and `CLAUDE.md` § UI aesthetic.
+
 ---
 version: alpha
 name: MongoDB-design-analysis

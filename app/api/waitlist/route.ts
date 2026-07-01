@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { createPublicClient } from "@/lib/supabase/server";
 
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
@@ -39,21 +40,30 @@ export async function POST(req: Request) {
     section: field(raw.section, 64),
   };
 
-  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  if (!webhookUrl) {
-    console.warn("GOOGLE_SHEETS_WEBHOOK_URL not set");
-    return NextResponse.json({ ok: true });
+  // Postgres is the source of truth: durable, RLS-validated, queryable from
+  // Supabase Studio. Plain insert (not upsert) — RLS only grants anon INSERT,
+  // not UPDATE, so a resubmission can't be used to overwrite someone else's
+  // row by guessing their email. Duplicate email (23505) is treated as success.
+  const supabase = createPublicClient();
+  const { error: dbError } = await (supabase as any).from("waitlist").insert(payload);
+  if (dbError && dbError.code !== "23505") {
+    console.error("Waitlist DB insert error", dbError.message);
+    return NextResponse.json({ error: "Failed to save" }, { status: 500 });
   }
 
-  const res = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    console.error("Google Sheets webhook error", res.status);
-    return NextResponse.json({ error: "Failed to save" }, { status: 500 });
+  // Google Sheets is a best-effort mirror for the marketing team's workflow —
+  // its failure (e.g. a stale Apps Script deployment) must not fail the signup.
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (webhookUrl) {
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) console.error("Google Sheets webhook error", res.status);
+      })
+      .catch((err) => console.error("Google Sheets webhook error", err));
   }
 
   return NextResponse.json({ ok: true });

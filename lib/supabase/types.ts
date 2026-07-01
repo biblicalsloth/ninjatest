@@ -134,9 +134,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["challenges"]["Insert"]>;
       };
       waitlist: {
-        Row: { id: string; email: string; created_at: string };
-        Insert: { email: string };
-        Update: Partial<{ email: string }>;
+        Row: {
+          id: string;
+          email: string;
+          created_at: string;
+          name: string | null;
+          phone: string | null;
+          year: string | null;
+          percentile: string | null;
+          section: string | null;
+        };
+        Insert: {
+          email: string;
+          name?: string | null;
+          phone?: string | null;
+          year?: string | null;
+          percentile?: string | null;
+          section?: string | null;
+        };
+        Update: Partial<{
+          email: string;
+          name: string | null;
+          phone: string | null;
+          year: string | null;
+          percentile: string | null;
+          section: string | null;
+        }>;
       };
     };
     Functions: {

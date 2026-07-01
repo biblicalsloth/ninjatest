@@ -895,6 +895,8 @@ $$;
 
 ## 11. UI / screens (Vercel-minimal)
 
+> **Superseded.** This is the original pre-build aesthetic direction. Actual shipped UI diverged — dark teal-green palette (not Vercel-minimal blue/lime), Geist **Mono** (not Geist Sans). Real tokens: `app/globals.css:7-32`. Current description: `CLAUDE.md` § UI aesthetic.
+
 **Aesthetic:** Geist font, near-black on near-white (dark mode default optional), single accent (e.g. electric blue or lime), generous whitespace, subtle borders, no gradients-as-decoration, smooth micro-transitions. shadcn/ui primitives.
 
 | Screen | Contents |
