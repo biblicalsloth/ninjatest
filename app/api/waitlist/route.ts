@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { createPublicClient } from "@/lib/supabase/server";
 
@@ -10,8 +10,7 @@ function field(v: unknown, max: number): string {
 }
 
 export async function POST(req: Request) {
-  // This endpoint is unauthenticated, so throttle hard by IP to keep it from
-  // being used to flood the downstream Google Sheet.
+  // This endpoint is unauthenticated, so throttle hard by IP.
   const rl = rateLimit(`waitlist:${clientIp(req)}`, { limit: 5, windowMs: 60_000 });
   if (!rl.ok) {
     return NextResponse.json(
@@ -40,36 +39,14 @@ export async function POST(req: Request) {
     section: field(raw.section, 64),
   };
 
-  // Postgres is the source of truth: durable, RLS-validated, queryable from
-  // Supabase Studio. Plain insert (not upsert) — RLS only grants anon INSERT,
-  // not UPDATE, so a resubmission can't be used to overwrite someone else's
-  // row by guessing their email. Duplicate email (23505) is treated as success.
+  // Plain insert (not upsert) — RLS only grants anon INSERT, not UPDATE, so a
+  // resubmission can't be used to overwrite someone else's row by guessing
+  // their email. Duplicate email (23505) is treated as success.
   const supabase = createPublicClient();
   const { error: dbError } = await (supabase as any).from("waitlist").insert(payload);
   if (dbError && dbError.code !== "23505") {
     console.error("Waitlist DB insert error", dbError.message);
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });
-  }
-
-  // Google Sheets is a best-effort mirror for the marketing team's workflow —
-  // its failure (e.g. a stale Apps Script deployment) must not fail the signup.
-  // Run via after() so the serverless function stays alive long enough for the
-  // fetch to actually complete instead of being frozen the instant the
-  // response is sent (a bare un-awaited fetch here can silently never finish).
-  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  if (webhookUrl) {
-    after(async () => {
-      try {
-        const res = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) console.error("Google Sheets webhook error", res.status);
-      } catch (err) {
-        console.error("Google Sheets webhook error", err);
-      }
-    });
   }
 
   return NextResponse.json({ ok: true });

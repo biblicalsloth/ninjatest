@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Status: MVP fully built**, not a spec-only project. All core screens, ~20 RPCs, and 3 rounds of security/perf hardening are shipped on `main`.
 
-**Current front door is the waitlist landing page, not the battle app.** `NEXT_PUBLIC_APP_MODE=waitlist` (`.env.local`) makes `/` (`app/page.tsx`) render `landing-client.tsx` (marketing + email capture into a `waitlist` table + Google Sheets webhook) instead of routing into the game. Logged-in users still redirect to `/lobby`; the full match flow is built and reachable, just not the default entry point in this mode. Flip the env var to restore the battle app as the front door.
+**Current front door is the waitlist landing page, not the battle app.** `NEXT_PUBLIC_APP_MODE=waitlist` (`.env.local`) makes `/` (`app/page.tsx`) render `landing-client.tsx` (marketing + email capture into the `waitlist` table) instead of routing into the game. Logged-in users still redirect to `/lobby`; the full match flow is built and reachable, just not the default entry point in this mode. Flip the env var to restore the battle app as the front door.
 
 ## Stack
 
@@ -76,7 +76,7 @@ Anon/PUBLIC execute is revoked on all auth-required RPCs (`20260627000200_restri
 - `section_config` — per-section scoring dials (`cap_ms`, `base_points`, `speed_mult`, `wrong_penalty`). All scoring constants live here; never hardcode in application code.
 - `rating_history` — append-only ELO timeline; powers the Recharts profile graph.
 - `challenges` — friend invite codes (15-min expiry), `is_rated` flag set at creation.
-- `waitlist` — `email` (unique) + `created_at` + survey fields `name`/`phone`/`year`/`percentile`/`section` (added `20260701000000_waitlist_survey_columns.sql`). Postgres is the primary store for `/api/waitlist` (plain `insert`, duplicate email is a no-op success — RLS grants anon INSERT only, not UPDATE, so a resubmission can't overwrite someone else's row). The Google Sheets webhook (`GOOGLE_SHEETS_WEBHOOK_URL`) is a best-effort secondary mirror only — its failure doesn't fail the signup. View signups in Supabase Studio's table editor (service role bypasses RLS there); there's no in-app admin UI.
+- `waitlist` — `email` (unique) + `created_at` + survey fields `name`/`phone`/`year`/`percentile`/`section` (added `20260701000000_waitlist_survey_columns.sql`). Postgres is the sole store for `/api/waitlist` (plain `insert`, duplicate email is a no-op success — RLS grants anon INSERT only, not UPDATE, so a resubmission can't overwrite someone else's row). No external mirror (the Google Sheets webhook was removed 2026-07-01 — it had been silently failing with 401s since 2026-06-25). View signups in Supabase Studio's table editor (service role bypasses RLS there); there's no in-app admin UI.
 
 ### Scoring formula
 ```
