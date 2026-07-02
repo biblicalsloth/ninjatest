@@ -17,6 +17,8 @@ export interface Database {
           wins: number;
           losses: number;
           draws: number;
+          current_streak: number;
+          best_streak: number;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["profiles"]["Row"], "created_at">;

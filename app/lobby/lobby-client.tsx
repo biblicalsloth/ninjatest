@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Zap, Users, Trophy, LogOut, User } from "lucide-react";
+import { Zap, Users, Trophy, LogOut, User, Flame } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -110,6 +110,12 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
           <div className="text-right shrink-0">
             <div className="text-2xl font-bold text-[#ffd166]">{profile.elo}</div>
             <div className="text-[#7ab5cc] text-xs">ELO rating</div>
+            {profile.current_streak >= 3 && (
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <Flame size={12} className="text-[#ffd166]" />
+                <span className="text-[#ffd166] text-xs font-semibold">{profile.current_streak} streak</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Settings, Swords, Trophy, BarChart2, History } from "lucide-react";
+import { ArrowLeft, Settings, Swords, Trophy, BarChart2, History, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -161,11 +161,16 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
           </div>
 
           {/* Stats row */}
-          <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-[#1a1a1a]">
+          <div className="grid grid-cols-5 gap-2 mt-4 pt-4 border-t border-[#1a1a1a]">
             <MiniStat label="Played" value={profile.matches_played.toString()} />
             <MiniStat label="Win rate" value={winRate} accent />
             <MiniStat label="W / L" value={`${profile.wins}/${profile.losses}`} />
             <MiniStat label="Draws" value={profile.draws.toString()} />
+            <MiniStat
+              label="Streak"
+              value={profile.current_streak > 0 ? `${profile.current_streak}` : "0"}
+              icon={profile.current_streak > 0 ? <Flame size={12} className="text-[#ffd166]" /> : undefined}
+            />
           </div>
 
           {/* Challenge button for other users */}
@@ -365,10 +370,23 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
   );
 }
 
-function MiniStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function MiniStat({
+  label,
+  value,
+  accent,
+  icon,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  icon?: ReactNode;
+}) {
   return (
     <div className="text-center">
-      <div className={cn("font-bold text-base", accent ? "text-[#06d6a0]" : "text-white")}>{value}</div>
+      <div className={cn("font-bold text-base flex items-center justify-center gap-1", accent ? "text-[#06d6a0]" : "text-white")}>
+        {icon}
+        {value}
+      </div>
       <div className="text-[#7ab5cc] text-xs">{label}</div>
     </div>
   );
