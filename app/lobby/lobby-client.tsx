@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
 import type { Profile } from "@/lib/supabase/types";
 import { formatPoints, getWinRate } from "@/lib/utils";
+import { getLeague } from "@/lib/leagues";
 import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
 interface RecentMatch {
@@ -57,6 +58,7 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
   }
 
   const winRate = getWinRate(profile.wins, profile.matches_played);
+  const league = getLeague(profile.elo);
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
@@ -104,7 +106,20 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-white truncate">{profile.display_name ?? profile.username}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-white truncate">{profile.display_name ?? profile.username}</p>
+              <Badge
+                variant="outline"
+                className="shrink-0"
+                style={{
+                  color: league.color,
+                  borderColor: `${league.color}4d`,
+                  backgroundColor: `${league.color}1a`,
+                }}
+              >
+                {league.name}
+              </Badge>
+            </div>
             <p className="text-[#7ab5cc] text-sm">@{profile.username}</p>
           </div>
           <div className="text-right shrink-0">

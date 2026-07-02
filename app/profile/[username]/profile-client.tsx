@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EloGraph } from "@/components/elo-graph";
 import { cn, getWinRate, formatPoints } from "@/lib/utils";
+import { getLeague } from "@/lib/leagues";
 import { createClient } from "@/lib/supabase/client";
 
 interface RecentMatch {
@@ -54,6 +55,7 @@ const SECTION_BAR: Record<string, string> = {
 
 export default function ProfileClient({ profileData, recentMatches, sectionStats }: Props) {
   const { profile, curve, rank } = profileData;
+  const league = getLeague(profile.elo);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [challenging, setChallenging] = useState(false);
@@ -131,9 +133,22 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
             </Avatar>
 
             <div className="flex-1 min-w-0">
-              <h1 className="text-white text-xl font-bold truncate leading-tight">
-                {profile.display_name ?? profile.username}
-              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-white text-xl font-bold truncate leading-tight">
+                  {profile.display_name ?? profile.username}
+                </h1>
+                <Badge
+                  variant="outline"
+                  className="shrink-0"
+                  style={{
+                    color: league.color,
+                    borderColor: `${league.color}4d`,
+                    backgroundColor: `${league.color}1a`,
+                  }}
+                >
+                  {league.name}
+                </Badge>
+              </div>
               <p className="text-[#7ab5cc] text-sm mb-3">@{profile.username}</p>
 
               <div className="flex items-center gap-4 flex-wrap">

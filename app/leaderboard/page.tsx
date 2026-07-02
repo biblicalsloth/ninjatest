@@ -12,10 +12,18 @@ export const revalidate = 60;
 
 export default async function LeaderboardPage() {
   const supabase = createPublicClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rows } = await (supabase as any).rpc("get_leaderboard", { p_limit: 100, p_offset: 0 });
+  const [{ data: rows }, { data: seasonRows }] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_leaderboard", { p_limit: 100, p_offset: 0 }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_current_season"),
+  ]);
 
   const entries = ((rows ?? []) as unknown[]) as LeaderboardEntry[];
+  const season = ((seasonRows ?? [])[0] as { name: string; ends_at: string } | undefined) ?? null;
+  const daysLeft = season
+    ? Math.max(0, Math.ceil((new Date(season.ends_at).getTime() - Date.now()) / 86_400_000))
+    : null;
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
@@ -31,6 +39,19 @@ export default async function LeaderboardPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
+        {/* Season banner */}
+        {season && (
+          <div className="bg-[#111111] rounded-xl p-5 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-[#7ab5cc] text-sm font-medium">{season.name}</p>
+              <p className="text-[#4a8fa8] text-xs mt-0.5">Rankings reset at season end</p>
+            </div>
+            <p className="text-[#ffd166] font-bold text-sm">
+              {daysLeft === 0 ? "Ends today" : `${daysLeft}d left`}
+            </p>
+          </div>
+        )}
+
         {/* Top 3 podium */}
         {entries.length >= 3 && (
           <div className="flex items-end justify-center gap-3 mb-8">

@@ -136,6 +136,16 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["challenges"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["challenges"]["Insert"]>;
       };
+      seasons: {
+        Row: { id: number; name: string; starts_at: string; ends_at: string; created_at: string };
+        Insert: Omit<Database["public"]["Tables"]["seasons"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["seasons"]["Insert"]>;
+      };
+      season_results: {
+        Row: { season_id: number; user_id: string; final_elo: number; final_rank: number };
+        Insert: Database["public"]["Tables"]["season_results"]["Row"];
+        Update: Partial<Database["public"]["Tables"]["season_results"]["Row"]>;
+      };
       waitlist: {
         Row: {
           id: string;
@@ -256,6 +266,10 @@ export interface Database {
       apply_rated_result: { Args: { p_match_id: string; p_winner: string; p_loser: string; p_delta: number }; Returns: void };
       maybe_advance: { Args: { p_match_id: string; p_index: number }; Returns: void };
       advance_timed_out: { Args: Record<string, never>; Returns: void };
+      get_current_season: {
+        Args: Record<string, never>;
+        Returns: { name: string; ends_at: string }[];
+      };
     };
     Enums: {
       cat_section: CatSection;
