@@ -288,6 +288,45 @@ export interface Database {
       send_friend_request: { Args: { p_target_id: string }; Returns: void };
       respond_friend_request: { Args: { p_other_id: string; p_accept: boolean }; Returns: void };
       remove_friend: { Args: { p_other_id: string }; Returns: void };
+      get_spectator_match: {
+        Args: { p_match_id: string };
+        Returns: {
+          match_id: string;
+          status: MatchStatus;
+          current_index: number;
+          score_a: number;
+          score_b: number;
+          player_a_username: string;
+          player_a_avatar: string | null;
+          player_b_username: string;
+          player_b_avatar: string | null;
+        }[];
+      };
+      get_match_question_spectator: {
+        Args: { p_match_id: string; p_index: number };
+        Returns: {
+          question_id: string;
+          section: CatSection;
+          body: string;
+          options: string[];
+          cap_ms: number;
+          started_at: string;
+        }[];
+      };
+      get_active_matches: {
+        Args: { p_limit: number };
+        Returns: {
+          match_id: string;
+          player_a_username: string;
+          player_a_elo: number;
+          player_b_username: string;
+          player_b_elo: number;
+          score_a: number;
+          score_b: number;
+          current_index: number;
+          started_at: string;
+        }[];
+      };
       get_daily_progress: {
         Args: Record<string, never>;
         Returns: { matches_today: number; wins_today: number };

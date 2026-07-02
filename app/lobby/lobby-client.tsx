@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Zap, Users, Trophy, LogOut, User, Flame, Check, Circle } from "lucide-react";
+import { Zap, Users, Trophy, LogOut, User, Flame, Check, Circle, Eye } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -198,23 +198,32 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress }: P
             Challenge a Friend
           </Button>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Link href="/leaderboard">
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2 px-2"
               >
                 <Trophy size={16} />
                 Leaderboard
               </Button>
             </Link>
+            <Link href="/spectate">
+              <Button
+                variant="ghost"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2 px-2"
+              >
+                <Eye size={16} />
+                Spectate
+              </Button>
+            </Link>
             <Link href={`/profile/${profile.username}`}>
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2"
+                className="w-full h-11 text-[#c5e8f0] hover:text-white hover:bg-[#111111] rounded-lg flex items-center gap-2 px-2"
               >
                 <User size={16} />
-                My Profile
+                Profile
               </Button>
             </Link>
           </div>
