@@ -126,6 +126,7 @@ export interface Database {
           host_id: string;
           guest_id: string | null;
           is_rated: boolean;
+          section_mode: CatSection | null;
           match_id: string | null;
           expires_at: string;
           created_at: string;
@@ -166,7 +167,7 @@ export interface Database {
       join_queue: { Args: Record<string, never>; Returns: void };
       leave_queue: { Args: Record<string, never>; Returns: void };
       try_match: { Args: Record<string, never>; Returns: string | null };
-      create_challenge: { Args: { p_is_rated: boolean }; Returns: string };
+      create_challenge: { Args: { p_is_rated: boolean; p_section_mode: CatSection | null }; Returns: string };
       accept_challenge: { Args: { p_code: string }; Returns: string };
       get_match_question: {
         Args: { p_match_id: string; p_index: number };
@@ -197,10 +198,34 @@ export interface Database {
           elo: number;
           wins: number;
           losses: number;
+          draws: number;
           avatar_url: string | null;
         }[];
       };
       get_profile: { Args: { p_username: string }; Returns: unknown };
+      get_profile_matches: {
+        Args: { p_username: string; p_limit: number };
+        Returns: {
+          match_id: string;
+          opponent: string;
+          opponent_avatar: string | null;
+          my_score: number;
+          opp_score: number;
+          result: string;
+          elo_delta: number;
+          played_at: string;
+        }[];
+      };
+      get_section_stats: {
+        Args: { p_username: string };
+        Returns: {
+          section: CatSection;
+          questions_answered: number;
+          correct: number;
+          accuracy: number;
+          avg_points: number;
+        }[];
+      };
       start_match: { Args: { p_match_id: string }; Returns: void };
       get_recent_matches: {
         Args: { p_limit: number };

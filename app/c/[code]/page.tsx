@@ -17,6 +17,7 @@ interface ChallengeInfo {
   host_avatar: string | null;
   host_elo: number;
   is_rated: boolean;
+  section_mode: "VARC" | "DILR" | "QUANT" | null;
   expires_at: string;
 }
 
@@ -49,12 +50,13 @@ export default function JoinChallengePage() {
       /* Load challenge + host profile */
       const { data: challengeRaw } = await supabase
         .from("challenges")
-        .select("code, host_id, is_rated, expires_at, guest_id")
+        .select("code, host_id, is_rated, section_mode, expires_at, guest_id")
         .eq("code", code)
         .single();
 
       const challenge = challengeRaw as {
         code: string; host_id: string; is_rated: boolean;
+        section_mode: "VARC" | "DILR" | "QUANT" | null;
         expires_at: string; guest_id: string | null;
       } | null;
 
@@ -110,6 +112,7 @@ export default function JoinChallengePage() {
         host_avatar: hostProfile?.avatar_url ?? null,
         host_elo: hostProfile?.elo ?? 1000,
         is_rated: challenge.is_rated,
+        section_mode: challenge.section_mode,
         expires_at: challenge.expires_at,
       });
       setLoading(false);
@@ -213,7 +216,7 @@ export default function JoinChallengePage() {
           </div>
 
           <p className="text-[#7ab5cc] text-xs">
-            9 questions · VARC + DILR + Quant · Synchronized timer
+            9 questions · {info.section_mode ? `${info.section_mode} only` : "VARC + DILR + Quant"} · Synchronized timer
           </p>
         </div>
 

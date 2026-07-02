@@ -16,14 +16,24 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
+type SectionMode = "VARC" | "DILR" | "QUANT" | null;
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }
 
+const SECTION_MODES: { value: SectionMode; label: string }[] = [
+  { value: null, label: "Mixed" },
+  { value: "VARC", label: "VARC" },
+  { value: "DILR", label: "DILR" },
+  { value: "QUANT", label: "Quant" },
+];
+
 export function ChallengeDialog({ open, onOpenChange }: Props) {
   const router = useRouter();
   const [isRated, setIsRated] = useState(true);
+  const [sectionMode, setSectionMode] = useState<SectionMode>(null);
   const [code, setCode] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -43,7 +53,10 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
     setCreating(true);
     const supabase = createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc("create_challenge", { p_is_rated: isRated });
+    const { data, error } = await (supabase as any).rpc("create_challenge", {
+      p_is_rated: isRated,
+      p_section_mode: sectionMode,
+    });
     if (error || !data) {
       toast.error("Failed to create challenge");
       setCreating(false);
@@ -97,6 +110,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
   function handleClose() {
     setCode(null);
     setIsRated(true);
+    setSectionMode(null);
     setSecondsLeft(0);
     setInviteEmail("");
     setEmailSent(false);
@@ -151,6 +165,26 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
 
+            {/* Section mode */}
+            <div>
+              <Label className="text-[#c5e8f0] text-sm mb-3 block">Sections</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {SECTION_MODES.map((m) => (
+                  <button
+                    key={m.label}
+                    onClick={() => setSectionMode(m.value)}
+                    className={`rounded-lg px-2 py-2.5 text-xs font-semibold border transition-colors ${
+                      sectionMode === m.value
+                        ? "bg-[#06d6a0]/10 border-[#06d6a0]/50 text-[#06d6a0]"
+                        : "bg-[#120F17] border-[#333333] text-[#7ab5cc] hover:border-[#4a8fa8]"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Button
               onClick={handleCreate}
               disabled={creating}
@@ -166,7 +200,10 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
               <p className="text-[#06d6a0] font-mono text-2xl font-bold tracking-widest uppercase">
                 {code}
               </p>
-              <p className="text-[#7ab5cc] text-xs mt-1">{isRated ? "Rated match" : "Unrated match"}</p>
+              <p className="text-[#7ab5cc] text-xs mt-1">
+                {isRated ? "Rated match" : "Unrated match"}
+                {sectionMode ? ` · ${sectionMode} only` : " · Mixed sections"}
+              </p>
             </div>
 
             <Button
