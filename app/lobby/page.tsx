@@ -16,7 +16,16 @@ export default async function LobbyPage() {
   if (!profile) redirect("/auth/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: recentMatches } = await (supabase as any).rpc("get_recent_matches", { p_limit: 5 });
+  const [{ data: recentMatches }, { data: dailyProgress }] = await Promise.all([
+    (supabase as any).rpc("get_recent_matches", { p_limit: 5 }),
+    (supabase as any).rpc("get_daily_progress"),
+  ]);
 
-  return <LobbyClient profile={profile} recentMatches={recentMatches ?? []} />;
+  return (
+    <LobbyClient
+      profile={profile}
+      recentMatches={recentMatches ?? []}
+      dailyProgress={dailyProgress ?? { matches_today: 0, wins_today: 0 }}
+    />
+  );
 }

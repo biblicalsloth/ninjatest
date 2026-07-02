@@ -288,6 +288,10 @@ export interface Database {
       send_friend_request: { Args: { p_target_id: string }; Returns: void };
       respond_friend_request: { Args: { p_other_id: string; p_accept: boolean }; Returns: void };
       remove_friend: { Args: { p_other_id: string }; Returns: void };
+      get_daily_progress: {
+        Args: Record<string, never>;
+        Returns: { matches_today: number; wins_today: number };
+      };
       get_friends: {
         Args: Record<string, never>;
         Returns: {

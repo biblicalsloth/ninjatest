@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Zap, Users, Trophy, LogOut, User, Flame } from "lucide-react";
+import { Zap, Users, Trophy, LogOut, User, Flame, Check, Circle } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
 import type { Profile } from "@/lib/supabase/types";
-import { formatPoints, getWinRate } from "@/lib/utils";
+import { cn, formatPoints, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
 import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
@@ -27,12 +27,23 @@ interface RecentMatch {
   played_at: string;
 }
 
+interface DailyProgress {
+  matches_today: number;
+  wins_today: number;
+}
+
 interface Props {
   profile: Profile;
   recentMatches: RecentMatch[];
+  dailyProgress: DailyProgress;
 }
 
-export default function LobbyClient({ profile, recentMatches }: Props) {
+const DAILY_TASKS = [
+  { key: "match" as const, label: "Play 1 match today", target: 1, get: (p: DailyProgress) => p.matches_today },
+  { key: "wins" as const, label: "Win 2 matches today", target: 2, get: (p: DailyProgress) => p.wins_today },
+];
+
+export default function LobbyClient({ profile, recentMatches, dailyProgress }: Props) {
   const router = useRouter();
   const [joining, setJoining] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
@@ -139,6 +150,32 @@ export default function LobbyClient({ profile, recentMatches }: Props) {
           <StatCard label="Matches" value={profile.matches_played.toString()} />
           <StatCard label="Win rate" value={winRate} accent />
           <StatCard label="Peak ELO" value={profile.peak_elo.toString()} gold />
+        </div>
+
+        {/* Daily challenges */}
+        <div className="bg-[#111111] rounded-xl p-5">
+          <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Today</h2>
+          <div className="space-y-2.5">
+            {DAILY_TASKS.map((t) => {
+              const value = t.get(dailyProgress);
+              const done = value >= t.target;
+              return (
+                <div key={t.key} className="flex items-center gap-2.5">
+                  {done ? (
+                    <Check size={16} className="text-[#06d6a0] shrink-0" />
+                  ) : (
+                    <Circle size={16} className="text-[#4a8fa8] shrink-0" />
+                  )}
+                  <span className={cn("text-sm", done ? "text-[#06d6a0]" : "text-[#7ab5cc]")}>
+                    {t.label}
+                  </span>
+                  <span className="text-[#4a8fa8] text-xs ml-auto">
+                    {Math.min(value, t.target)}/{t.target}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Primary actions */}
