@@ -3,11 +3,12 @@
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Settings, Swords, Trophy, BarChart2, History, Flame } from "lucide-react";
+import { ArrowLeft, Settings, Swords, Trophy, BarChart2, History, Flame, Users, UserPlus, Check, X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EloGraph } from "@/components/elo-graph";
 import { cn, getWinRate, formatPoints } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
@@ -39,7 +40,24 @@ interface Props {
   sectionStats: unknown[];
 }
 
-type Tab = "overview" | "history" | "stats";
+type Tab = "overview" | "history" | "stats" | "friends";
+
+interface FriendRow {
+  other_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  elo: number;
+  relation: "accepted" | "incoming" | "outgoing";
+}
+
+interface SearchResult {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  elo: number;
+}
 
 const SECTION_LABELS: Record<string, string> = { VARC: "Verbal", DILR: "Logical", QUANT: "Quant" };
 const SECTION_COLORS: Record<string, string> = {
@@ -69,6 +87,76 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
       setIsOwnProfile(!!data.user && data.user.id === profile?.id);
     });
   }, [profile?.id]);
+
+  // Friends: own-profile only, fetched client-side (same reason as
+  // isOwnProfile — friend data is private, can't live in the server
+  // component's public/cacheable data fetch).
+  const [friends, setFriends] = useState<FriendRow[]>([]);
+  const [friendSearch, setFriendSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  async function loadFriends() {
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any).rpc("get_friends");
+    setFriends((data ?? []) as FriendRow[]);
+  }
+
+  useEffect(() => {
+    if (isOwnProfile) loadFriends();
+  }, [isOwnProfile]);
+
+  async function handleSearch(q: string) {
+    setFriendSearch(q);
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    setSearching(true);
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any).rpc("search_profiles", { p_query: q, p_limit: 8 });
+    setSearchResults((data ?? []) as SearchResult[]);
+    setSearching(false);
+  }
+
+  async function handleSendRequest(targetId: string) {
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("send_friend_request", { p_target_id: targetId });
+    if (error) { toast.error(error.message ?? "Failed to send request"); return; }
+    toast.success("Friend request sent");
+    setSearchResults((r) => r.filter((u) => u.id !== targetId));
+    loadFriends();
+  }
+
+  async function handleRespond(otherId: string, accept: boolean) {
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("respond_friend_request", { p_other_id: otherId, p_accept: accept });
+    if (error) { toast.error(error.message ?? "Failed to respond"); return; }
+    loadFriends();
+  }
+
+  async function handleRemoveFriend(otherId: string) {
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("remove_friend", { p_other_id: otherId });
+    if (error) { toast.error(error.message ?? "Failed to remove"); return; }
+    loadFriends();
+  }
+
+  async function handleChallengeFriend(username: string) {
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: code, error } = await (supabase as any).rpc("create_challenge", { p_is_rated: true, p_section_mode: null });
+    if (error || !code) { toast.error("Failed to create challenge"); return; }
+    const link = `${window.location.origin}/c/${code}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success(`Challenge link copied! Share it with ${username}`);
+    } catch {
+      toast.success("Challenge created! Link: " + link);
+    }
+  }
 
   const winRate = getWinRate(profile.wins, profile.matches_played);
   const matches = recentMatches as RecentMatch[];
@@ -203,7 +291,7 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
 
         {/* ── Tabs ── */}
         <div className="flex gap-1 bg-[#111111] rounded-xl p-1">
-          {(["overview", "history", "stats"] as Tab[]).map((t) => (
+          {(["overview", "history", "stats", ...(isOwnProfile ? (["friends"] as Tab[]) : [])] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -217,6 +305,7 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
               {t === "overview" && <span className="flex items-center justify-center gap-1.5"><Trophy size={13} />Overview</span>}
               {t === "history"  && <span className="flex items-center justify-center gap-1.5"><History size={13} />Matches</span>}
               {t === "stats"    && <span className="flex items-center justify-center gap-1.5"><BarChart2 size={13} />Sections</span>}
+              {t === "friends"  && <span className="flex items-center justify-center gap-1.5"><Users size={13} />Friends</span>}
             </button>
           ))}
         </div>
@@ -378,6 +467,136 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Friends tab ── */}
+        {tab === "friends" && isOwnProfile && (
+          <div className="space-y-4">
+            {/* Search / add */}
+            <div className="bg-[#111111] rounded-xl p-5">
+              <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Add a friend</h2>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4a8fa8]" />
+                <Input
+                  value={friendSearch}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search by username…"
+                  className="bg-[#120F17] border-[#333333] text-white placeholder:text-[#4a8fa8] h-9 pl-9 text-sm"
+                />
+              </div>
+              {searching && <p className="text-[#4a8fa8] text-xs mt-2">Searching…</p>}
+              {!searching && searchResults.length > 0 && (
+                <div className="space-y-0 mt-3">
+                  {searchResults.map((u) => (
+                    <div key={u.id} className="flex items-center gap-3 py-2 border-b border-[#1a1a1a] last:border-0">
+                      <Avatar className="w-8 h-8 shrink-0">
+                        <AvatarImage src={u.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
+                          {u.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{u.display_name ?? u.username}</p>
+                        <p className="text-[#7ab5cc] text-xs">@{u.username} · {u.elo} ELO</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSendRequest(u.id)}
+                        className="h-8 px-3 bg-[#06d6a0]/10 border border-[#06d6a0]/30 text-[#06d6a0] hover:bg-[#06d6a0]/20 shrink-0"
+                      >
+                        <UserPlus size={13} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pending incoming */}
+            {friends.some((f) => f.relation === "incoming") && (
+              <div className="bg-[#111111] rounded-xl p-5">
+                <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Requests</h2>
+                <div className="space-y-0">
+                  {friends.filter((f) => f.relation === "incoming").map((f) => (
+                    <div key={f.other_id} className="flex items-center gap-3 py-2 border-b border-[#1a1a1a] last:border-0">
+                      <Avatar className="w-8 h-8 shrink-0">
+                        <AvatarImage src={f.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
+                          {f.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{f.display_name ?? f.username}</p>
+                        <p className="text-[#7ab5cc] text-xs">@{f.username}</p>
+                      </div>
+                      <div className="flex gap-1.5 shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={() => handleRespond(f.other_id, true)}
+                          className="h-8 px-2.5 bg-[#06d6a0]/10 border border-[#06d6a0]/30 text-[#06d6a0] hover:bg-[#06d6a0]/20"
+                        >
+                          <Check size={13} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleRespond(f.other_id, false)}
+                          className="h-8 px-2.5 bg-[#ef476f]/10 border border-[#ef476f]/30 text-[#ef476f] hover:bg-[#ef476f]/20"
+                        >
+                          <X size={13} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Friends list */}
+            <div className="bg-[#111111] rounded-xl p-5">
+              <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Friends</h2>
+              {friends.filter((f) => f.relation === "accepted").length === 0 &&
+               friends.filter((f) => f.relation === "outgoing").length === 0 ? (
+                <p className="text-[#4a8fa8] text-sm text-center py-6">No friends yet. Search above to add some.</p>
+              ) : (
+                <div className="space-y-0">
+                  {friends.filter((f) => f.relation === "accepted" || f.relation === "outgoing").map((f) => (
+                    <div key={f.other_id} className="flex items-center gap-3 py-2 border-b border-[#1a1a1a] last:border-0">
+                      <Avatar className="w-8 h-8 shrink-0">
+                        <AvatarImage src={f.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
+                          {f.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{f.display_name ?? f.username}</p>
+                        <p className="text-[#7ab5cc] text-xs">
+                          @{f.username} · {f.elo} ELO
+                          {f.relation === "outgoing" && <span className="text-[#4a8fa8]"> · Pending</span>}
+                        </p>
+                      </div>
+                      {f.relation === "accepted" && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleChallengeFriend(f.display_name ?? f.username)}
+                          className="h-8 px-2.5 bg-[#06d6a0]/10 border border-[#06d6a0]/30 text-[#06d6a0] hover:bg-[#06d6a0]/20 shrink-0"
+                        >
+                          <Swords size={13} />
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveFriend(f.other_id)}
+                        className="h-8 px-2.5 text-[#7ab5cc] hover:text-[#ef476f] shrink-0"
+                      >
+                        <X size={13} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

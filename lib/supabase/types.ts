@@ -146,6 +146,17 @@ export interface Database {
         Insert: Database["public"]["Tables"]["season_results"]["Row"];
         Update: Partial<Database["public"]["Tables"]["season_results"]["Row"]>;
       };
+      friendships: {
+        Row: {
+          user_a: string;
+          user_b: string;
+          status: "pending" | "accepted";
+          requested_by: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["friendships"]["Row"], "created_at">;
+        Update: Partial<Database["public"]["Tables"]["friendships"]["Insert"]>;
+      };
       waitlist: {
         Row: {
           id: string;
@@ -269,6 +280,24 @@ export interface Database {
       get_current_season: {
         Args: Record<string, never>;
         Returns: { name: string; ends_at: string }[];
+      };
+      search_profiles: {
+        Args: { p_query: string; p_limit: number };
+        Returns: { id: string; username: string; display_name: string | null; avatar_url: string | null; elo: number }[];
+      };
+      send_friend_request: { Args: { p_target_id: string }; Returns: void };
+      respond_friend_request: { Args: { p_other_id: string; p_accept: boolean }; Returns: void };
+      remove_friend: { Args: { p_other_id: string }; Returns: void };
+      get_friends: {
+        Args: Record<string, never>;
+        Returns: {
+          other_id: string;
+          username: string;
+          display_name: string | null;
+          avatar_url: string | null;
+          elo: number;
+          relation: "accepted" | "incoming" | "outgoing";
+        }[];
       };
     };
     Enums: {
