@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendChallengeInvite } from "@/lib/email";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 
 // Conservative single-address email check. We intentionally reject arrays and
 // anything that doesn't look like a lone address so this endpoint can't be used
@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Per-user + per-IP throttle: invites are cheap to send, expensive to abuse.
-  const rl = rateLimit(`email-challenge:${user.id}`, { limit: 5, windowMs: 60_000 });
-  const rlIp = rateLimit(`email-challenge-ip:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  const rl = await rateLimitDb(supabase, user.id, "email-challenge-user", { limit: 5, windowSeconds: 60 });
+  const rlIp = await rateLimitDb(supabase, clientIp(req), "email-challenge-ip", { limit: 10, windowSeconds: 60 });
   if (!rl.ok || !rlIp.ok) {
     return NextResponse.json(
       { error: "Too many requests" },

@@ -130,6 +130,29 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRemaining, question, submitted]);
 
+  /* Anti-cheat telemetry: log tab/window focus loss during a live match.
+     Best-effort — the server whitelists + rate-limits these; errors are ignored. */
+  useEffect(() => {
+    const report = (eventType: "tab_hidden" | "window_blur") => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .rpc("log_match_event", {
+          p_match_id: currentMatch.id,
+          p_question_index: currentMatchRef.current.current_index,
+          p_event_type: eventType,
+        })
+        .then(() => {}, () => {});
+    };
+    const onVis = () => { if (document.visibilityState === "hidden") report("tab_hidden"); };
+    const onBlur = () => report("window_blur");
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [currentMatch.id, supabase]);
+
   /* Reveal countdown when showReveal becomes true */
   useEffect(() => {
     if (!showReveal) return;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { createPublicClient } from "@/lib/supabase/server";
 
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
@@ -10,8 +10,10 @@ function field(v: unknown, max: number): string {
 }
 
 export async function POST(req: Request) {
+  const supabase = createPublicClient();
+
   // This endpoint is unauthenticated, so throttle hard by IP.
-  const rl = rateLimit(`waitlist:${clientIp(req)}`, { limit: 5, windowMs: 60_000 });
+  const rl = await rateLimitDb(supabase, clientIp(req), "waitlist", { limit: 5, windowSeconds: 60 });
   if (!rl.ok) {
     return NextResponse.json(
       { error: "Too many requests" },
@@ -42,7 +44,6 @@ export async function POST(req: Request) {
   // Plain insert (not upsert) — RLS only grants anon INSERT, not UPDATE, so a
   // resubmission can't be used to overwrite someone else's row by guessing
   // their email. Duplicate email (23505) is treated as success.
-  const supabase = createPublicClient();
   const { error: dbError } = await (supabase as any).from("waitlist").insert(payload);
   if (dbError && dbError.code !== "23505") {
     console.error("Waitlist DB insert error", dbError.message);

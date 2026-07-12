@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendMatchResult } from "@/lib/email";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rl = rateLimit(`email-result:${user.id}`, { limit: 10, windowMs: 60_000 });
-  const rlIp = rateLimit(`email-result-ip:${clientIp(req)}`, { limit: 20, windowMs: 60_000 });
+  const rl = await rateLimitDb(supabase, user.id, "email-result-user", { limit: 10, windowSeconds: 60 });
+  const rlIp = await rateLimitDb(supabase, clientIp(req), "email-result-ip", { limit: 20, windowSeconds: 60 });
   if (!rl.ok || !rlIp.ok) {
     return NextResponse.json(
       { error: "Too many requests" },
