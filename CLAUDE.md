@@ -91,10 +91,16 @@ Section multipliers: VARC ×1, Quant ×2, DILR ×2. All constants from `section_
 E_winner = 1 / (1 + 10^((R_loser − R_winner) / 400))
 base     = K × (1 − E_winner)
 factor   = 0.3 + 0.7 × min(|score_margin| / 300, 1)
-Δ_winner = max(1, round(base × factor))
-Δ_loser  = −Δ_winner   # zero-sum
+Δ        = max(1, round(base × factor))
+Δ_eff    = max(0, min(Δ, R_loser − 100))   # 100-ELO floor, kept strictly zero-sum
+winner += Δ_eff; loser −= Δ_eff            # beating a floored (100) opponent gains 0
 ```
 K schedule: <30 matches → 40, ELO <2000 → 24, ELO ≥2000 → 16.
+
+Since `20260713060000`: R values are each player's **current** rating at finalization (read under ordered row locks inside `apply_rated_result`), not the match-creation snapshot — overlapping rated matches chain correctly. Callers (`finalize_match`, `forfeit_match`) pass only the margin factor; all rating math lives in `apply_rated_result`. `matches.elo_*_before` is re-synced to the true base at finalization. Draws keep per-player K deltas (not zero-sum by design).
+
+### Question ELO (adaptive difficulty)
+`questions.elo` (seeded `1000 + difficulty×100`, incl. on admin-console upload) is nudged on every real answer in `submit_answer` — one atomic UPDATE, clamp [400, 2800], K=32 while `times_seen < 20` else 16, result = `0.35 × (taken_ms/cap)` for correct / `1.0` for wrong; sub-2s correct answers (`fast_answer` telemetry) are excluded. Selection (`pick_section_question_ids(section, target_elo)`) biases toward the players' average ELO with `random()×300` jitter; passage groups compete by mean sub-question ELO. Constants backed by `scripts/simulate-question-elo.mjs`; invariants tested by `scripts/elo-stress-test.sql` (rollback harness). The shuffle invariant: `get_match_question`, `submit_answer`, `get_answer_reveal` must share the same `option_perm()` mapping — never change one without the other two (a 20260713030000 regression desynced them once already).
 
 ### Time synchronization
 Server writes `question_started_at` on each advance. `time_taken_ms` = `now() − question_started_at` measured on the server when `submit_answer` arrives. Client renders `deadline = server_start_ts + cap_ms` using a one-time clock-offset sync at match start.

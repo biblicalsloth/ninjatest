@@ -199,4 +199,80 @@ begin
   raise notice 'PASS 3: question-ELO clamp, upward nudge on wrong, fast-answer exclusion + telemetry';
 end $$;
 
+-- ── 4. overlapping rated matches: second finalize chains off CURRENT elo ────
+-- (20260713060000 fix — before it, both matches applied deltas to the
+-- creation-time snapshot and the second overwrote the first.)
+do $$
+declare
+  ua uuid := (select v::uuid from _t where k = 'ua');
+  ub uuid := (select v::uuid from _t where k = 'ub');
+  qids uuid[]; m1 uuid; m2 uuid;
+  elo_after_m1 int; cur int; r record;
+begin
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+  update profiles set elo = 1000, matches_played = 50 where id in (ua, ub);
+
+  -- both snapshot elo_before = 1000 at creation
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at, score_a, score_b)
+  values (ua, ub, 'active', true, qids, 1000, 1000, 0, now(), 250, 40) returning id into m1;
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at, score_a, score_b)
+  values (ua, ub, 'active', true, qids, 1000, 1000, 0, now(), 250, 40) returning id into m2;
+
+  perform finalize_match(m1);
+  select elo into elo_after_m1 from profiles where id = ua;
+
+  perform finalize_match(m2);
+  select * into r from rating_history where match_id = m2 and user_id = ua;
+  if r.elo_before <> elo_after_m1 then
+    raise exception 'LOST UPDATE: M2 based on % (want current %)', r.elo_before, elo_after_m1;
+  end if;
+  select elo into cur from profiles where id = ua;
+  if cur <> elo_after_m1 + r.delta then
+    raise exception 'M2: profile elo % != % + %', cur, elo_after_m1, r.delta;
+  end if;
+  if (select elo_a_before from matches where id = m2) <> elo_after_m1 then
+    raise exception 'matches.elo_a_before not resynced to true base';
+  end if;
+  raise notice 'PASS 4: overlapping finalizes chain off current elo';
+end $$;
+
+-- ── 5. zero-sum 100-ELO floor ────────────────────────────────────────────────
+-- Applied delta is capped at the loser's headroom above 100; winner and loser
+-- move by exactly the same amount (0/0 when the loser sits on the floor).
+do $$
+declare
+  ua uuid := (select v::uuid from _t where k = 'ua');
+  ub uuid := (select v::uuid from _t where k = 'ub');
+  qids uuid[]; mx uuid; m matches%rowtype; da int; db int;
+begin
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+
+  -- loser exactly at floor: both move 0
+  update profiles set elo = 1400 where id = ua;
+  update profiles set elo = 100  where id = ub;
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at, score_a, score_b)
+  values (ua, ub, 'active', true, qids, 1400, 100, 0, now(), 300, 0) returning id into mx;
+  perform finalize_match(mx);
+  select * into m from matches where id = mx;
+  da := m.elo_a_after - m.elo_a_before; db := m.elo_b_after - m.elo_b_before;
+  if da <> 0 or db <> 0 then raise exception 'floored loser: expected 0/0, got %+ / %', da, db; end if;
+
+  -- close ratings (200 vs 105): raw delta ~9 > headroom 5 -> capped +5/-5
+  update profiles set elo = 200 where id = ua;
+  update profiles set elo = 105 where id = ub;
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at, score_a, score_b)
+  values (ua, ub, 'active', true, qids, 200, 105, 0, now(), 300, 0) returning id into mx;
+  perform finalize_match(mx);
+  select * into m from matches where id = mx;
+  da := m.elo_a_after - m.elo_a_before; db := m.elo_b_after - m.elo_b_before;
+  if da <> 5 or db <> -5 or m.elo_b_after <> 100 then
+    raise exception 'near-floor cap: expected +5/-5 to 100, got %+ / % (after %)', da, db, m.elo_b_after;
+  end if;
+  raise notice 'PASS 5: zero-sum floor (0/0 at floor; capped +5/-5 near floor)';
+end $$;
+
 rollback;
