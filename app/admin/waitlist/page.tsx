@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-// Admin-only waitlist viewer. Access is enforced server-side by the
-// get_waitlist_admin() RPC (email allowlist) — this page just renders whatever
-// it returns and shows a forbidden state on the RPC's `forbidden` error.
+// Admin-only waitlist viewer. Gated on profiles.is_admin (same gate as the
+// question-upload console at /admin); the get_waitlist_admin() RPC re-checks
+// is_admin server-side as a backstop.
 export const dynamic = "force-dynamic";
 
 type Signup = {
@@ -22,6 +22,10 @@ export default async function AdminWaitlistPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login?next=/admin/waitlist");
+
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  // is_admin isn't in generated types yet (migration pending) — cast to read it.
+  if (!profile || !(profile as { is_admin?: boolean }).is_admin) redirect("/lobby");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc("get_waitlist_admin");
