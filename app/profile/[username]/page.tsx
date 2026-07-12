@@ -12,20 +12,15 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const { username } = await params;
   const supabase = createPublicClient();
 
-  const [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { data },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { data: rm },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { data: ss },
-  ] = await Promise.all([
+  const [{ data }, { data: rm }, { data: ss }, { data: ds }] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc("get_profile", { p_username: username }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc("get_profile_matches", { p_username: username, p_limit: 20 }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc("get_section_stats", { p_username: username }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_profile_deep_stats", { p_username: username }),
   ]);
 
   if (!data) notFound();
@@ -38,6 +33,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
       profileData={profileData}
       recentMatches={rm ?? []}
       sectionStats={ss ?? []}
+      deepStats={ds ?? null}
     />
   );
 }

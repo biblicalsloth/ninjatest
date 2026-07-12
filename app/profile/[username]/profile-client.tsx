@@ -33,11 +33,50 @@ interface SectionStat {
   avg_points: number;
 }
 
+interface DeepSection {
+  section: "VARC" | "DILR" | "QUANT";
+  wrong: number;
+  skipped: number;
+  avg_time_ms: number | null;
+  fastest_correct_ms: number | null;
+  penalty_points: number;
+  speed_bonus_points: number;
+}
+
+interface Rival {
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  played: number;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+interface DeepStats {
+  form: ("W" | "L" | "D")[];
+  scoring: {
+    avg_points: number | null;
+    best_score: number | null;
+    avg_margin_win: number | null;
+    avg_margin_loss: number | null;
+  };
+  elo: {
+    best_gain: number | null;
+    worst_loss: number | null;
+    delta_30d: number;
+    peak_at: string | null;
+  };
+  sections: DeepSection[];
+  rivals: Rival[];
+}
+
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profileData: any;
   recentMatches: unknown[];
   sectionStats: unknown[];
+  deepStats: DeepStats | null;
 }
 
 type Tab = "overview" | "history" | "stats" | "friends";
@@ -71,7 +110,7 @@ const SECTION_BAR: Record<string, string> = {
   QUANT: "bg-[#06d6a0]",
 };
 
-export default function ProfileClient({ profileData, recentMatches, sectionStats }: Props) {
+export default function ProfileClient({ profileData, recentMatches, sectionStats, deepStats }: Props) {
   const { profile, curve, rank } = profileData;
   const league = getLeague(profile.elo);
   const router = useRouter();
@@ -161,6 +200,17 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
   const winRate = getWinRate(profile.wins, profile.matches_played);
   const matches = recentMatches as RecentMatch[];
   const stats = sectionStats as SectionStat[];
+  const deep = deepStats && deepStats.form.length > 0 ? deepStats : null;
+  const deepFor = (section: string) => deep?.sections.find((d) => d.section === section);
+  const fastestOverall = deep
+    ? deep.sections.reduce<number | null>(
+        (min, d) =>
+          d.fastest_correct_ms != null && (min == null || d.fastest_correct_ms < min)
+            ? d.fastest_correct_ms
+            : min,
+        null
+      )
+    : null;
 
   async function handleChallenge() {
     setChallenging(true);
@@ -325,6 +375,102 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
               </div>
             )}
 
+            {/* Form: last-10 result strip + headline numbers */}
+            {deep && (
+              <div className="bg-[#111111] rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-[#7ab5cc] text-sm font-medium">Form</h2>
+                  <span className="text-[#4a8fa8] text-xs">last {deep.form.length} matches · newest first</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap mb-4">
+                  {deep.form.map((r, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border",
+                        r === "W" && "bg-[#06d6a0]/15 text-[#06d6a0] border-[#06d6a0]/40",
+                        r === "L" && "bg-[#ef476f]/15 text-[#ef476f] border-[#ef476f]/40",
+                        r === "D" && "bg-[#7ab5cc]/15 text-[#7ab5cc] border-[#7ab5cc]/40"
+                      )}
+                    >
+                      {r}
+                    </span>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#1a1a1a]">
+                  <MiniStat
+                    label="Best streak"
+                    value={`${profile.best_streak ?? 0}`}
+                    icon={(profile.best_streak ?? 0) > 0 ? <Flame size={12} className="text-[#ffd166]" /> : undefined}
+                  />
+                  <div className="text-center">
+                    <div className={cn("font-bold text-base", deep.elo.delta_30d > 0 ? "text-[#06d6a0]" : deep.elo.delta_30d < 0 ? "text-[#ef476f]" : "text-white")}>
+                      {formatPoints(deep.elo.delta_30d)}
+                    </div>
+                    <div className="text-[#7ab5cc] text-xs">ELO · 30 days</div>
+                  </div>
+                  <MiniStat
+                    label="Avg pts/match"
+                    value={deep.scoring.avg_points != null ? `${deep.scoring.avg_points}` : "—"}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Records */}
+            {deep && (
+              <div className="bg-[#111111] rounded-xl p-5">
+                <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Records</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                  <RecordRow label="Best match score" value={deep.scoring.best_score != null ? `${deep.scoring.best_score}` : "—"} />
+                  <RecordRow label="Biggest ELO gain" value={deep.elo.best_gain != null && deep.elo.best_gain > 0 ? formatPoints(deep.elo.best_gain) : "—"} tone="pos" />
+                  <RecordRow label="Worst ELO drop" value={deep.elo.worst_loss != null && deep.elo.worst_loss < 0 ? formatPoints(deep.elo.worst_loss) : "—"} tone="neg" />
+                  <RecordRow label="Fastest correct answer" value={fastestOverall != null ? `${(fastestOverall / 1000).toFixed(1)}s` : "—"} />
+                  <RecordRow label="Avg win margin" value={deep.scoring.avg_margin_win != null ? `+${deep.scoring.avg_margin_win}` : "—"} tone="pos" />
+                  <RecordRow label="Avg loss margin" value={deep.scoring.avg_margin_loss != null ? `-${deep.scoring.avg_margin_loss}` : "—"} tone="neg" />
+                  <RecordRow label="Peak ELO reached" value={deep.elo.peak_at ? new Date(deep.elo.peak_at).toLocaleDateString() : "—"} />
+                </div>
+              </div>
+            )}
+
+            {/* Top rivals */}
+            {deep && deep.rivals.length > 0 && (
+              <div className="bg-[#111111] rounded-xl p-5">
+                <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Top rivals</h2>
+                <div className="space-y-0">
+                  {deep.rivals.map((r) => (
+                    <Link
+                      key={r.username}
+                      href={`/profile/${r.username}`}
+                      className="flex items-center gap-3 py-2.5 border-b border-[#1a1a1a] last:border-0 hover:opacity-80 transition-opacity"
+                    >
+                      <Avatar className="w-8 h-8 shrink-0">
+                        <AvatarImage src={r.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-[#0a4f66] text-[#06d6a0] text-xs font-bold">
+                          {r.username.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{r.display_name ?? r.username}</p>
+                        <p className="text-[#7ab5cc] text-xs">@{r.username} · {r.played} match{r.played === 1 ? "" : "es"}</p>
+                      </div>
+                      <div className="text-xs font-semibold shrink-0">
+                        <span className="text-[#06d6a0]">{r.wins}W</span>
+                        <span className="text-[#4a8fa8]"> – </span>
+                        <span className="text-[#ef476f]">{r.losses}L</span>
+                        {r.draws > 0 && (
+                          <>
+                            <span className="text-[#4a8fa8]"> – </span>
+                            <span className="text-[#7ab5cc]">{r.draws}D</span>
+                          </>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Recent rating changes */}
             {curve.length > 0 && (
               <div className="bg-[#111111] rounded-xl p-5">
@@ -425,6 +571,36 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
                     </div>
                   </div>
 
+                  {/* Depth row from match-derived stats */}
+                  {(() => {
+                    const d = deepFor(s.section);
+                    if (!d) return null;
+                    return (
+                      <div className="grid grid-cols-4 gap-2 mb-4 pt-3 border-t border-[#1a1a1a] text-center">
+                        <div>
+                          <div className="text-[#ef476f] font-semibold text-sm">{d.wrong}</div>
+                          <div className="text-[#4a8fa8] text-[11px]">Wrong</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-semibold text-sm">{d.skipped}</div>
+                          <div className="text-[#4a8fa8] text-[11px]">Skipped</div>
+                        </div>
+                        <div>
+                          <div className="text-white font-semibold text-sm">
+                            {d.avg_time_ms != null ? `${(d.avg_time_ms / 1000).toFixed(1)}s` : "—"}
+                          </div>
+                          <div className="text-[#4a8fa8] text-[11px]">Avg time</div>
+                        </div>
+                        <div>
+                          <div className="text-[#06d6a0] font-semibold text-sm">
+                            {d.fastest_correct_ms != null ? `${(d.fastest_correct_ms / 1000).toFixed(1)}s` : "—"}
+                          </div>
+                          <div className="text-[#4a8fa8] text-[11px]">Fastest</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Accuracy bar */}
                   <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
                     <div
@@ -465,6 +641,22 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
                     <div className="text-[#7ab5cc] text-xs">Correct</div>
                   </div>
                 </div>
+                {deep && (
+                  <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-[#1a1a1a]">
+                    <div className="text-center">
+                      <div className="text-[#ffd166] font-bold text-xl">
+                        +{deep.sections.reduce((s, d) => s + d.speed_bonus_points, 0)}
+                      </div>
+                      <div className="text-[#7ab5cc] text-xs">Speed bonus pts</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[#ef476f] font-bold text-xl">
+                        −{deep.sections.reduce((s, d) => s + d.penalty_points, 0)}
+                      </div>
+                      <div className="text-[#7ab5cc] text-xs">Penalty pts conceded</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -622,6 +814,22 @@ function MiniStat({
         {value}
       </div>
       <div className="text-[#7ab5cc] text-xs">{label}</div>
+    </div>
+  );
+}
+
+function RecordRow({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[#7ab5cc] text-xs">{label}</span>
+      <span
+        className={cn(
+          "text-sm font-semibold",
+          value === "—" ? "text-[#4a8fa8]" : tone === "pos" ? "text-[#06d6a0]" : tone === "neg" ? "text-[#ef476f]" : "text-white"
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
 }

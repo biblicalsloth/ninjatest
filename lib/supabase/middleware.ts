@@ -2,7 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/supabase/types";
 
-const WAITLIST_ALLOWED = ["/", "/api/waitlist"];
+// /auth stays reachable in waitlist mode so sign-in, the OAuth callback, and
+// password reset keep working; app routes below remain blocked until launch.
+const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;

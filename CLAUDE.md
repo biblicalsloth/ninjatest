@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Status: MVP fully built**, not a spec-only project. All core screens, ~20 RPCs, and 3 rounds of security/perf hardening are shipped on `main`.
 
-**Current front door is the waitlist landing page, not the battle app.** `NEXT_PUBLIC_APP_MODE=waitlist` (`.env.local`) makes `/` (`app/page.tsx`) render `landing-client.tsx` (marketing + email capture into the `waitlist` table) instead of routing into the game. Logged-in users still redirect to `/lobby`; the full match flow is built and reachable, just not the default entry point in this mode. Flip the env var to restore the battle app as the front door.
+**Current front door is the waitlist landing page, not the battle app.** `NEXT_PUBLIC_APP_MODE=waitlist` (`.env.local`) makes `/` (`app/page.tsx`) render `landing-client.tsx` (marketing + email capture into the `waitlist` table) instead of routing into the game. In waitlist mode the middleware (`lib/supabase/middleware.ts`) blocks every route except `/`, `/api/waitlist`, and `/auth/*` — signing in works (email/password at `/auth/login`, Google OAuth, password reset) but app routes like `/lobby` bounce back to `/` even for authed users. Flip the env var to restore the battle app as the front door (then `/` redirects authed users to `/lobby`).
 
 ## Stack
 

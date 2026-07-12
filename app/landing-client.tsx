@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { NinjaLogo } from "@/components/ninja-logo";
+import { GoogleSignInButton } from "@/components/google-signin-button";
 import dynamic from "next/dynamic";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
@@ -559,6 +560,13 @@ export default function LandingClient() {
                   {authLoading ? "…" : authMode === "signin" ? "Enter the arena →" : "Create account →"}
                 </button>
               </form>
+
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-[#120F17]/20" />
+                <span className="text-[#120F17]/50 text-xs">or</span>
+                <div className="flex-1 h-px bg-[#120F17]/20" />
+              </div>
+              <GoogleSignInButton />
             </div>
           )}
         </div>
