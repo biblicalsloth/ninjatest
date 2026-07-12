@@ -366,4 +366,5 @@ export interface MatchQuestion {
   options: string[];
   cap_ms: number;
   started_at: string;
+  passage: string | null;
 }

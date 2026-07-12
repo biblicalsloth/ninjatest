@@ -332,6 +332,13 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
             </span>
           </div>
 
+          {/* Shared passage (passage-group questions only) */}
+          {question.passage && (
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-[#222222] bg-[#111111] px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-wrap">
+              {question.passage}
+            </div>
+          )}
+
           {/* Question body */}
           <p className="text-white text-base leading-relaxed whitespace-pre-wrap">
             {question.body}
@@ -448,6 +455,13 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
             capMs={capMs}
             timeRemaining={timeRemaining}
           />
+
+          {/* Shared passage (passage-group questions only) */}
+          {question.passage && (
+            <div className="max-h-72 overflow-y-auto rounded-xl border border-[#222222] bg-[#111111] px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-wrap">
+              {question.passage}
+            </div>
+          )}
 
           {/* Question body */}
           <div className="text-white text-base leading-relaxed whitespace-pre-wrap">
