@@ -222,6 +222,16 @@ end;
 $$;
 revoke execute on function advance_timed_out() from public, anon, authenticated;
 
+-- ── C1-redux: drop the pre-C1 two-arg forfeit_match. It survived every audit
+--    because later migrations recreated forfeit_match(uuid) — a DIFFERENT
+--    signature — leaving this overload live and client-executable. It has no
+--    caller-identity check (any authed user could forfeit any active match,
+--    naming either side winner), and since apply_rated_result's int-delta
+--    overload was dropped in 20260713060000, its integer d_win now coerces
+--    into the numeric FACTOR parameter — a transfer of the loser's whole
+--    headroom. ──────────────────────────────────────────────────────────────
+drop function if exists forfeit_match(uuid, uuid);
+
 -- ── H1: forfeit_match — cron-null rows are ABSENCE evidence, not answers ─────
 create or replace function forfeit_match(p_match_id uuid)
 returns void language plpgsql security definer
