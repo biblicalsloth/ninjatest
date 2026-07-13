@@ -7,19 +7,14 @@ export default async function LobbyPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) redirect("/auth/login");
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [{ data: recentMatches }, { data: dailyProgress }] = await Promise.all([
+  const [{ data: profile }, { data: recentMatches }, { data: dailyProgress }] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
     (supabase as any).rpc("get_recent_matches", { p_limit: 5 }),
     (supabase as any).rpc("get_daily_progress"),
   ]);
+
+  if (!profile) redirect("/auth/login");
 
   return (
     <LobbyClient

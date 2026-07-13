@@ -17,6 +17,9 @@ export default function QueuePage() {
   const startRef = useRef(Date.now());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseRef = useRef<any>(null);
+  const matchedRef = useRef(false);
 
   /* Timer */
   useEffect(() => {
@@ -31,28 +34,32 @@ export default function QueuePage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
 
-    async function handleMatched(matchId: string, sb: typeof supabase) {
-      // Fetch opponent username for the "found" screen
-      const { data: matchRaw } = await sb.from("matches").select("player_a, player_b").eq("id", matchId).single();
+    async function handleMatched(matchId: string, sb: typeof supabase): Promise<boolean> {
+      // Fetch the match; a stale 'matched' queue row can point at a long-dead
+      // match — only route into live ones.
+      const { data: matchRaw } = await sb.from("matches").select("player_a, player_b, status").eq("id", matchId).single();
+      const m = matchRaw as { player_a: string; player_b: string; status: string } | null;
+      if (!m || (m.status !== "pending" && m.status !== "active")) return false;
       const { data: { user } } = await sb.auth.getUser();
       let opponent: string | null = null;
-      if (matchRaw && user) {
-        const oppId = (matchRaw as { player_a: string; player_b: string }).player_a === user.id
-          ? (matchRaw as { player_a: string; player_b: string }).player_b
-          : (matchRaw as { player_a: string; player_b: string }).player_a;
+      if (user) {
+        const oppId = m.player_a === user.id ? m.player_b : m.player_a;
         const { data: profile } = await sb.from("profiles").select("display_name, username").eq("id", oppId).single();
         if (profile) {
           const p = profile as { display_name: string | null; username: string };
           opponent = p.display_name ?? p.username;
         }
       }
+      matchedRef.current = true;
       setMatchFound({ matchId, opponent });
       setTimeout(() => router.push(`/match/${matchId}`), 1500);
+      return true;
     }
 
     async function setup() {
       const { createClient } = await import("@/lib/supabase/client");
       supabase = createClient();
+      supabaseRef.current = supabase;
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/auth/login"); return; }
@@ -68,8 +75,8 @@ export default function QueuePage() {
       const queueRow = queueRowRaw as { status: string; match_id: string | null } | null;
 
       if (queueRow?.status === "matched" && queueRow.match_id) {
-        await handleMatched(queueRow.match_id, supabase);
-        return;
+        if (await handleMatched(queueRow.match_id, supabase)) return;
+        // stale matched row — fall through and queue fresh
       }
 
       if (!queueRow || queueRow.status !== "waiting") {
@@ -97,18 +104,70 @@ export default function QueuePage() {
             const row = payload.new;
             if (row.status === "matched" && row.match_id) {
               await handleMatched(row.match_id, supabase);
+            } else if (row.status === "cancelled" && !matchedRef.current) {
+              // Server ghost-sweep cancelled us (stale heartbeat, e.g. laptop
+              // sleep) while the page is still open — rejoin.
+              const { error } = await supabase.rpc("join_queue");
+              if (error) { toast.error("Removed from queue"); router.push("/lobby"); }
             }
           }
         )
-        .subscribe();
+        .subscribe(async (status) => {
+          // A dropped/errored socket can miss the "matched" event, stranding the
+          // player in the queue while the opponent sits in a live match alone.
+          // On (re)subscribe or error, re-read the queue row as a fallback.
+          if (status === "SUBSCRIBED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            const { data } = await supabase
+              .from("matchmaking_queue")
+              .select("status, match_id")
+              .eq("user_id", user.id)
+              .order("enqueued_at", { ascending: false })
+              .limit(1)
+              .single();
+            const row = data as { status: string; match_id: string | null } | null;
+            if (row?.status === "matched" && row.match_id) {
+              await handleMatched(row.match_id, supabase);
+            }
+          }
+        });
 
       channelRef.current = channel;
     }
 
     setup();
 
+    // Liveness heartbeat: the server cancels waiting rows whose heartbeat is
+    // >90s stale, so an abandoned tab can't poison the matchmaking pool.
+    const heartbeat = setInterval(async () => {
+      const sb = supabaseRef.current;
+      if (!sb || matchedRef.current) return;
+      const { data, error } = await sb.rpc("queue_heartbeat");
+      if (error || data !== false) return;
+      // No waiting row anymore: either we got matched or we were swept.
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { data: rowRaw } = await sb
+        .from("matchmaking_queue")
+        .select("status, match_id")
+        .eq("user_id", user.id)
+        .order("enqueued_at", { ascending: false })
+        .limit(1)
+        .single();
+      const row = rowRaw as { status: string; match_id: string | null } | null;
+      if (row?.status === "matched" && row.match_id) {
+        await handleMatched(row.match_id, sb);
+      } else if (!matchedRef.current) {
+        await sb.rpc("join_queue").then(() => {}, () => {});
+      }
+    }, 20_000);
+
     return () => {
+      clearInterval(heartbeat);
       channelRef.current?.unsubscribe();
+      // Leaving the page without cancelling used to strand a ghost waiting
+      // row. leave_queue only touches 'waiting' rows, so this is a no-op when
+      // we routed into a match. Fire-and-forget.
+      supabaseRef.current?.rpc("leave_queue").then(() => {}, () => {});
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
@@ -117,11 +176,31 @@ export default function QueuePage() {
     setCancelling(true);
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
-    const { error } = await supabase.rpc("leave_queue");
+    const { data, error } = await supabase.rpc("leave_queue");
     if (error) {
       toast.error("Failed to leave queue");
       setCancelling(false);
       return;
+    }
+    if (data === false) {
+      // Lost the leave-vs-match race: our row was already consumed by the
+      // matcher. Route into the match instead of stranding the opponent.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: rowRaw } = await supabase
+          .from("matchmaking_queue")
+          .select("status, match_id")
+          .eq("user_id", user.id)
+          .order("enqueued_at", { ascending: false })
+          .limit(1)
+          .single();
+        const row = rowRaw as { status: string; match_id: string | null } | null;
+        if (row?.status === "matched" && row.match_id) {
+          matchedRef.current = true;
+          router.push(`/match/${row.match_id}`);
+          return;
+        }
+      }
     }
     router.push("/lobby");
   }

@@ -1,4 +1,4 @@
-import LoginForm from "./login-form";
+import { AuthPanel } from "@/components/auth-panel";
 
 export default async function LoginPage({
   searchParams,
@@ -6,5 +6,5 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  return <LoginForm callbackError={error === "auth_callback_failed"} />;
+  return <AuthPanel defaultMode="signin" callbackError={error === "auth_callback_failed"} />;
 }

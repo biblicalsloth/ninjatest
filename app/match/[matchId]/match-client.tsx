@@ -30,7 +30,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const router = useRouter();
   const supabase = createClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const forfeitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const forfeitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSubmitFiredRef = useRef(false);
   const currentMatchRef = useRef(match);
   const questionRef = useRef<MatchQuestion | null>(null);
@@ -52,12 +52,20 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const myScore = isPlayerA ? currentMatch.score_a : currentMatch.score_b;
   const oppScore = isPlayerA ? currentMatch.score_b : currentMatch.score_a;
 
-  /* One-time clock sync */
+  /* One-time clock sync: offset = server clock − client clock, estimated at
+     the request midpoint. Corrects absolute skew (a fast client clock used to
+     auto-skip early; a slow one submitted past the server deadline). */
   useEffect(() => {
     const t0 = Date.now();
-    supabase.from("section_config").select("section").limit(1).then(() => {
-      setClockOffset(-(Date.now() - t0) / 2);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc("get_server_time").then(
+      ({ data }: { data: string | null }) => {
+        if (!data) return;
+        const t1 = Date.now();
+        setClockOffset(new Date(data).getTime() - (t0 + t1) / 2);
+      },
+      () => {}
+    );
   }, [supabase]);
 
   /* Fetch question for given index */
@@ -94,7 +102,9 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     }
     currentMatchRef.current = m;
     setCurrentMatch(m);
-    await fetchQuestion(m.current_index);
+    if (m.status === "active") {
+      await fetchQuestion(m.current_index);
+    }
   }, [match.id, supabase, router, fetchQuestion]);
 
   /* Load Q0 if match already active (pending waits for presence to fire start_match) */
@@ -182,16 +192,20 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     const oppId = isPlayerA ? match.player_b : match.player_a;
 
     function clearForfeit() {
-      if (forfeitTimerRef.current) { clearTimeout(forfeitTimerRef.current); forfeitTimerRef.current = null; }
+      if (forfeitTimerRef.current) { clearInterval(forfeitTimerRef.current); forfeitTimerRef.current = null; }
     }
     function scheduleForfeit() {
       clearForfeit();
-      // 30s total: 10s page-load buffer + 20s spec grace = 30s before forfeit fires.
-      // Server-side guard still enforces the 20s minimum from question_started_at.
-      forfeitTimerRef.current = setTimeout(async () => {
+      // Opponent looks absent — keep attempting a forfeit until the server
+      // accepts it (it rejects until the opponent has verifiably missed a full
+      // question deadline) or presence sees them return (clearForfeit). The
+      // old single-shot attempt always fired inside the deadline, got
+      // rejected, and never retried — the forfeit path was effectively dead.
+      // Errors are ignored; success arrives via the match UPDATE event.
+      forfeitTimerRef.current = setInterval(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).rpc("forfeit_match", { p_match_id: match.id });
-      }, 30_000);
+        (supabase as any).rpc("forfeit_match", { p_match_id: match.id }).then(() => {}, () => {});
+      }, 10_000);
     }
 
     const channel = supabase
@@ -266,6 +280,9 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({ user_id: userId });
+          // An advance landing between the SSR fetch and this subscription
+          // would otherwise be missed until the next event — re-sync now.
+          await rehydrate();
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           await rehydrate();
         }

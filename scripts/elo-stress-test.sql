@@ -10,7 +10,20 @@
 --   1. option_perm round-trip (pure function; safe anywhere, incl. prod)
 --   2. full match drive: 2 users, 9 questions, real RPCs via JWT-claim
 --      impersonation -> shuffle-consistent scoring, reveal, finalize, zero-sum
---   3. question-ELO nudge: clamp, upward-on-wrong, fast-answer exclusion
+--   3. question-ELO nudge: clamp, fast-answer (correct AND wrong) exclusion,
+--      real answers nudge, unrated matches never nudge
+--   4. overlapping rated finalizes chain off current elo (lost-update fix)
+--   5. zero-sum 100-ELO floor (0/0 at floor; capped near floor)
+--   6. H1: submit past the deadline forced to a 0-point skip
+--   7. C1: forfeit rejected within-deadline & vs a present opponent, granted
+--      on server-verified absence (missed deadline w/ no row, or a cron-null
+--      skip row on the previous question)
+--   8. M5: no-skill (all-skip / all-wrong) rated match completes w/o rating
+--   9. M1: profiles self-update RLS freezes current_streak / best_streak
+--      (runs under the real `authenticated` role so RLS is enforced)
+--  10. draws are zero-sum at K = least(K_a, K_b); streaks reset; history rows
+--  11. join_queue rejects callers already in a live match; leave_queue
+--      reports whether a row was cancelled; queue_heartbeat liveness
 --
 -- Note on timing: now() is frozen inside a transaction, so every submit lands
 -- at taken_ms = 0. That makes all of A's correct answers 'fast_answer'
@@ -175,28 +188,71 @@ begin
   raise notice 'PASS 2c: finalize + zero-sum ELO (winner +%, loser %)', da, db;
 end $$;
 
--- ── 3. question-ELO: clamp, upward-on-wrong, fast-answer exclusion ──────────
+-- ── 3. question-ELO: clamp, fast exclusion (correct AND wrong), real nudge,
+--       unrated never nudges ─────────────────────────────────────────────────
 do $$
 declare
+  ua uuid := (select v::uuid from _t where k = 'ua');
+  ub uuid := (select v::uuid from _t where k = 'ub');
   mid uuid := (select v::uuid from _t where k = 'mid');
   m matches%rowtype; q questions%rowtype;
+  qids uuid[]; m2 uuid; opts jsonb; wrong_disp int;
+  elo_before int; elo_mid int; elo_after int;
 begin
   select * into m from matches where id = mid;
-  -- A's correct answers all landed at taken_ms = 0 (< 2s) -> suspects, excluded
-  -- from the ELO nudge. B's wrong answers are real signal -> elo must have
-  -- moved UP from 1200. Both paths bump times_seen.
+  -- Every answer in section 2 landed at taken_ms = 0 (< 2s): A's fast-correct
+  -- AND B's fast-wrong are both suspects, excluded from the nudge (fast-wrong
+  -- deflation is as manipulable as fast-correct inflation). elo must be
+  -- untouched; both paths still bump times_seen.
   for i in 1..9 loop
     select * into q from questions where id = m.question_ids[i];
-    if q.elo < 400 or q.elo > 2800 then raise exception 'q% elo % outside clamp', i, q.elo; end if;
-    if q.elo <= 1200 then
-      raise exception 'q% elo % did not rise (wrong answer must push up; fast correct excluded)', i, q.elo;
+    if q.elo <> 1200 then
+      raise exception 'q% elo % (want 1200 untouched — <2s answers must not nudge)', i, q.elo;
     end if;
     if q.times_seen <> 2 then raise exception 'q% times_seen % (want 2)', i, q.times_seen; end if;
   end loop;
   if (select count(*) from match_events where match_id = mid and event_type = 'fast_answer') <> 9 then
-    raise exception 'expected 9 fast_answer telemetry rows for A''s 0ms answers';
+    raise exception 'expected 9 fast_answer telemetry rows for A''s 0ms correct answers';
   end if;
-  raise notice 'PASS 3: question-ELO clamp, upward nudge on wrong, fast-answer exclusion + telemetry';
+
+  -- A real (30s) wrong answer in a RATED match must nudge the question UP.
+  select question_ids into qids from matches where id = mid;
+  select elo into elo_before from questions where id = qids[1];
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (ua, ub, 'active', true, qids, 1000, 1000, 0, now() - interval '30 seconds')
+  returning id into m2;
+  perform set_config('request.jwt.claims', json_build_object('sub', ub, 'role', 'authenticated')::text, true);
+  select options into opts from get_match_question(m2, 0::smallint);
+  select * into q from questions where id = qids[1];
+  select ord - 1 into wrong_disp
+  from jsonb_array_elements(opts) with ordinality e(val, ord)
+  where val <> q.options -> q.correct_index limit 1;
+  perform submit_answer(m2, 0::smallint, wrong_disp::smallint);
+  select elo into elo_mid from questions where id = qids[1];
+  if elo_mid <= elo_before then
+    raise exception '3: real 30s wrong answer did not nudge elo up (% -> %)', elo_before, elo_mid;
+  end if;
+  if elo_mid < 400 or elo_mid > 2800 then raise exception '3: elo % outside clamp', elo_mid; end if;
+
+  -- The same real answer in an UNRATED match must NOT nudge (uncapped
+  -- unrated challenges were a collusion channel into the question bank).
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (ua, ub, 'active', false, qids, 1000, 1000, 0, now() - interval '30 seconds')
+  returning id into m2;
+  perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+  select options into opts from get_match_question(m2, 0::smallint);
+  select ord - 1 into wrong_disp
+  from jsonb_array_elements(opts) with ordinality e(val, ord)
+  where val <> q.options -> q.correct_index limit 1;
+  perform submit_answer(m2, 0::smallint, wrong_disp::smallint);
+  select elo into elo_after from questions where id = qids[1];
+  if elo_after <> elo_mid then
+    raise exception '3: unrated match nudged question elo (% -> %)', elo_mid, elo_after;
+  end if;
+  perform set_config('request.jwt.claims', null, true);
+  raise notice 'PASS 3: fast answers (correct+wrong) excluded, real answers nudge, unrated never nudges';
 end $$;
 
 -- ── 4. overlapping rated matches: second finalize chains off CURRENT elo ────
@@ -273,6 +329,324 @@ begin
     raise exception 'near-floor cap: expected +5/-5 to 100, got %+ / % (after %)', da, db, m.elo_b_after;
   end if;
   raise notice 'PASS 5: zero-sum floor (0/0 at floor; capped +5/-5 near floor)';
+end $$;
+
+-- ── fixtures for the audit-fix sections (fresh users so per-user submit
+--    rate-limit counts and elo state stay clean under frozen now()) ───────────
+do $$
+declare
+  uc uuid := gen_random_uuid();
+  ud uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, aud, role, email)
+  values (uc, 'authenticated', 'authenticated', 'stress-c@test.local'),
+         (ud, 'authenticated', 'authenticated', 'stress-d@test.local');
+  insert into profiles (id, username, display_name, elo, matches_played)
+  values (uc, 'stress_c', 'C', 1000, 50), (ud, 'stress_d', 'D', 1000, 50)
+  on conflict (id) do nothing;
+  insert into _t values ('uc', uc::text), ('ud', ud::text);
+end $$;
+
+-- ── 6. H1: a submit past the deadline (+3s slack) scores 0, even if correct ──
+do $$
+declare
+  uc uuid := (select v::uuid from _t where k = 'uc');
+  ud uuid := (select v::uuid from _t where k = 'ud');
+  qids uuid[]; mid uuid; q questions%rowtype; opts jsonb; disp int; r record;
+begin
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+  -- question started 200s ago — beyond any section cap (max 120s) + 3s slack
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 0, now() - interval '200 seconds')
+  returning id into mid;
+
+  select * into q from questions where id = qids[1];
+  perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+  select options into opts from get_match_question(mid, 0::smallint);
+  select ord - 1 into disp
+  from jsonb_array_elements(opts) with ordinality e(val, ord)
+  where val = q.options -> q.correct_index;
+
+  -- submit the DISPLAYED-correct option, but late: must be forced to a skip
+  perform submit_answer(mid, 0::smallint, disp::smallint);
+  select * into r from match_answers where match_id = mid and user_id = uc and question_index = 0;
+  if r.points_awarded <> 0 then
+    raise exception 'late correct submit scored % pts (want 0)', r.points_awarded;
+  end if;
+  if r.is_correct then raise exception 'late submit recorded is_correct=true'; end if;
+  if r.selected_index is not null then
+    raise exception 'late submit stored selected_index % (want null skip)', r.selected_index;
+  end if;
+  if (select score_c.score_a from matches score_c where id = mid) <> 0 then
+    raise exception 'late submit moved the score off 0';
+  end if;
+  raise notice 'PASS 6: submit past deadline forced to 0-point skip';
+end $$;
+
+-- ── 7. C1: forfeit_match requires server-verifiable opponent absence ─────────
+do $$
+declare
+  uc uuid := (select v::uuid from _t where k = 'uc');
+  ud uuid := (select v::uuid from _t where k = 'ud');
+  qids uuid[]; mid uuid; m matches%rowtype; da int; db int; raised boolean;
+begin
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+  perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+
+  -- 7a: within the current question deadline -> rejected ('too early')
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 0, now()) returning id into mid;
+  raised := false;
+  begin
+    perform forfeit_match(mid);
+  exception when others then
+    raised := true;
+    if position('too early' in sqlerrm) = 0 then
+      raise exception '7a: wrong error: %', sqlerrm;
+    end if;
+  end;
+  if not raised then raise exception '7a: forfeit within deadline was ALLOWED'; end if;
+
+  -- 7b: past deadline but opponent HAS answered current question -> rejected
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 0, now() - interval '200 seconds')
+  returning id into mid;
+  insert into match_answers (match_id, user_id, question_id, question_index,
+                             selected_index, is_correct, points_awarded, time_taken_ms)
+  values (mid, ud, qids[1], 0, null, false, 0, 90000);  -- ud present (auto-skip row)
+  raised := false;
+  begin
+    perform forfeit_match(mid);
+  exception when others then
+    raised := true;
+    if position('opponent answered' in sqlerrm) = 0 then
+      raise exception '7b: wrong error: %', sqlerrm;
+    end if;
+  end;
+  if not raised then raise exception '7b: forfeit vs a present (answered) opponent was ALLOWED'; end if;
+
+  -- 7c: past deadline AND opponent has no row -> forfeit succeeds, caller wins.
+  -- (score/correct set so the no-skill guard doesn't kick in — a genuinely
+  --  played match that the opponent walked out of.)
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       score_a, correct_a)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 0, now() - interval '200 seconds', 118, 1)
+  returning id into mid;
+  perform forfeit_match(mid);
+  select * into m from matches where id = mid;
+  if m.status <> 'abandoned' then raise exception '7c: status % (want abandoned)', m.status; end if;
+  if m.winner_id <> uc then raise exception '7c: winner % (want present player)', m.winner_id; end if;
+  da := m.elo_a_after - m.elo_a_before;
+  db := m.elo_b_after - m.elo_b_before;
+  if da <= 0 then raise exception '7c: forfeit winner delta not positive: %', da; end if;
+  if da + db <> 0 then raise exception '7c: forfeit not zero-sum: %+ / %', da, db; end if;
+  if not exists (select 1 from rating_history where match_id = mid and user_id = uc)
+     or not exists (select 1 from rating_history where match_id = mid and user_id = ud) then
+    raise exception '7c: forfeit missing a rating_history row';
+  end if;
+
+  -- 7d: a cron-null skip row (selected NULL, time NULL) on the quitter's
+  -- PREVIOUS question is absence evidence — forfeit succeeds immediately,
+  -- without waiting out the current question's deadline.
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       score_a, correct_a)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 1, now(), 118, 1)
+  returning id into mid;
+  insert into match_answers (match_id, user_id, question_id, question_index,
+                             selected_index, is_correct, points_awarded, time_taken_ms)
+  values (mid, ud, qids[1], 0, null, false, 0, null);  -- cron skip row for ud
+  perform forfeit_match(mid);
+  select * into m from matches where id = mid;
+  if m.status <> 'abandoned' or m.winner_id <> uc then
+    raise exception '7d: cron-null absence evidence did not grant forfeit (status %, winner %)', m.status, m.winner_id;
+  end if;
+
+  -- 7e: a no-skill rated forfeit (nobody scored anything) ends the match but
+  -- transfers NO rating — parity with finalize_match's guard.
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 1, now())
+  returning id into mid;
+  insert into match_answers (match_id, user_id, question_id, question_index,
+                             selected_index, is_correct, points_awarded, time_taken_ms)
+  values (mid, ud, qids[1], 0, null, false, 0, null);
+  perform forfeit_match(mid);
+  select * into m from matches where id = mid;
+  if m.status <> 'abandoned' then raise exception '7e: status % (want abandoned)', m.status; end if;
+  if m.elo_a_after is not null or exists (select 1 from rating_history where match_id = mid) then
+    raise exception '7e: no-skill forfeit still transferred rating';
+  end if;
+  raise notice 'PASS 7: forfeit — too-early & answered-opponent rejected; absence (deadline or cron-null) granted; no-skill unrated';
+end $$;
+
+-- ── 8. M5: no-skill (all-skip / all-wrong) rated match completes WITHOUT rating
+do $$
+declare
+  uc uuid := (select v::uuid from _t where k = 'uc');
+  ud uuid := (select v::uuid from _t where k = 'ud');
+  qids uuid[]; mid uuid; m matches%rowtype;
+  elo_c0 int; elo_d0 int; mp_c0 int; mp_d0 int;
+begin
+  perform set_config('request.jwt.claims', null, true);
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+  update profiles set elo = 1000, current_streak = 0 where id in (uc, ud);
+  select elo, matches_played into elo_c0, mp_c0 from profiles where id = uc;
+  select elo, matches_played into elo_d0, mp_d0 from profiles where id = ud;
+
+  -- 0-0, both zero correct: guaranteed draw carrying no skill signal
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       score_a, score_b, correct_a, correct_b)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 8, now(), 0, 0, 0, 0)
+  returning id into mid;
+  perform finalize_match(mid);
+  select * into m from matches where id = mid;
+
+  if m.status <> 'completed' then raise exception '8: status % (want completed)', m.status; end if;
+  if (select elo from profiles where id = uc) <> elo_c0
+     or (select elo from profiles where id = ud) <> elo_d0 then
+    raise exception '8: all-skip 0-0 changed ELO (draw-farm not blocked)';
+  end if;
+  if (select matches_played from profiles where id = uc) <> mp_c0
+     or (select matches_played from profiles where id = ud) <> mp_d0 then
+    raise exception '8: no-skill match still counted matches_played';
+  end if;
+  if exists (select 1 from rating_history where match_id = mid) then
+    raise exception '8: no-skill match wrote rating_history';
+  end if;
+  raise notice 'PASS 8: all-skip 0-0 rated match completes with no rating change';
+end $$;
+
+-- ── 9. M1: profiles self-update RLS freezes current_streak / best_streak ─────
+-- Runs under the actual `authenticated` role so RLS is enforced (the rest of
+-- the harness runs as owner and bypasses it).
+do $$
+declare
+  uc uuid := (select v::uuid from _t where k = 'uc');
+  froze boolean;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+
+  -- sanity: a non-frozen column IS updatable (proves the role can update at all,
+  -- so a later failure is the freeze, not a missing grant)
+  update profiles set display_name = 'C2' where id = uc;
+
+  -- best_streak is server-owned: the WITH CHECK must reject this
+  froze := false;
+  begin
+    update profiles set best_streak = 9999 where id = uc;
+  exception when insufficient_privilege or check_violation then
+    froze := true;
+  end;
+  if not froze then raise exception '9: client UPDATE of best_streak was ALLOWED'; end if;
+
+  -- and current_streak
+  froze := false;
+  begin
+    update profiles set current_streak = 9999 where id = uc;
+  exception when insufficient_privilege or check_violation then
+    froze := true;
+  end;
+  if not froze then raise exception '9: client UPDATE of current_streak was ALLOWED'; end if;
+
+  reset role;
+  raise notice 'PASS 9: RLS freezes current_streak/best_streak from client update';
+end $$;
+
+-- ── 10. draws are zero-sum at K = least(K_a, K_b) ────────────────────────────
+-- The old per-player-K draw minted rating: a K40 newbie at 1000 drawing a
+-- K24 veteran at 1600 gained +19 while the veteran lost only −8 (+11 net).
+do $$
+declare
+  uc uuid := (select v::uuid from _t where k = 'uc');
+  ud uuid := (select v::uuid from _t where k = 'ud');
+  qids uuid[]; mid uuid; m matches%rowtype; da int; db int;
+begin
+  perform set_config('request.jwt.claims', null, true);
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+  update profiles set elo = 1000, matches_played = 5,  current_streak = 3 where id = uc; -- K=40
+  update profiles set elo = 1600, matches_played = 50, current_streak = 2 where id = ud; -- K=24
+
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       score_a, score_b, correct_a, correct_b)
+  values (uc, ud, 'active', true, qids, 1000, 1600, 8, now(), 150, 150, 2, 2)
+  returning id into mid;
+  perform finalize_match(mid);
+  select * into m from matches where id = mid;
+
+  if m.status <> 'completed' or m.winner_id is not null then
+    raise exception '10: draw not completed winnerless (status %, winner %)', m.status, m.winner_id;
+  end if;
+  da := m.elo_a_after - m.elo_a_before;
+  db := m.elo_b_after - m.elo_b_before;
+  if da + db <> 0 then raise exception '10: draw not zero-sum: %+ / % (old per-K minting?)', da, db; end if;
+  if da <= 0 then raise exception '10: underdog gained % on a draw vs +600 (want > 0)', da; end if;
+  if da > 20 then raise exception '10: draw delta % exceeds least-K bound (24/2 = 12ish)', da; end if;
+  if (select current_streak from profiles where id = uc) <> 0
+     or (select current_streak from profiles where id = ud) <> 0 then
+    raise exception '10: draw did not reset both streaks';
+  end if;
+  if (select count(*) from rating_history where match_id = mid) <> 2 then
+    raise exception '10: draw missing rating_history rows';
+  end if;
+  raise notice 'PASS 10: draw zero-sum (+%/−%), streaks reset, history written', da, da;
+end $$;
+
+-- ── 11. queue guards: live-match lockout, leave_queue report, heartbeat ──────
+do $$
+declare
+  uc uuid := (select v::uuid from _t where k = 'uc');
+  ud uuid := (select v::uuid from _t where k = 'ud');
+  qids uuid[]; mid uuid; raised boolean; left_ok boolean; hb boolean;
+begin
+  select question_ids into qids from matches where id = (select v::uuid from _t where k = 'mid');
+
+  -- 11a: a player in an ACTIVE match cannot join the queue
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uc, ud, 'active', true, qids, 1000, 1600, 0, now())
+  returning id into mid;
+  perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+  raised := false;
+  begin
+    perform join_queue();
+  exception when others then
+    raised := true;
+    if position('already in a live match' in sqlerrm) = 0 then
+      raise exception '11a: wrong error: %', sqlerrm;
+    end if;
+  end;
+  if not raised then raise exception '11a: join_queue ALLOWED while in an active match'; end if;
+
+  -- 11b: leave_queue with no waiting row reports false; after a real join,
+  -- heartbeat and leave both report true. (Close every live match uc/ud are
+  -- in — earlier sections leave some active — or the 11a guard fires here.)
+  update matches set status = 'completed', ended_at = now()
+  where (player_a in (uc, ud) or player_b in (uc, ud))
+    and status in ('active', 'pending');
+  perform set_config('request.jwt.claims', json_build_object('sub', ud, 'role', 'authenticated')::text, true);
+  select leave_queue() into left_ok;
+  if left_ok then raise exception '11b: leave_queue reported true with no waiting row'; end if;
+  perform join_queue();
+  if not exists (select 1 from matchmaking_queue where user_id = ud and status = 'waiting') then
+    raise exception '11b: join_queue left no waiting row';
+  end if;
+  select queue_heartbeat() into hb;
+  if not hb then raise exception '11b: queue_heartbeat reported false for a waiting row'; end if;
+  select leave_queue() into left_ok;
+  if not left_ok then raise exception '11b: leave_queue reported false for a waiting row'; end if;
+  select queue_heartbeat() into hb;
+  if hb then raise exception '11b: queue_heartbeat reported true after leaving'; end if;
+
+  perform set_config('request.jwt.claims', null, true);
+  raise notice 'PASS 11: live-match queue lockout; leave_queue/queue_heartbeat report correctly';
 end $$;
 
 rollback;
