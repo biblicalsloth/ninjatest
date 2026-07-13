@@ -167,5 +167,4 @@ Used in code: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT
 
 ## Known dead code / drift
 - `components/Aurora.tsx`, `components/error-boundary.tsx`, `components/ui/dropdown-menu.tsx` — unreferenced.
-- `app/match/[matchId]/{error,loading}.tsx` still use the pre-pivot teal palette (`#001e2b`/`#00ed64`).
 - `lib/supabase/types.ts` lags migrations → `as any` casts scattered through clients.
