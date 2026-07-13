@@ -49,10 +49,18 @@ const JSON_TEMPLATE = JSON.stringify(
       ],
     },
     {
+      section: "DILR",
+      passage: "The chart shows sales by quarter.",
+      passage_image_url: "https://<project>.supabase.co/storage/v1/object/public/question-assets/chart.png",
+      questions: [
+        { body: "Which quarter had the highest sales?", options: ["Q1", "Q2", "Q3", "Q4"], correct_index: 3 },
+      ],
+    },
+    {
       section: "QUANT",
       passage: null,
       questions: [
-        { body: "If x + 3 = 7, then x = ?", options: ["2", "3", "4", "5"], correct_index: 2, duration_ms: 90000 },
+        { body: "In the figure, find angle x.", options: ["30", "45", "60", "90"], correct_index: 1, duration_ms: 90000, image_url: "https://<project>.supabase.co/storage/v1/object/public/question-assets/angle.png" },
       ],
     },
   ],
@@ -61,11 +69,11 @@ const JSON_TEMPLATE = JSON.stringify(
 );
 
 const CSV_TEMPLATE = [
-  "section,passage_group,passage_body,body,options,correct_index,difficulty,explanation,duration_ms",
-  'VARC,p1,"Read the following passage and answer the questions that follow. …","What is the main idea of the passage?","A|B|C|D",0,2,"See paragraph 1.",',
-  'VARC,p1,,"The author\'s tone is best described as?","A|B|C|D",1,,,',
-  'VARC,p1,,"Which inference is best supported?","A|B|C|D",2,,,',
-  'QUANT,,,"If x + 3 = 7, then x = ?","2|3|4|5",2,,,90000',
+  "section,passage_group,passage_body,passage_image_url,body,options,correct_index,difficulty,explanation,duration_ms,image_url",
+  'VARC,p1,"Read the following passage and answer the questions that follow. …",,"What is the main idea of the passage?","A|B|C|D",0,2,"See paragraph 1.",,',
+  'VARC,p1,,,"The author\'s tone is best described as?","A|B|C|D",1,,,,',
+  'VARC,p1,,,"Which inference is best supported?","A|B|C|D",2,,,,',
+  'QUANT,,,,"If x + 3 = 7, then x = ?","2|3|4|5",2,,,90000,',
 ].join("\n");
 
 function download(filename: string, content: string, mime: string) {

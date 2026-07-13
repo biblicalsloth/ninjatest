@@ -77,18 +77,23 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     setRevealData(null);
     autoSubmitFiredRef.current = false;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc("get_match_question", {
-      p_match_id: currentMatch.id,
-      p_index: index,
-    });
-    if (error || !data || !data[0]) {
-      toast.error("Failed to load question");
-      return;
+    // Retry transient failures — the server clock is already running, so a
+    // silent bail costs the player the whole question (cron logs a NULL skip).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("get_match_question", {
+        p_match_id: currentMatch.id,
+        p_index: index,
+      });
+      if (!error && data && data[0]) {
+        const q = data[0] as unknown as MatchQuestion;
+        questionRef.current = q;
+        setQuestion(q);
+        return;
+      }
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
     }
-    const q = data[0] as unknown as MatchQuestion;
-    questionRef.current = q;
-    setQuestion(q);
+    toast.error("Failed to load question — retrying on next update");
   }, [currentMatch.id, supabase]);
 
   /* Rehydrate match state from DB — called on reconnect or channel error */
@@ -355,11 +360,19 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               {question.passage}
             </div>
           )}
+          {question.passage_image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={question.passage_image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+          )}
 
           {/* Question body */}
           <p className="text-white text-base leading-relaxed whitespace-pre-wrap">
             {question.body}
           </p>
+          {question.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+          )}
 
           {/* Options with correct/wrong highlighting */}
           <div className="space-y-2.5">
@@ -479,11 +492,19 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               {question.passage}
             </div>
           )}
+          {question.passage_image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={question.passage_image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+          )}
 
           {/* Question body */}
           <div className="text-white text-base leading-relaxed whitespace-pre-wrap">
             {question.body}
           </div>
+          {question.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+          )}
 
           {/* Options */}
           <div className="space-y-2.5">

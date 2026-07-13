@@ -11,12 +11,14 @@ export type QuestionInput = {
   difficulty?: number;
   explanation?: string | null;
   duration_ms?: number | null;
+  image_url?: string | null;
 };
 
 export type GroupInput = {
   section: SectionCode;
   passage: string | null;
   passage_id?: string | null;
+  passage_image_url?: string | null;
   questions: QuestionInput[];
 };
 
@@ -54,6 +56,11 @@ function validateQuestion(q: unknown, where: string): QuestionInput {
     const dm = Number(o.duration_ms);
     if (!Number.isFinite(dm)) throw new Error(`${where}: "duration_ms" must be a number`);
     out.duration_ms = dm;
+  }
+  if (o.image_url != null && o.image_url !== "") {
+    const u = String(o.image_url);
+    if (!/^https:\/\//.test(u)) throw new Error(`${where}: "image_url" must be an https URL`);
+    out.image_url = u;
   }
   return out;
 }
@@ -97,6 +104,11 @@ export function parseJson(text: string): GroupInput[] {
       questions,
     };
     if (o.passage_id != null && o.passage_id !== "") group.passage_id = String(o.passage_id);
+    if (o.passage_image_url != null && o.passage_image_url !== "") {
+      const u = String(o.passage_image_url);
+      if (!/^https:\/\//.test(u)) throw new Error(`Group ${gi + 1}: "passage_image_url" must be an https URL`);
+      group.passage_image_url = u;
+    }
     return group;
   });
 }
@@ -161,6 +173,8 @@ export function parseCsv(text: string): GroupInput[] {
   const iDifficulty = col("difficulty");
   const iExplanation = col("explanation");
   const iDuration = col("duration_ms");
+  const iImage = col("image_url");
+  const iPassageImage = col("passage_image_url");
   const iId = col("id");
 
   // Preserve insertion order of groups.
@@ -184,27 +198,33 @@ export function parseCsv(text: string): GroupInput[] {
         difficulty: get(iDifficulty) || undefined,
         explanation: get(iExplanation) || undefined,
         duration_ms: get(iDuration) || undefined,
+        image_url: (iImage >= 0 ? get(iImage) : "") || undefined,
       },
       where
     );
 
     const groupTag = iGroup >= 0 ? get(iGroup) : "";
     const passageBody = iPassage >= 0 ? get(iPassage) : "";
+    const passageImage = iPassageImage >= 0 ? get(iPassageImage) : "";
+    if (passageImage && !/^https:\/\//.test(passageImage)) {
+      throw new Error(`${where}: "passage_image_url" must be an https URL`);
+    }
 
     if (!groupTag) {
       // Standalone question → its own group.
-      groups.push({ section, passage: passageBody || null, questions: [q] });
+      groups.push({ section, passage: passageBody || null, passage_image_url: passageImage || undefined, questions: [q] });
       continue;
     }
 
     const key = `${section}::${groupTag}`;
     let g = byKey.get(key);
     if (!g) {
-      g = { section, passage: passageBody || null, questions: [] };
+      g = { section, passage: passageBody || null, passage_image_url: passageImage || undefined, questions: [] };
       byKey.set(key, g);
       groups.push(g);
-    } else if (passageBody && !g.passage) {
-      g.passage = passageBody;
+    } else {
+      if (passageBody && !g.passage) g.passage = passageBody;
+      if (passageImage && !g.passage_image_url) g.passage_image_url = passageImage;
     }
     g.questions.push(q);
   }

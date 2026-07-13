@@ -19,6 +19,9 @@ export interface Database {
           draws: number;
           current_streak: number;
           best_streak: number;
+          exam: string | null;
+          exam_year: number | null;
+          onboarding_completed: boolean;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["profiles"]["Row"], "created_at">;
@@ -367,4 +370,6 @@ export interface MatchQuestion {
   cap_ms: number;
   started_at: string;
   passage: string | null;
+  image_url: string | null;
+  passage_image_url: string | null;
 }

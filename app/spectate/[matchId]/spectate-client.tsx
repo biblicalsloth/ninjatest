@@ -182,9 +182,24 @@ export default function SpectateClient({ initialMatch }: Props) {
 
           <SpeedMeter progress={progressPct} section={section} capMs={capMs} timeRemaining={timeRemaining} />
 
+          {/* Shared passage (passage-group questions only) */}
+          {question.passage && (
+            <div className="max-h-72 overflow-y-auto rounded-xl border border-[#222222] bg-[#111111] px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-wrap">
+              {question.passage}
+            </div>
+          )}
+          {question.passage_image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={question.passage_image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+          )}
+
           <div className="text-white text-base leading-relaxed whitespace-pre-wrap">
             {question.body}
           </div>
+          {question.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+          )}
 
           <div className="space-y-2.5">
             {options.map((opt, i) => (
