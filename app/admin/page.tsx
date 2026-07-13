@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AdminClient from "./admin-client";
+import { AdminAiConfig } from "@/components/admin-ai-config";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +19,12 @@ export default async function AdminPage() {
   // is_admin isn't in generated types yet (migration pending) — cast to read it.
   if (!profile || !(profile as { is_admin?: boolean }).is_admin) redirect("/lobby");
 
-  return <AdminClient />;
+  return (
+    <div className="space-y-6">
+      <AdminClient />
+      <div className="max-w-3xl mx-auto px-4 pb-10">
+        <AdminAiConfig />
+      </div>
+    </div>
+  );
 }

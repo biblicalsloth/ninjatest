@@ -484,7 +484,7 @@ begin
   raise notice 'PASS 7: forfeit — too-early & answered-opponent rejected; absence (deadline or cron-null) granted; no-skill unrated';
 end $$;
 
--- ── 8. M5: no-skill (all-skip / all-wrong) rated match completes WITHOUT rating
+-- ── 8. M5: no-skill (all-skip / all-wrong) rated match abandons WITHOUT rating
 do $$
 declare
   uc uuid := (select v::uuid from _t where k = 'uc');
@@ -507,7 +507,9 @@ begin
   perform finalize_match(mid);
   select * into m from matches where id = mid;
 
-  if m.status <> 'completed' then raise exception '8: status % (want completed)', m.status; end if;
+  -- no-skill matches abandon (not complete) so the null-winner history filter
+  -- hides them — see migration 20260714140000_matchmaking_stats_fixes.
+  if m.status <> 'abandoned' then raise exception '8: status % (want abandoned)', m.status; end if;
   if (select elo from profiles where id = uc) <> elo_c0
      or (select elo from profiles where id = ud) <> elo_d0 then
     raise exception '8: all-skip 0-0 changed ELO (draw-farm not blocked)';
@@ -519,7 +521,7 @@ begin
   if exists (select 1 from rating_history where match_id = mid) then
     raise exception '8: no-skill match wrote rating_history';
   end if;
-  raise notice 'PASS 8: all-skip 0-0 rated match completes with no rating change';
+  raise notice 'PASS 8: all-skip 0-0 rated match abandons with no rating change';
 end $$;
 
 -- ── 9. M1: profiles self-update RLS freezes current_streak / best_streak ─────

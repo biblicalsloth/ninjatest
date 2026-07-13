@@ -65,6 +65,39 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
+
+  // Onboarding gate — single chokepoint. Any authed user who hasn't finished
+  // onboarding is funneled to /onboarding. The `nt_onboarded` cookie caches a
+  // completed profile so we do the DB lookup at most once per session instead
+  // of on every authed page nav (the getClaims() opt above exists to kill the
+  // per-request roundtrip; this keeps it dead). Cookie is a UX hint only —
+  // forging it just skips the onboarding screen, no server-authoritative gate.
+  if (
+    isAuthed &&
+    !pathname.startsWith("/onboarding") &&
+    !isPublicRoute &&
+    request.cookies.get("nt_onboarded")?.value !== "1"
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: profile } = await (supabase as any)
+      .from("profiles")
+      .select("onboarding_completed")
+      .eq("id", claimsData!.claims.sub as string)
+      .single();
+    if (profile && !profile.onboarding_completed) {
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+    if (profile) {
+      // Completed — stop paying the roundtrip for the rest of the session.
+      supabaseResponse.cookies.set("nt_onboarded", "1", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+        sameSite: "lax",
+      });
+    }
+  }
+
   if (isAuthed && pathname.startsWith("/auth")) {
     url.pathname = "/lobby";
     return NextResponse.redirect(url);

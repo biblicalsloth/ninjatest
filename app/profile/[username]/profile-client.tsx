@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EloGraph } from "@/components/elo-graph";
+import { SectionPointsBar, SectionAccuracyRadar } from "@/components/profile-charts";
 import { cn, getWinRate, formatPoints } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
 import { createClient } from "@/lib/supabase/client";
@@ -547,7 +548,25 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
                 <p className="text-[#4a8fa8] text-sm">No section data yet. Complete matches to see stats.</p>
               </div>
             ) : (
-              stats.map((s) => (
+              <>
+              {/* Charts: ELO trajectory + per-section scoring bar + accuracy radar */}
+              {curve.length > 1 && (
+                <div className="bg-[#111111] rounded-xl p-5">
+                  <h3 className="text-[#7ab5cc] text-sm font-medium mb-3">Rating over time</h3>
+                  <EloGraph data={curve} />
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-[#111111] rounded-xl p-5">
+                  <h3 className="text-[#7ab5cc] text-sm font-medium mb-3">Avg points by section</h3>
+                  <SectionPointsBar stats={stats} />
+                </div>
+                <div className="bg-[#111111] rounded-xl p-5">
+                  <h3 className="text-[#7ab5cc] text-sm font-medium mb-3">Accuracy profile</h3>
+                  <SectionAccuracyRadar stats={stats} />
+                </div>
+              </div>
+              {stats.map((s) => (
                 <div key={s.section} className="bg-[#111111] rounded-xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <span className={cn("text-xs font-bold px-2.5 py-1 rounded-full border", SECTION_COLORS[s.section])}>
@@ -609,7 +628,8 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
                     />
                   </div>
                 </div>
-              ))
+              ))}
+              </>
             )}
 
             {/* Overall across all sections */}

@@ -35,6 +35,10 @@ export default function QueuePage() {
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
 
     async function handleMatched(matchId: string, sb: typeof supabase): Promise<boolean> {
+      // Clear the "Joining queue…" gate so the initiator (matched via the entry
+      // read, before setVerifying(false) ran) also sees the "Opponent found!"
+      // card, not the loading text — same handoff screen for both players.
+      setVerifying(false);
       // Fetch the match; a stale 'matched' queue row can point at a long-dead
       // match — only route into live ones.
       const { data: matchRaw } = await sb.from("matches").select("player_a, player_b, status").eq("id", matchId).single();
@@ -104,9 +108,11 @@ export default function QueuePage() {
             const row = payload.new;
             if (row.status === "matched" && row.match_id) {
               await handleMatched(row.match_id, supabase);
-            } else if (row.status === "cancelled" && !matchedRef.current) {
+            } else if (row.status === "cancelled" && !matchedRef.current && !document.hidden) {
               // Server ghost-sweep cancelled us (stale heartbeat, e.g. laptop
-              // sleep) while the page is still open — rejoin.
+              // sleep) while the page is still open — rejoin. Skip when the tab
+              // is backgrounded: a tab nobody's watching should stay swept, not
+              // re-poison the pool. Resumes when the heartbeat sees it visible.
               const { error } = await supabase.rpc("join_queue");
               if (error) { toast.error("Removed from queue"); router.push("/lobby"); }
             }
@@ -138,9 +144,22 @@ export default function QueuePage() {
 
     // Liveness heartbeat: the server cancels waiting rows whose heartbeat is
     // >90s stale, so an abandoned tab can't poison the matchmaking pool.
+    // ponytail: 15-min hard cap; nobody queues that long, and it bounds the
+    // ping+rejoin cost of a tab left open forever. Raise if real queues run long.
+    const MAX_QUEUE_MS = 15 * 60_000;
     const heartbeat = setInterval(async () => {
       const sb = supabaseRef.current;
       if (!sb || matchedRef.current) return;
+      if (Date.now() - startRef.current > MAX_QUEUE_MS) {
+        clearInterval(heartbeat);
+        sb.rpc("leave_queue").then(() => {}, () => {});
+        toast.info("Search paused — still here?");
+        router.push("/lobby");
+        return;
+      }
+      // Backgrounded tab: skip the ping. Server sweeps us at 90s; we rejoin on
+      // the next visible heartbeat. Keeps idle tabs off the DB and the pool.
+      if (document.hidden) return;
       const { data, error } = await sb.rpc("queue_heartbeat");
       if (error || data !== false) return;
       // No waiting row anymore: either we got matched or we were swept.

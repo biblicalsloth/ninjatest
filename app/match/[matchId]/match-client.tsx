@@ -41,6 +41,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const [submitted, setSubmitted] = useState(false);
   const [oppAnswered, setOppAnswered] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [startsIn, setStartsIn] = useState(0); // ms of pre-Q1 lead-in, 0 once live
   const [clockOffset, setClockOffset] = useState(0);
 
   const [showReveal, setShowReveal] = useState(false);
@@ -128,8 +129,12 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
 
     const tick = () => {
       const now = Date.now() + clockOffset;
-      const remaining = Math.max(0, cap - (now - startedAt));
-      setTimeRemaining(remaining);
+      // start_match sets Q1's started_at 3s ahead → a shared lead-in countdown.
+      // During it, elapsed clamps to 0 so the question timer stays at full cap
+      // and can't auto-submit early.
+      setStartsIn(Math.max(0, startedAt - now));
+      const elapsed = Math.max(0, now - startedAt);
+      setTimeRemaining(Math.max(0, cap - elapsed));
     };
     tick();
     const id = setInterval(tick, 100);
@@ -208,6 +213,10 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       // rejected, and never retried — the forfeit path was effectively dead.
       // Errors are ignored; success arrives via the match UPDATE event.
       forfeitTimerRef.current = setInterval(() => {
+        // Backgrounded tab: skip the ping. The advance_timed_out cron resolves
+        // an absent opponent within ~2min regardless, so a hidden tab needn't
+        // hammer the RPC every 10s.
+        if (document.hidden) return;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any).rpc("forfeit_match", { p_match_id: match.id }).then(() => {}, () => {});
       }, 10_000);
@@ -263,6 +272,13 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       })
       .on("broadcast", { event: "opponent_answered" }, () => {
         setOppAnswered(true);
+        // Instant liveness ping — broadcast carries no score/correctness.
+        // dismissible + short id so rapid rounds don't stack toasts.
+        toast(`${oppProfile.display_name ?? oppProfile.username} answered`, {
+          id: "opp-answered",
+          duration: 1500,
+          icon: "⚡",
+        });
       })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{ user_id: string }>();
@@ -422,6 +438,24 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     );
   }
 
+  /* ── Shared pre-Q1 countdown (both clients tick against the same server
+     deadline; clockOffset-corrected so 3-2-1 lands together) ── */
+  if (startsIn > 0) {
+    return (
+      <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
+        <div className="flex items-center gap-4 mb-8">
+          <PlayerBar profile={myProfile} score={0} isMe />
+          <span className="text-[#7ab5cc] text-sm shrink-0">vs</span>
+          <PlayerBar profile={oppProfile} score={0} />
+        </div>
+        <p className="text-[#7ab5cc] text-sm mb-3">Match starting…</p>
+        <div className="text-[#06d6a0] font-bold text-7xl tabular-nums leading-none">
+          {Math.ceil(startsIn / 1000)}
+        </div>
+      </div>
+    );
+  }
+
   const capMs = question.cap_ms;
   const progressPct = timeRemaining / capMs;
   const section = question.section as CatSection;
@@ -540,7 +574,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               >
                 Skip · 0 pts
               </Button>
-              <p className="text-[#4a8fa8] text-xs">Wrong answer: −30 pts</p>
+              <p className="text-[#4a8fa8] text-xs">Wrong answers lose points</p>
             </div>
           ) : (
             <div className="text-center py-2">

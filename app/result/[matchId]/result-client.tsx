@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { NinjaPill } from "@/components/ninja-pill";
+import { askNinja } from "@/lib/ninja";
 import type { Match, Profile, MatchAnswer } from "@/lib/supabase/types";
 import { cn, formatPoints } from "@/lib/utils";
 
@@ -188,11 +190,12 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                 <p className={cn("text-xs font-semibold mb-2", SECTION_COLORS[sec])}>{sec}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {indices.map((i) => {
+                    const onAsk = () => askNinja({ matchId: match.id, questionIndex: i, label: `Q${i + 1} · ${sec}` });
                     const ans = myAnswers.find((a) => a.question_index === i);
-                    if (!ans) return <AnswerDot key={i} status="unanswered" points={0} qNum={i + 1} />;
-                    if (ans.is_correct) return <AnswerDot key={i} status="correct" points={ans.points_awarded} qNum={i + 1} />;
-                    if (ans.selected_index === null) return <AnswerDot key={i} status="skipped" points={0} qNum={i + 1} />;
-                    return <AnswerDot key={i} status="wrong" points={ans.points_awarded} qNum={i + 1} />;
+                    if (!ans) return <AnswerDot key={i} status="unanswered" points={0} qNum={i + 1} onAsk={onAsk} />;
+                    if (ans.is_correct) return <AnswerDot key={i} status="correct" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
+                    if (ans.selected_index === null) return <AnswerDot key={i} status="skipped" points={0} qNum={i + 1} onAsk={onAsk} />;
+                    return <AnswerDot key={i} status="wrong" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
                   })}
                 </div>
               </div>
@@ -253,6 +256,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
           </div>
         )}
       </div>
+      <NinjaPill />
     </div>
   );
 }
@@ -274,11 +278,15 @@ function EloChange({ username, before, after, delta }: {
   );
 }
 
-function AnswerDot({ status, points, qNum }: {
-  status: "correct" | "wrong" | "skipped" | "unanswered"; points: number; qNum: number;
+function AnswerDot({ status, points, qNum, onAsk }: {
+  status: "correct" | "wrong" | "skipped" | "unanswered"; points: number; qNum: number; onAsk: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 bg-[#120F17] rounded-lg py-2">
+    <button
+      onClick={onAsk}
+      title="Ask Ninja to attempt this question"
+      className="flex flex-col items-center gap-1 bg-[#120F17] rounded-lg py-2 w-full hover:bg-[#1a1622] transition-colors cursor-pointer"
+    >
       <span className="text-[#4a8fa8] text-[9px]">Q{qNum}</span>
       <div className={cn(
         "w-6 h-6 rounded-full border flex items-center justify-center",
@@ -294,6 +302,6 @@ function AnswerDot({ status, points, qNum }: {
       )}>
         {points > 0 ? `+${points}` : points || "—"}
       </span>
-    </div>
+    </button>
   );
 }
