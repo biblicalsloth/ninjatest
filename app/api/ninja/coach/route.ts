@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
-import { runCoach } from "@/lib/ai/coach";
+import { runCoach, PLAN_SYSTEM } from "@/lib/ai/coach";
 
 // Ninja Coach: freeform "how am I doing / what should I work on" Q&A. The model
 // autonomously pulls the caller's own stats (tools bound to their username
@@ -21,7 +21,10 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const question = typeof body?.question === "string" ? body.question.trim() : "";
+  const isPlan = body?.mode === "plan";
+  const question = isPlan
+    ? "Build my weekly study plan."
+    : typeof body?.question === "string" ? body.question.trim() : "";
   if (!question || question.length > 2000) {
     return NextResponse.json({ error: "Ask a question (up to 2000 characters)." }, { status: 400 });
   }
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
   if (!username) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
   try {
-    const { text, model } = await runCoach(sb, username, question, config);
+    const { text, model } = await runCoach(sb, username, question, config, isPlan ? PLAN_SYSTEM : undefined);
     return NextResponse.json({ content: text, model_id: model });
   } catch (e) {
     console.error("Ninja coach failed:", e);

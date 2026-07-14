@@ -53,6 +53,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const myScore = isPlayerA ? currentMatch.score_a : currentMatch.score_b;
   const oppScore = isPlayerA ? currentMatch.score_b : currentMatch.score_a;
 
+  // Bot matches: created active (no presence handshake), the bot never joins
+  // presence (so the forfeit path must not fire), and this client drives the
+  // bot via the poll-safe bot_act RPC.
+  const isBotMatch = Boolean((oppProfile as unknown as { is_bot?: boolean }).is_bot);
+
   /* One-time clock sync: offset = server clock − client clock, estimated at
      the request midpoint. Corrects absolute skew (a fast client clock used to
      auto-skip early; a slow one submitted past the server deadline). */
@@ -294,7 +299,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               await fetchQuestion(currentMatchRef.current.current_index);
             })();
           }
-        } else if (!forfeitTimerRef.current) {
+        } else if (!forfeitTimerRef.current && !isBotMatch) {
           scheduleForfeit();
         }
       })
@@ -319,6 +324,25 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMatch.id, fetchQuestion, rehydrate, router, supabase]);
+
+  /* Bot driver: poll bot_act while the match is live. The server decides
+     everything deterministically (answer time gate included); this just gives
+     it a heartbeat. Errors ignored — the next tick retries. */
+  useEffect(() => {
+    if (!isBotMatch || currentMatch.status !== "active") return;
+    let stopped = false;
+    const act = async () => {
+      if (stopped || document.hidden) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .rpc("bot_act", { p_match_id: currentMatch.id })
+        .then((r: unknown) => r, () => ({ data: null }));
+      if (!stopped && (data as { acted?: boolean } | null)?.acted) setOppAnswered(true);
+    };
+    act();
+    const id = setInterval(act, 2500);
+    return () => { stopped = true; clearInterval(id); };
+  }, [isBotMatch, currentMatch.status, currentMatch.id, supabase]);
 
   /* Submit answer (null = skip) */
   async function handleSubmit(optionIndex: number | null) {
@@ -494,7 +518,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
                 section={section}
               />
             </div>
-            <PlayerBar profile={oppProfile} score={oppScore} answered={oppAnswered} />
+            <PlayerBar profile={oppProfile} score={oppScore} answered={oppAnswered} bot={isBotMatch} />
           </div>
         </div>
       </div>
@@ -598,11 +622,13 @@ function PlayerBar({
   score,
   isMe,
   answered,
+  bot,
 }: {
   profile: Profile;
   score: number;
   isMe?: boolean;
   answered?: boolean;
+  bot?: boolean;
 }) {
   return (
     <div className={cn("flex-1 flex items-center gap-2", isMe ? "flex-row" : "flex-row-reverse")}>
@@ -613,7 +639,14 @@ function PlayerBar({
         </AvatarFallback>
       </Avatar>
       <div className={cn("min-w-0", isMe ? "text-left" : "text-right")}>
-        <p className="text-white text-sm font-semibold truncate">{profile.display_name ?? profile.username}</p>
+        <p className="text-white text-sm font-semibold truncate">
+          {profile.display_name ?? profile.username}
+          {bot && (
+            <span className="ml-1.5 align-middle text-[9px] font-bold px-1 py-0.5 rounded bg-[#7ab5cc]/15 text-[#7ab5cc] border border-[#7ab5cc]/30">
+              BOT
+            </span>
+          )}
+        </p>
         <p className="text-[#ffd166] font-bold text-lg leading-none">{score}</p>
         {!isMe && answered && (
           <p className="text-[#7ab5cc] text-xs">answered</p>

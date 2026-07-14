@@ -29,6 +29,10 @@ export function getModel(provider: AiConfig["provider"], modelId: string): Langu
 
 // Build the user prompt from the (server-fetched) question. Correct answer +
 // explanation are included so Ninja can grade itself; they never reach the client.
+// my_selected_index/my_is_correct (canonical, from the caller's own answer row)
+// make the explanation distractor-aware: the model names the trap the user fell
+// for. Option references use TEXT, not letters — per-player display shuffle
+// means letters don't match what the user saw.
 export function buildQuestionPrompt(q: {
   section: string;
   body: string;
@@ -36,10 +40,22 @@ export function buildQuestionPrompt(q: {
   correct_index: number;
   explanation: string | null;
   passage_body: string | null;
+  my_selected_index?: number | null;
+  my_is_correct?: boolean | null;
 }): string {
   const letters = "ABCDEFGH";
   const opts = q.options.map((o, i) => `${letters[i]}. ${o}`).join("\n");
   const correct = `${letters[q.correct_index]}. ${q.options[q.correct_index] ?? ""}`;
+
+  let pickLine = "";
+  if (q.my_selected_index != null && q.options[q.my_selected_index] != null) {
+    pickLine = q.my_is_correct
+      ? `The user answered this correctly (picked "${q.options[q.my_selected_index]}"). Briefly confirm the fastest correct approach.`
+      : `The user picked the WRONG option: "${q.options[q.my_selected_index]}". After solving, explain the specific mistake or trap that makes that option tempting, and why it fails. Refer to options by their text, not letters.`;
+  } else if (q.my_selected_index === null && q.my_is_correct != null) {
+    pickLine = "The user skipped this question. After solving, say whether it was worth attempting and what the fastest route was.";
+  }
+
   return [
     `Section: ${q.section}`,
     q.passage_body ? `Passage:\n${q.passage_body}\n` : "",
@@ -47,5 +63,6 @@ export function buildQuestionPrompt(q: {
     `Options:\n${opts}`,
     `Correct answer: ${correct}`,
     q.explanation ? `Official explanation: ${q.explanation}` : "",
+    pickLine,
   ].filter(Boolean).join("\n\n");
 }

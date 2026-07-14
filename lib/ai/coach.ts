@@ -24,6 +24,20 @@ When you answer:
 - Reference opponent ELO relative to theirs to explain whether recent matchups were favorable or tough.
 - Be concise, specific, and actionable. No generic "practice more." Give a concrete next step tied to the data.`;
 
+// Study-plan mode: same agentic loop and tools, different output contract.
+// The plan leans on the SAME grounded stats (rating curve, section stats,
+// recent form) — never generic advice.
+export const PLAN_SYSTEM = `You are Ninja, a CAT (Common Admission Test) prep coach building a personal 7-day study plan.
+The user plays on a 1v1 ELO-rated CAT battle app with: ranked mixed matches (3 VARC + 3 DILR + 3 Quant), friend challenges (rated/unrated, single-section mode available), solo practice drills that auto-target weak sections, and post-match Ninja explanations.
+
+FIRST call the tools to fetch their real stats (profile + rating curve, section stats, deep stats, recent matches). Never invent a number.
+
+Then output EXACTLY this shape (plain text, no markdown headers):
+1. One-sentence diagnosis: ELO trend (improving/plateaued/sliding, with numbers) + weakest section and why.
+2. Seven lines, "Mon:" through "Sun:", each ONE concrete task tied to an app mode and their weakness (e.g. "Wed: 2 practice drills — focus DILR sets; review every wrong answer with Ninja"). Keep rest/light days realistic (1-2 per week).
+3. Final line "Target: " — one measurable end-of-week goal from their current numbers (accuracy %, ELO, or streak).
+Be specific and terse. No filler, no motivational padding.`;
+
 // Tools take NO model-supplied input — bound to the caller's own username in the
 // closure. Empty input schema; the model just decides *whether* to call each.
 const NO_INPUT = jsonSchema<Record<string, never>>({
@@ -77,6 +91,7 @@ export async function runCoach(
   username: string,
   question: string,
   config: AiConfig,
+  system: string = COACH_SYSTEM,
 ): Promise<{ text: string; model: string }> {
   const tools = buildCoachTools(sb, username);
   const models = [config.model_id, config.fallback_model_id].filter(Boolean) as string[];
@@ -85,7 +100,7 @@ export async function runCoach(
     try {
       const res = await generateText({
         model: getModel(config.provider, modelId),
-        system: COACH_SYSTEM,
+        system,
         prompt: question,
         tools,
         stopWhen: stepCountIs(6), // cap tool-call rounds; metered LLM

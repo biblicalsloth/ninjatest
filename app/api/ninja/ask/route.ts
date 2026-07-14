@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     section: q.section, body: q.body,
     options: Array.isArray(q.options) ? q.options : [],
     correct_index: q.correct_index, explanation: q.explanation, passage_body: q.passage_body,
+    my_selected_index: q.my_selected_index, my_is_correct: q.my_is_correct,
   });
 
   const models = [config.model_id, config.fallback_model_id].filter(Boolean) as string[];

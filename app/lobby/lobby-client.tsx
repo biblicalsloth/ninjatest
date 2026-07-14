@@ -17,8 +17,10 @@ import {
   Shield,
   Home,
   ChevronRight,
+  Target,
 } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -152,6 +154,21 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
               </div>
             </button>
 
+            {/* Practice */}
+            <Link
+              href="/practice"
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <Target size={22} className="text-[#06d6a0]" />
+                <ChevronRight size={18} className="text-[#4a8fa8] group-hover:translate-x-0.5 transition-transform" />
+              </div>
+              <div className="mt-8">
+                <div className="font-bold text-lg text-white">Practice</div>
+                <div className="text-sm text-[#7ab5cc]">Solo drill · targets your weak sections</div>
+              </div>
+            </Link>
+
             {/* Spectate */}
             <Link
               href="/spectate"
@@ -283,6 +300,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                   </div>
                 );
               })}
+              <NinjaDailyFocus />
             </div>
           </div>
         </aside>

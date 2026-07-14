@@ -26,7 +26,7 @@ export function NinjaCoach() {
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const ask = async (question: string) => {
+  const ask = async (question: string, mode?: "plan") => {
     const q = question.trim();
     if (!q || busy) return;
     setInput("");
@@ -37,7 +37,7 @@ export function NinjaCoach() {
       const res = await fetch("/api/ninja/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({ question: q, ...(mode ? { mode } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       setTurns((t) => t.map((turn, i) =>
@@ -83,6 +83,10 @@ export function NinjaCoach() {
           <div className="space-y-2">
             <p className="text-[#7ab5cc] text-sm">Ask about your stats, weak sections, or what to practice.</p>
             <div className="flex flex-wrap gap-2">
+              <button onClick={() => ask("Build my weekly study plan", "plan")}
+                className="rounded-full border border-[#06d6a0]/50 bg-[#06d6a0]/10 px-3 py-1 text-xs text-[#06d6a0] hover:bg-[#06d6a0]/20 transition font-semibold">
+                📅 Build my weekly plan
+              </button>
               {SUGGESTIONS.map((s) => (
                 <button key={s} onClick={() => ask(s)}
                   className="rounded-full border border-[#333333] px-3 py-1 text-xs text-[#c5e8f0] hover:border-[#06d6a0] hover:text-[#06d6a0] transition">

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NinjaPill } from "@/components/ninja-pill";
+import { NinjaDebrief } from "@/components/ninja-debrief";
 import { askNinja } from "@/lib/ninja";
 import type { Match, Profile, MatchAnswer } from "@/lib/supabase/types";
 import { cn, formatPoints } from "@/lib/utils";
@@ -202,6 +203,9 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
             );
           })}
         </div>
+
+        {/* Ninja debrief */}
+        <NinjaDebrief matchId={match.id} />
 
         {/* Email results */}
         <button
