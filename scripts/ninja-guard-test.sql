@@ -103,6 +103,23 @@ begin
     end;
     raise notice 'PASS 4: re-ask attempt cap enforced';
   end;
+
+  -- 6. post-match only (20260715010000): on an ACTIVE match every index is
+  -- refused, including already-answered ones.
+  declare lmid uuid;
+  begin
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (ua, ua, 'active', false, qids, 1200, 1200, 2, now())
+    returning id into lmid;
+    begin
+      perform * from get_question_for_ninja(lmid, 0);
+      raise exception 'FAIL: ninja answered during an active match';
+    exception when others then
+      if sqlerrm not like '%still active%' then raise; end if;
+    end;
+    raise notice 'PASS 5: all asks refused while match is active';
+  end;
 end $$;
 
 rollback;
