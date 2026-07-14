@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rl = await rateLimitDb(supabase, user.id, "ninja-ask-user", { limit: 15, windowSeconds: 60 });
-  const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-ask-ip", { limit: 30, windowSeconds: 60 });
+  const rl = await rateLimitDb(supabase, user.id, "ninja-ask-user", { limit: 15, windowSeconds: 60, failClosed: true });
+  const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-ask-ip", { limit: 30, windowSeconds: 60, failClosed: true });
   if (!rl.ok || !rlIp.ok) {
     return NextResponse.json({ error: "Too many requests" },
       { status: 429, headers: { "Retry-After": String(Math.max(rl.retryAfter, rlIp.retryAfter)) } });
@@ -36,6 +36,13 @@ export async function POST(req: NextRequest) {
   const { data: rows, error: qErr } = await sb.rpc("get_question_for_ninja", { p_match_id: matchId, p_index: index });
   const q = Array.isArray(rows) ? rows[0] : null;
   if (qErr || !q) {
+    const msg = qErr?.message ?? "";
+    if (msg.includes("attempt limit")) {
+      return NextResponse.json({ error: "Ninja has already solved this question a few times." }, { status: 429 });
+    }
+    if (msg.includes("not reached")) {
+      return NextResponse.json({ error: "This question wasn't reached in the match." }, { status: 403 });
+    }
     return NextResponse.json({ error: "Not allowed for this question" }, { status: 403 });
   }
 

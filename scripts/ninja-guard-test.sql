@@ -68,6 +68,41 @@ begin
   select count(*) into n from get_ninja_responses(mid, 0);
   if n <> 0 then raise exception 'outsider saw % of another user''s responses', n; end if;
   raise notice 'PASS 2: non-participant refused on read + save; sees no rows';
+
+  -- 4. unreached-question leak (finding #1): on a non-completed match, a
+  -- participant may read served questions but NOT ones the match never reached.
+  perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+  declare amid uuid;
+  begin
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (ua, ua, 'abandoned', false, qids, 1200, 1200, 2, now())
+    returning id into amid;
+
+    -- reached (index 0 < current_index 2) is allowed
+    perform * from get_question_for_ninja(amid, 0);
+
+    -- unreached (index 5 > current_index 2) must raise 'question not reached'
+    begin
+      perform * from get_question_for_ninja(amid, 5);
+      raise exception 'FAIL: pulled an unreached question on abandoned match (answer-key leak)';
+    exception when others then
+      if sqlerrm not like '%not reached%' then raise; end if;
+    end;
+    raise notice 'PASS 3: unreached questions refused on non-completed match';
+
+    -- 5. re-ask cap (finding #2): 3 attempts per (match, question, user), then refused.
+    perform save_ninja_response(amid, 0, 'm', 'a1');
+    perform save_ninja_response(amid, 0, 'm', 'a2');
+    perform save_ninja_response(amid, 0, 'm', 'a3');
+    begin
+      perform * from get_question_for_ninja(amid, 0);
+      raise exception 'FAIL: 4th ninja attempt allowed (cost cap broken)';
+    exception when others then
+      if sqlerrm not like '%attempt limit%' then raise; end if;
+    end;
+    raise notice 'PASS 4: re-ask attempt cap enforced';
+  end;
 end $$;
 
 rollback;

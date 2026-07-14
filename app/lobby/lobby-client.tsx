@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
+import { NinjaCoach } from "@/components/ninja-coach";
 import type { Profile } from "@/lib/supabase/types";
 import { cn, formatPoints, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
@@ -323,6 +324,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
       </nav>
 
       <ChallengeDialog open={showChallenge} onOpenChange={setShowChallenge} />
+      <NinjaCoach />
     </div>
   );
 }

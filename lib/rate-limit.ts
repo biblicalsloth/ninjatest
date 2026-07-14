@@ -13,7 +13,8 @@ export async function rateLimitDb(
   supabase: any,
   key: string,
   fn: string,
-  { limit, windowSeconds }: { limit: number; windowSeconds: number }
+  { limit, windowSeconds, failClosed = false }:
+    { limit: number; windowSeconds: number; failClosed?: boolean }
 ): Promise<{ ok: boolean; retryAfter: number }> {
   const { data, error } = await supabase.rpc("check_ip_rate_limit", {
     p_key: key,
@@ -21,7 +22,10 @@ export async function rateLimitDb(
     p_limit: limit,
     p_window_seconds: windowSeconds,
   });
-  if (error) return { ok: true, retryAfter: 0 }; // fail-open
+  // Fail-open by default (a limiter blip shouldn't block a signup/invite).
+  // failClosed for metered endpoints (paid LLM) where a blip must not become
+  // an unmetered-spend hole — better to 429 than to burn tokens.
+  if (error) return failClosed ? { ok: false, retryAfter: windowSeconds } : { ok: true, retryAfter: 0 };
   const retryAfter = typeof data === "number" ? data : 0;
   return { ok: retryAfter === 0, retryAfter };
 }

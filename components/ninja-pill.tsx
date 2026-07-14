@@ -24,12 +24,13 @@ export function NinjaPill() {
   const [history, setHistory] = useState<SavedResponse[]>([]);
   const reqId = useRef(0);
 
-  const loadHistory = useCallback(async (matchId: string, questionIndex: number) => {
+  const loadHistory = useCallback(async (matchId: string, questionIndex: number, forReq: number) => {
     const supabase = createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any).rpc("get_ninja_responses", {
       p_match_id: matchId, p_index: questionIndex,
     });
+    if (forReq !== reqId.current) return; // a newer ask superseded this load
     setHistory(Array.isArray(data) ? (data as SavedResponse[]) : []);
   }, []);
 
@@ -40,7 +41,7 @@ export function NinjaPill() {
     setError(null);
     setLoading(true);
     setHistory([]);
-    await loadHistory(detail.matchId, detail.questionIndex);
+    await loadHistory(detail.matchId, detail.questionIndex, id);
     try {
       const res = await fetch("/api/ninja/ask", {
         method: "POST",
@@ -52,7 +53,7 @@ export function NinjaPill() {
       if (!res.ok) {
         setError(json.error ?? "Ninja could not answer");
       } else {
-        await loadHistory(detail.matchId, detail.questionIndex);
+        await loadHistory(detail.matchId, detail.questionIndex, id);
       }
     } catch {
       if (id === reqId.current) setError("Network error");
