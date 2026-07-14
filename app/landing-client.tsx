@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { GoogleSignInButton } from "@/components/google-signin-button";
+import { ThermalBoundary } from "@/components/landing/thermal-boundary";
+import { ParticleFlow } from "@/components/landing/particle-flow";
 import dynamic from "next/dynamic";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
@@ -196,7 +199,7 @@ export default function LandingClient() {
         <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden no-scrollbar" style={{ zIndex: 1 }}>
 
           {/* Nav */}
-          <nav className="px-10 pt-8 flex items-center justify-between sticky top-0 bg-[#120F17]/60 backdrop-blur-sm z-10 py-5">
+          <nav className="px-10 pt-8 flex items-center justify-between sticky top-0 bg-[#120F17]/60 backdrop-blur-sm z-20 py-5">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-[#06d6a0] flex items-center justify-center shrink-0 overflow-hidden">
                 <NinjaLogo color="#120F17" className="w-5 h-5" />
@@ -204,7 +207,8 @@ export default function LandingClient() {
               <span className="font-semibold tracking-tight">Ninjatest</span>
             </div>
             <div className="flex items-center gap-7">
-              <a href="#how-it-works" className="text-white/45 hover:text-white text-sm transition-colors">How it works</a>
+              <a href="#ai" className="text-white/45 hover:text-white text-sm transition-colors">Ninja AI</a>
+              <a href="#matchmaking" className="text-white/45 hover:text-white text-sm transition-colors">Matchmaking</a>
               {!IS_WAITLIST && (
                 <Link href="/leaderboard" className="text-white/45 hover:text-white text-sm transition-colors">Leaderboard</Link>
               )}
@@ -220,130 +224,186 @@ export default function LandingClient() {
             </div>
           </nav>
 
-          {/* Hero */}
-          <section className="overflow-hidden">
-            <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-16 pb-16">
-              <h1 className="text-[clamp(3.2rem,6.5vw,6rem)] font-black leading-[0.88] tracking-[-0.03em] text-balance">
-                <FlipWord /> prep just got<br />
-                <span className="text-[#06d6a0]">1-v-1 ranked mode.</span>
+          {/* ── S1: Hero ── */}
+          <section className="relative overflow-hidden">
+            <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-14 pb-10">
+              <div className="inline-flex items-center gap-2.5 bg-[#06d6a0]/8 border border-[#06d6a0]/20 rounded-full pl-2 pr-4 py-1.5 mb-8">
+                <span className="w-5 h-5 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden animate-spin-slow">
+                  <NinjaLogo color="#120F17" className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-[#06d6a0] text-xs font-medium tracking-wide">Now rating aspirants across India</span>
+              </div>
+              <h1 className="font-pixel text-[clamp(2.9rem,5.8vw,5.2rem)] leading-[0.98] text-balance">
+                <FlipWord /> prep is a solo sport.<br />
+                <span className="text-[#06d6a0]">Not anymore.</span>
               </h1>
-              <p className="mt-8 text-white/50 text-lg font-light max-w-[42ch] leading-relaxed">
-                1v1 battles. real rankings. the grind hits different when someone&apos;s watching.
+              <p className="mt-8 text-[#c5e8f0]/70 text-lg font-light max-w-[46ch] leading-relaxed">
+                Nine questions. Three sections. One opponent. Real-time 1v1 mock battles,
+                with a rating that tells you the truth about where you stand.
               </p>
-              <div className="mt-10 flex items-center gap-5">
+              <div className="mt-10 flex items-center gap-5 flex-wrap">
                 <button
                   onClick={handleOpen}
-                  className="inline-flex items-center gap-2 text-[#06d6a0] font-semibold text-sm border border-[#06d6a0]/30 rounded-full px-5 py-2.5 hover:bg-[#06d6a0]/10 transition-colors"
+                  className="spring-pulse inline-flex items-center gap-2 bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#05b088] transition-colors"
                 >
-                  {IS_WAITLIST ? "join the waitlist →" : "enter the arena →"}
+                  {IS_WAITLIST ? "Join the waitlist →" : "Enter the arena →"}
                 </button>
-                <span className="text-white/20 text-xs font-mono">9 questions · 3 sections · elo rated</span>
+                <span className="text-[#7ab5cc]/50 text-xs font-mono">
+                  9 questions · VARC / DILR / QUANT · ELO rated · under 10 minutes
+                </span>
               </div>
-              {onlineCount !== null && onlineCount > 0 && (
-                <div className="mt-5 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#06d6a0] animate-pulse" />
-                  <span className="text-white/40 text-sm font-mono">
-                    <span className="text-[#06d6a0] font-bold">{onlineCount}</span> ninja{onlineCount !== 1 ? "s" : ""} in the arena right now
-                  </span>
-                </div>
-              )}
             </div>
+            <ThermalBoundary flipped height={190} />
           </section>
 
+          {/* ── S2: Marquee ── */}
           <LogoMarquee />
 
-          {/* ELO */}
-          <section id="elo" className="overflow-hidden min-h-[60vh] border-t border-[#9f84bd]/10">
-          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
-            <div className="flex-1 min-w-0 pr-4">
-              <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
-                your elo<br />don&apos;t lie.
-              </h2>
-              <p className="text-white/50 text-base leading-relaxed max-w-[40ch] mb-5">
-                win a match, the number goes up. lose, it goes down. no participation trophies, no vibes-based ranking. just math.
-              </p>
-              <p className="text-white/30 text-sm leading-relaxed max-w-[40ch]">
-                squeaked by? barely lose elo. got destroyed? that&apos;s gonna sting. the gap between you two decides everything.
-              </p>
+          {/* ── S3: Match carousel ── */}
+          <section className="overflow-hidden border-t border-[#222222] py-20">
+            <div className="px-10 flex items-end justify-between gap-6 mb-10">
+              <Reveal>
+                <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05]">
+                  <span className="text-white">One opponent.</span><br />
+                  <span className="text-[#c5e8f0]/60">Nine questions.</span><br />
+                  <span className="text-[#7ab5cc]/35">No hiding.</span>
+                </h2>
+                <p className="mt-5 text-[#c5e8f0]/60 text-sm leading-relaxed max-w-[52ch]">
+                  Every battle is a compressed mock: three VARC, three DILR, three Quant —
+                  or nine from the section you fear most.
+                </p>
+              </Reveal>
+              <CarouselControls />
             </div>
-            <div className="shrink-0 flex items-center justify-center w-[220px]"><EloRing /></div>
-          </div>
+            <MatchCarousel />
           </section>
 
-          {/* Matchmaking */}
-          <section id="how-it-works" className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
-          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex flex-row-reverse items-center gap-8 px-10 py-20">
-            <div className="flex-1 min-w-0 pl-4">
-              <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
-                matched<br />in seconds.
-              </h2>
-              <p className="text-white/50 text-base leading-relaxed max-w-[40ch] mb-6">
-                skip the lobby. tap play, we find your opponent instantly. you&apos;re mid-prep, not mid-wait.
+          {/* ── S4: AI section ── */}
+          <section id="ai" className="overflow-hidden border-t border-[#222222] px-10 py-20 scroll-mt-24">
+            <Reveal>
+              <p className="text-[#06d6a0] text-xs font-mono uppercase tracking-[0.25em] mb-4 flex items-center gap-2">
+                <Sparkles size={12} /> Ninja — the AI layer
               </p>
-              <div className="flex flex-wrap gap-2">
-                <span className="text-[10px] font-mono text-[#118ab2] border border-[#118ab2]/25 bg-[#118ab2]/8 rounded-full px-3 py-1.5 tracking-wider">VARC ×1 speed</span>
-                <span className="text-[10px] font-mono text-[#ffd166] border border-[#ffd166]/25 bg-[#ffd166]/8 rounded-full px-3 py-1.5 tracking-wider">DILR ×2 speed</span>
-                <span className="text-[10px] font-mono text-[#06d6a0] border border-[#06d6a0]/25 bg-[#06d6a0]/8 rounded-full px-3 py-1.5 tracking-wider">QUANT ×2 speed</span>
-              </div>
+              <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05] mb-5">
+                After the battle,<br />the debrief.
+              </h2>
+              <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-14">
+                Ninja reviews your match the way a good teacher would: where you lost time,
+                which trap you took, what to drill next. Then it builds the practice set itself.
+              </p>
+            </Reveal>
+
+            <div className="space-y-16">
+              <AiFeatureBlock
+                eyebrow="Match debrief" accent="#06d6a0"
+                title="Every swing moment, explained."
+                body="A per-question breakdown of your time against your opponent's — including the two questions that actually decided the match."
+                flip={false}
+              ><DebriefMock /></AiFeatureBlock>
+
+              <AiFeatureBlock
+                eyebrow="Ask Ninja" accent="#118ab2"
+                title="Explanations on demand."
+                body="Question-level reasoning whenever you want it — locked during live matches, open the second you finish."
+                flip
+              ><AskNinjaMock /></AiFeatureBlock>
+
+              <AiFeatureBlock
+                eyebrow="Generated practice" accent="#ffd166"
+                title="Drills built from your own mistakes."
+                body="Weakness-targeted sets composed from your match history. If arrangements keep costing you, arrangements are what you get."
+                flip={false}
+              ><PracticeMock /></AiFeatureBlock>
+
+              <AiFeatureBlock
+                eyebrow="A worthy bot" accent="#9f84bd"
+                title="No opponent online? Still a match."
+                body="The bot plays at your rating, honestly — it answers on its own clock and never peeks at the answer key."
+                flip
+              ><BotMock /></AiFeatureBlock>
             </div>
-            <div className="shrink-0 w-[230px] flex items-center justify-center"><MatchAnimation /></div>
-          </div>
           </section>
 
-          {/* Speed */}
-          <section className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
-          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
-            <div className="flex-1 min-w-0 pr-4">
-              <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
-                fast fingers<br />bag more<br />points.
+          {/* ── S5: Matchmaking section ── */}
+          <section id="matchmaking" className="overflow-hidden border-t border-[#222222] px-10 py-20 scroll-mt-24">
+            <Reveal>
+              <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05] mb-5">
+                Matched by the math,<br />in seconds.
               </h2>
-              <p className="text-white/50 text-base leading-relaxed max-w-[40ch] mb-4">
-                right answer at 10 seconds beats right answer at 90. DILR and Quant reward speed twice as hard. big brain energy required.
+              <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-10">
+                Tap play. The queue pairs you with someone at your level — the band widens
+                the longer you wait, so you always get a game.
               </p>
-              <p className="text-white/30 text-sm leading-relaxed max-w-[40ch]">
-                slow and correct is not the vibe. everyone gets the answer eventually. only the fast ones get rewarded.
-              </p>
+            </Reveal>
+
+            <MatchmakingViz />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-10">
+              <StatCard label="Time to match" highlight="under 10s" value="typical at peak" footnote="band widens 20 ELO per second" />
+              <StatCard label="Rated fairness" highlight="zero-sum" value="every point won is a point lost" footnote="100 ELO floor, no farming" />
+              <StatCard label="Rematch guard" highlight="3 per day" value="same rated pair" footnote="so ratings stay honest" />
             </div>
-            <div className="shrink-0 w-[200px] flex items-center justify-center"><SpeedTimer /></div>
-          </div>
+
+            <div className="flex flex-wrap gap-2 mt-8">
+              {["ELO-banded queue", "heartbeat liveness", "forfeit protection", "friend challenges", "section-only battles", "seasonal soft resets"].map(f => (
+                <span key={f} className="font-pixel text-[11px] text-[#7ab5cc] border border-[#7ab5cc]/20 bg-[#7ab5cc]/5 rounded-full px-3.5 py-1.5">
+                  {f}
+                </span>
+              ))}
+            </div>
           </section>
 
-          {/* Challenge */}
-          <section id="challenge" className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
-          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex flex-row-reverse items-center gap-8 px-10 py-20">
-            <div className="flex-1 min-w-0 pl-4">
-              <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
-                think you&apos;re<br />better?<br />prove it.
+          {/* ── S6: Floating-pill parallax ── */}
+          <PillParallax scrollParent={scrollRef} />
+
+          {/* ── S7: Queue. Battle. Rank. ── */}
+          <section className="overflow-hidden border-t border-[#222222] px-10 py-20">
+            <Reveal>
+              <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05] mb-10">
+                Queue. Battle. Rank.
               </h2>
-              <p className="text-white/50 text-base leading-relaxed max-w-[40ch]">
-                send a link. they accept or they&apos;re cooked. rated or unrated, 15 min expiry. no excuses, no drama.
-              </p>
+            </Reveal>
+            <ParticleFlow height={280} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+              {[
+                { n: "01", t: "Queue", b: "One tap. The server finds your equal." },
+                { n: "02", t: "Battle", b: "Nine synchronized questions. Same clock, same order, no pauses." },
+                { n: "03", t: "Rank", b: "Margin-weighted, zero-sum ELO. Beat a stronger player, gain more." },
+              ].map((s, i) => (
+                <Reveal key={s.n} delay={i * 100}>
+                  <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 h-full">
+                    <p className="text-[#06d6a0] text-[10px] font-mono mb-3">{s.n}</p>
+                    <h3 className="font-pixel text-lg text-white mb-2">{s.t}</h3>
+                    <p className="text-[#7ab5cc] text-sm leading-relaxed">{s.b}</p>
+                  </div>
+                </Reveal>
+              ))}
             </div>
-            <div className="shrink-0 w-[270px]"><ChallengeCard /></div>
-          </div>
           </section>
 
-          {/* Leaderboard */}
-          <section className="overflow-hidden min-h-[55vh] border-t border-[#9f84bd]/10">
-          <div data-parallax="0.06" style={{ willChange: "transform" }} className="flex items-center gap-8 px-10 py-20">
-            <div className="flex-1 min-w-0 pr-4">
-              <h2 className="text-[clamp(2.2rem,4.5vw,4rem)] font-black leading-[0.9] tracking-[-0.03em] text-balance mb-6">
-                the board<br />doesn&apos;t cap.
-              </h2>
-              <p className="text-white/50 text-base leading-relaxed max-w-[40ch] mb-5">
-                weekly resets keep it fresh. monthly tracks who actually put in the work. either way, your name&apos;s either on it or it&apos;s not.
-              </p>
-              {!IS_WAITLIST && (
-                <Link href="/leaderboard" className="text-[#06d6a0] text-sm font-semibold hover:underline underline-offset-4">
-                  see full leaderboard →
-                </Link>
-              )}
+          {/* ── S8: Closing CTA + footer ── */}
+          <section className="relative overflow-hidden border-t border-[#222222]">
+            <div className="px-10 pt-20 pb-8 text-center">
+              <Reveal>
+                <h2 className="font-pixel text-[clamp(2.2rem,4.5vw,4rem)] leading-[1.02] text-balance mb-6">
+                  Your percentile<br />has an opponent.
+                </h2>
+                <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[46ch] mx-auto mb-8">
+                  Join the waitlist — early aspirants get founding badges and first access
+                  to rated seasons.
+                </p>
+                <button
+                  onClick={handleOpen}
+                  className="inline-flex items-center gap-2 bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-full px-7 py-3 hover:bg-[#05b088] transition-colors"
+                >
+                  {IS_WAITLIST ? "Join the waitlist →" : "Enter the arena →"}
+                </button>
+              </Reveal>
             </div>
-            <div className="shrink-0 w-[270px]"><LeaderboardPreview /></div>
-          </div>
+            <ThermalBoundary height={170} />
           </section>
 
-          <footer className="px-10 py-12 border-t border-[#9f84bd]/10">
+          <footer className="px-10 py-12 border-t border-[#222222]">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden">
@@ -359,7 +419,7 @@ export default function LandingClient() {
                 )}
               </div>
             </div>
-            <p className="text-white/20 text-xs mt-6 font-mono">© 2026 Ninjatest. Built for the CAT grind.</p>
+            <p className="text-white/20 text-xs mt-6 font-mono">© 2026 Ninjatest. Built for serious aspirants.</p>
           </footer>
         </div>
       </div>
@@ -420,7 +480,7 @@ export default function LandingClient() {
                     <span className="text-[#06d6a0] text-2xl">✓</span>
                   </div>
                   <h2 className="text-[#120F17] font-black text-2xl mb-2">You&apos;re in.</h2>
-                  <p className="text-[#120F17]/60 text-sm leading-relaxed">We&apos;ll drop you a line when Ninjatest opens. Get ready to grind.</p>
+                  <p className="text-[#120F17]/60 text-sm leading-relaxed">We&apos;ll write to you the moment Ninjatest opens. Keep the mocks coming.</p>
                 </div>
               ) : (
                 <>
@@ -575,189 +635,399 @@ export default function LandingClient() {
   );
 }
 
-/* ─────────── Sub-components (shared) ─────────── */
+/* ─────────── Sub-components ─────────── */
 
-function EloRing() {
-  const TARGET = 1247; const MAX = 2000;
-  const [count, setCount] = useState(0);
-  const [animated, setAnimated] = useState(false);
+/* Scroll entrance reveal (one-shot) */
+function Reveal({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    const observer = new IntersectionObserver(([e]) => { if (e.isIntersecting) setAnimated(true); }, { threshold: 0.3 });
-    observer.observe(el); return () => observer.disconnect();
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setInView(true); io.disconnect(); } }, { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
+  return (
+    <div ref={ref} className={`reveal ${inView ? "is-in" : ""} ${className}`} style={delay ? { transitionDelay: `${delay}ms` } : undefined}>
+      {children}
+    </div>
+  );
+}
+
+/* ── S3: infinite scroll-snap carousel ── */
+const MATCH_CARDS = [
+  { tag: "VARC", accent: "#118ab2", title: "Reading, against the clock", body: "Passage-grouped questions with a 60-second reading window before the timer starts charging.", metaLabel: "Timed at", metaValue: "90s per question" },
+  { tag: "DILR", accent: "#ffd166", title: "Sets that fight back", body: "Puzzle sets served as a group — the hardest section gets the longest clock.", metaLabel: "Timed at", metaValue: "120s per question" },
+  { tag: "QUANT", accent: "#06d6a0", title: "Speed is a skill", body: "The highest speed multiplier of the three. A fast correct answer out-scores a slow one.", metaLabel: "Timed at", metaValue: "105s per question" },
+  { tag: "Scoring", accent: "#9f84bd", title: "The referee is a database", body: "Every answer is scored server-side. Client clocks and client claims are ignored.", metaLabel: "Measured", metaValue: "server time only" },
+  { tag: "Speed bonus", accent: "#06d6a0", title: "Every 5 seconds saved counts", body: "Bonus accrues in five-second blocks. A random guess is worth exactly zero expected points.", metaLabel: "Max", metaValue: "140 pts / question" },
+  { tag: "Live", accent: "#118ab2", title: "You see them answer", body: "Real-time presence: you know the moment your opponent locks in — never what they chose.", metaLabel: "Latency", metaValue: "under a second" },
+  { tag: "Spectate", accent: "#ffd166", title: "Watch the top table", body: "Any live match is watchable, read-only, with answers hidden until the reveal.", metaLabel: "Delay", metaValue: "none" },
+];
+
+// Module-level ref so header controls (rendered in a different subtree) can
+// drive the viewport without lifting state into the page component.
+let carouselViewport: HTMLDivElement | null = null;
+const CARD_W = 300, CARD_GAP = 16;
+
+function CarouselControls() {
+  const nudge = (dir: 1 | -1) => carouselViewport?.scrollBy({ left: dir * (CARD_W + CARD_GAP), behavior: "smooth" });
+  const btn = "w-10 h-10 rounded-full border border-[#333333] text-[#7ab5cc] hover:border-[#06d6a0]/50 hover:text-[#06d6a0] transition-colors flex items-center justify-center";
+  return (
+    <div className="hidden md:flex gap-2 shrink-0">
+      <button aria-label="Previous cards" className={btn} onClick={() => nudge(-1)}>←</button>
+      <button aria-label="Next cards" className={btn} onClick={() => nudge(1)}>→</button>
+    </div>
+  );
+}
+
+function MatchCarousel() {
+  const ref = useRef<HTMLDivElement>(null);
+  const setW = MATCH_CARDS.length * (CARD_W + CARD_GAP);
+
   useEffect(() => {
-    if (!animated) return;
-    const duration = 1600; const start = performance.now(); let id: number;
-    const tick = (now: number) => {
-      const t = Math.min((now - start) / duration, 1);
-      setCount(Math.round((1 - Math.pow(1 - t, 3)) * TARGET));
-      if (t < 1) id = requestAnimationFrame(tick);
+    const el = ref.current; if (!el) return;
+    carouselViewport = el;
+    el.scrollLeft = setW; // start on the middle copy
+    const onScroll = () => {
+      // teleport across clone boundaries to fake an infinite track
+      if (el.scrollLeft < setW * 0.25) el.scrollLeft += setW;
+      else if (el.scrollLeft > setW * 1.9) el.scrollLeft -= setW;
     };
-    id = requestAnimationFrame(tick); return () => cancelAnimationFrame(id);
-  }, [animated]);
-  const r = 68; const circ = 2 * Math.PI * r; const pct = animated ? TARGET / MAX : 0;
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => { el.removeEventListener("scroll", onScroll); if (carouselViewport === el) carouselViewport = null; };
+  }, [setW]);
+
   return (
-    <div ref={ref} className="flex flex-col items-center gap-4">
-      <svg width="200" height="200" viewBox="0 0 200 200">
-        <circle cx="100" cy="100" r={r} fill="none" stroke="rgba(159,132,189,0.1)" strokeWidth="10" />
-        <circle cx="100" cy="100" r={r} fill="none" stroke="#06d6a0" strokeWidth="10" strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} transform="rotate(-90 100 100)"
-          style={{ transition: "stroke-dashoffset 1.6s cubic-bezier(0.16, 1, 0.3, 1)" }} />
-        <text x="100" y="95" textAnchor="middle" fill="white" fontSize="32" fontWeight="900" style={{ fontFamily: "var(--font-geist-mono, monospace)" }}>{count}</text>
-        <text x="100" y="115" textAnchor="middle" fill="rgba(159,132,189,0.55)" fontSize="10" style={{ fontFamily: "var(--font-geist-mono, monospace)", letterSpacing: "0.2em" }}>ELO</text>
-      </svg>
-      <div className="flex items-center gap-3"><span className="text-[#06d6a0] font-bold text-sm font-mono">+24</span><span className="text-white/25 text-xs">from last match</span></div>
-      <div className="flex gap-3 text-[10px] font-mono text-white/20"><span>peak: 1289</span><span>·</span><span>W/L: 34/18</span></div>
+    <div
+      ref={ref}
+      tabIndex={0}
+      aria-label="What a match looks like"
+      className="overflow-x-auto no-scrollbar snap-x snap-mandatory px-10"
+      style={{ scrollPaddingInline: 40 }}
+    >
+      <div className="flex" style={{ width: "max-content", gap: CARD_GAP }}>
+        {[...MATCH_CARDS, ...MATCH_CARDS, ...MATCH_CARDS].map((c, i) => (
+          <article
+            key={i}
+            className="snap-start shrink-0 bg-[#111111] border border-[#222222] rounded-xl p-5 flex flex-col"
+            style={{ width: CARD_W, minHeight: 220 }}
+          >
+            <p className="font-pixel text-[11px] mb-4" style={{ color: c.accent }}>{c.tag}</p>
+            <h3 className="font-pixel text-lg text-white leading-snug mb-2">{c.title}</h3>
+            <p className="text-[#7ab5cc] text-sm leading-relaxed flex-1">{c.body}</p>
+            <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#222222]">
+              <span className="text-[#4a8fa8] text-[10px] font-mono uppercase tracking-wider">{c.metaLabel}</span>
+              <span className="text-[11px] font-mono font-bold" style={{ color: c.accent }}>{c.metaValue}</span>
+            </div>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
 
-function MatchAnimation() {
-  const [found, setFound] = useState(false);
-  useEffect(() => { const i = setInterval(() => setFound(f => !f), 2600); return () => clearInterval(i); }, []);
+/* ── S4: AI feature blocks + product mocks ── */
+function AiFeatureBlock({ eyebrow, accent, title, body, flip, children }: {
+  eyebrow: string; accent: string; title: string; body: string; flip: boolean; children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col items-center gap-5 p-4 w-full">
-      <div className="h-6 flex items-center justify-center">
-        {found
-          ? <span className="bg-[#06d6a0] text-[#120F17] text-[9px] font-black tracking-[0.2em] uppercase px-3 py-1 rounded-full">match found</span>
-          : <span className="text-[#9f84bd]/40 text-[9px] font-mono tracking-[0.2em] uppercase">searching...</span>}
+    <div className={`flex items-center gap-10 flex-wrap md:flex-nowrap ${flip ? "md:flex-row-reverse" : ""}`}>
+      <Reveal className="flex-1 min-w-[260px]">
+        <span className="inline-block font-pixel text-[11px] rounded-full border px-3 py-1 mb-4"
+          style={{ color: accent, borderColor: `${accent}40`, background: `${accent}14` }}>
+          {eyebrow}
+        </span>
+        <h3 className="font-pixel text-2xl text-white leading-snug mb-3">{title}</h3>
+        <p className="text-[#7ab5cc] text-sm leading-relaxed max-w-[46ch]">{body}</p>
+      </Reveal>
+      <div className="flex-1 min-w-[280px] relative">
+        <div data-parallax="0.1" className="absolute inset-4 rounded-2xl blur-2xl opacity-20" style={{ background: accent, willChange: "transform" }} />
+        <div data-parallax="0.06" style={{ willChange: "transform" }} className="relative">{children}</div>
       </div>
-      <div className="flex items-center gap-5 justify-center w-full">
-        <div className="flex flex-col items-center gap-2">
-          <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center text-2xl transition-all duration-500 ${found ? "border-[#06d6a0] bg-[#06d6a0]/10 shadow-[0_0_18px_rgba(6,214,160,0.2)]" : "border-[#9f84bd]/25 bg-[#9f84bd]/5"}`}>🥷</div>
-          <span className="text-white/35 text-[9px] font-mono uppercase tracking-wider">you</span>
-        </div>
-        <div className="flex flex-col gap-2 items-center">
-          {found ? <span className="text-white/50 text-xs font-black font-mono">VS</span>
-            : [0,1,2].map(i => <div key={i} className="w-1 h-1 rounded-full bg-[#9f84bd]/30 pulse-dot" style={{ animationDelay: `${i * 0.22}s` }} />)}
-        </div>
-        <div className="flex flex-col items-center gap-2">
-          <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${found ? "border-[#06d6a0] bg-[#06d6a0]/10 shadow-[0_0_18px_rgba(6,214,160,0.2)] text-2xl" : "border-dashed border-[#9f84bd]/15"}`}>
-            {found ? "👾" : <span className="text-[#9f84bd]/20 text-[10px] font-mono">???</span>}
+    </div>
+  );
+}
+
+function DebriefMock() {
+  return (
+    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5">
+      <h4 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <Sparkles size={12} className="text-[#06d6a0]" /> Ninja debrief
+      </h4>
+      <p className="text-[#c5e8f0] text-sm leading-relaxed mb-4">
+        You won the match in DILR: 41 seconds faster across the set, both correct.
+        Q4 is where it turned — your opponent spent 68s on the seating arrangement
+        and guessed; you skipped in 12s and banked the clock.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <span className="text-[10px] font-mono text-[#06d6a0] bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">Q4 · +41s banked</span>
+        <span className="text-[10px] font-mono text-[#ef476f] bg-[#ef476f]/10 border border-[#ef476f]/20 rounded-full px-2.5 py-1">Q7 · trap option C</span>
+        <span className="text-[10px] font-mono text-[#ffd166] bg-[#ffd166]/10 border border-[#ffd166]/20 rounded-full px-2.5 py-1">VARC pace · −9s avg</span>
+      </div>
+    </div>
+  );
+}
+
+function AskNinjaMock() {
+  return (
+    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 space-y-3">
+      <div className="flex justify-end">
+        <p className="bg-[#1c1c1c] text-[#c5e8f0] text-sm rounded-lg rounded-br-sm px-3.5 py-2.5 max-w-[85%]">
+          Why is option B wrong here? The passage seems to support it.
+        </p>
+      </div>
+      <div className="flex gap-2.5">
+        <span className="w-6 h-6 rounded-full bg-[#06d6a0] flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
+          <NinjaLogo color="#120F17" className="w-4 h-4" />
+        </span>
+        <p className="text-[#c5e8f0] text-sm leading-relaxed">
+          B restates the author&apos;s example, not the argument. The passage uses the
+          2010 census as an illustration — the claim itself is in the final
+          paragraph, which only D paraphrases without adding &quot;always&quot;.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PracticeMock() {
+  const rows = [
+    { s: "DILR", c: "#ffd166", t: "Circular arrangement · 6 people, 2 constraints", d: "targets Q4-type skips" },
+    { s: "DILR", c: "#ffd166", t: "Linear arrangement · conditional clues", d: "targets slow starts" },
+    { s: "VARC", c: "#118ab2", t: "Inference · author's main claim", d: "targets trap option C" },
+  ];
+  return (
+    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5">
+      <h4 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4 flex items-center gap-1.5">
+        <Sparkles size={12} className="text-[#ffd166]" /> Generated practice · from your last 5 matches
+      </h4>
+      <div className="space-y-2.5">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-3 bg-[#1c1c1c] rounded-lg px-3.5 py-2.5">
+            <span className="text-[10px] font-mono font-bold shrink-0" style={{ color: r.c }}>{r.s}</span>
+            <span className="text-[#c5e8f0] text-xs flex-1 truncate">{r.t}</span>
+            <span className="text-[#4a8fa8] text-[10px] font-mono shrink-0 hidden sm:block">{r.d}</span>
           </div>
-          <span className="text-white/35 text-[9px] font-mono uppercase tracking-wider">{found ? "opponent" : "waiting"}</span>
-        </div>
+        ))}
       </div>
-      {found && <div className="flex items-center gap-3 text-[10px] font-mono text-white/30"><span>1247 ELO</span><span className="text-[#06d6a0]">≈</span><span>1231 ELO</span></div>}
     </div>
   );
 }
 
-function SpeedTimer() {
-  const [secs, setSecs] = useState(90); const [active, setActive] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current; if (!el) return;
-    const observer = new IntersectionObserver(([e]) => { if (e.isIntersecting) setActive(true); }, { threshold: 0.3 });
-    observer.observe(el); return () => observer.disconnect();
-  }, []);
-  useEffect(() => { if (!active) return; const i = setInterval(() => setSecs(s => s <= 0 ? 90 : s - 1), 110); return () => clearInterval(i); }, [active]);
-  const pct = secs / 90; const r = 52; const circ = 2 * Math.PI * r;
-  const strokeColor = pct > 0.45 ? "#06d6a0" : pct > 0.2 ? "#ffd166" : "#ef476f";
+function BotMock() {
   return (
-    <div ref={ref} className="flex flex-col items-center gap-5">
-      <div className="relative">
-        <svg width="140" height="140" viewBox="0 0 140 140">
-          <circle cx="70" cy="70" r={r} fill="none" stroke="rgba(159,132,189,0.08)" strokeWidth="8" />
-          <circle cx="70" cy="70" r={r} fill="none" stroke={strokeColor} strokeWidth="8" strokeLinecap="round"
-            strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} transform="rotate(-90 70 70)"
-            style={{ transition: "stroke-dashoffset 0.11s linear, stroke 0.3s ease" }} />
+    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-full bg-[#9f84bd]/15 border border-[#9f84bd]/30 flex items-center justify-center overflow-hidden">
+            <NinjaLogo color="#9f84bd" className="w-5 h-5" />
+          </span>
+          <div>
+            <p className="text-white text-sm font-semibold leading-none">NINJA-BOT</p>
+            <p className="text-[#4a8fa8] text-[10px] font-mono mt-1">plays at 1240 ELO · unrated</p>
+          </div>
+        </div>
+        <span className="text-[10px] font-mono text-[#7ab5cc] bg-[#7ab5cc]/10 border border-[#7ab5cc]/20 rounded-full px-2.5 py-1">Q 5 / 9</span>
+      </div>
+      <div className="flex items-center gap-4 bg-[#1c1c1c] rounded-lg px-4 py-3">
+        <span className="w-2 h-2 rounded-full bg-[#06d6a0] animate-pulse shrink-0" />
+        <p className="text-[#c5e8f0] text-xs flex-1">Bot is reading the question…</p>
+        <span className="font-pixel text-sm text-[#ffd166]">0:47</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── S5: matchmaking visualization ── */
+function MatchmakingViz() {
+  const [view, setView] = useState<"wait" | "gap">("wait");
+
+  // Band-vs-wait: band = min(1000, 100 + 20s), 0–60s → x 0..520, y 240..20
+  const bandPts = Array.from({ length: 61 }, (_, s) => {
+    const band = Math.min(1000, 100 + 20 * s);
+    return `${20 + (s / 60) * 500},${240 - (band / 1000) * 200}`;
+  }).join(" ");
+
+  // ELO-exchanged-vs-gap: Δ ≈ K(1−E)·shrink for the favorite, K=24
+  const gapPts = Array.from({ length: 41 }, (_, i) => {
+    const gap = i * 20; // 0..800
+    const e = 1 / (1 + Math.pow(10, -gap / 400));
+    const shrink = 2.2 / (0.001 * gap + 2.2);
+    const delta = 24 * (1 - e) * shrink;
+    return `${20 + (gap / 800) * 500},${240 - (delta / 12) * 200}`;
+  }).join(" ");
+
+  const pill = (v: "wait" | "gap", label: string) => (
+    <button
+      onClick={() => setView(v)}
+      className={`font-pixel text-[11px] rounded-full px-4 py-2 border transition-colors ${
+        view === v
+          ? "bg-[#06d6a0] text-[#120F17] border-[#06d6a0]"
+          : "text-[#7ab5cc] border-[#333333] hover:border-[#06d6a0]/50 hover:text-[#06d6a0]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <Reveal>
+      <div className="flex gap-2 mb-5">
+        {pill("wait", "By wait time")}
+        {pill("gap", "By rating gap")}
+      </div>
+      <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 overflow-x-auto">
+        <svg viewBox="0 0 560 270" className="w-full min-w-[480px]" role="img"
+          aria-label={view === "wait" ? "Matchmaking band width versus seconds waited" : "ELO exchanged versus rating gap"}>
+          {/* grid */}
+          {[20, 130, 240].map(y => <line key={y} x1="20" y1={y} x2="520" y2={y} stroke="#222222" strokeWidth="1" />)}
+
+          {view === "wait" ? (
+            <g>
+              <polyline points={bandPts} fill="none" stroke="#06d6a0" strokeWidth="2.5" />
+              <polygon points={`20,240 ${bandPts} 520,240`} fill="#06d6a0" opacity="0.07" />
+              <circle cx="20" cy={240 - (100 / 1000) * 200} r="5" fill="#06d6a0" />
+              <text x="32" y={240 - (100 / 1000) * 200 - 8} fill="#c5e8f0" fontSize="11" fontFamily="var(--font-geist-mono)">you join · ±100 ELO</text>
+              <circle cx={20 + (45 / 60) * 500} cy={240 - (1000 / 1000) * 200} r="5" fill="#ffd166" />
+              <text x={20 + (45 / 60) * 500 - 150} y={240 - 200 + 16} fill="#ffd166" fontSize="11" fontFamily="var(--font-geist-mono)">45s · band fully open ±1000</text>
+              <text x="20" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">0s</text>
+              <text x="500" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">60s waited</text>
+            </g>
+          ) : (
+            <g>
+              <polyline points={gapPts} fill="none" stroke="#06d6a0" strokeWidth="2.5" />
+              <circle cx="20" cy={240 - (12 / 12) * 200} r="5" fill="#06d6a0" />
+              <text x="32" y={240 - 200 + 4} fill="#c5e8f0" fontSize="11" fontFamily="var(--font-geist-mono)">even match · full stakes</text>
+              <circle cx={20 + (400 / 800) * 500} cy={240 - ((24 * (1 - 1 / (1 + Math.pow(10, -1))) * (2.2 / (0.4 + 2.2))) / 12) * 200} r="5" fill="#ffd166" />
+              <text x={20 + (400 / 800) * 500 + 12} y={240 - ((24 * (1 - 1 / (1 + Math.pow(10, -1))) * (2.2 / (0.4 + 2.2))) / 12) * 200 + 4} fill="#ffd166" fontSize="11" fontFamily="var(--font-geist-mono)">favorite beats +400 · little to gain</text>
+              <text x="20" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">gap 0</text>
+              <text x="452" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">gap 800</text>
+            </g>
+          )}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-white font-black text-xl leading-none" style={{ fontFamily: "var(--font-geist-mono, monospace)" }}>{secs}s</span>
-          <span className="text-[#9f84bd]/35 text-[9px] font-mono uppercase tracking-wider mt-1">left</span>
+        <p className="text-[#4a8fa8] text-[10px] font-mono mt-2">
+          {view === "wait"
+            ? "Derived from the live queue rule: band = min(1000, 100 + 20 × seconds waited)."
+            : "Derived from the live rating rule: favorites gain less, upsets pay more — zero-sum either way."}
+        </p>
+      </div>
+    </Reveal>
+  );
+}
+
+function StatCard({ label, highlight, value, footnote }: { label: string; highlight: string; value: string; footnote: string }) {
+  return (
+    <Reveal>
+      <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 h-full">
+        <p className="text-[#4a8fa8] text-[10px] font-mono uppercase tracking-wider mb-3">{label}</p>
+        <p className="font-pixel text-3xl text-[#06d6a0] mb-1">{highlight}</p>
+        <p className="text-[#c5e8f0] text-sm mb-3">{value}</p>
+        <p className="text-[#4a8fa8] text-[10px] font-mono">{footnote}</p>
+      </div>
+    </Reveal>
+  );
+}
+
+/* ── S6: floating-pill parallax scene ── */
+const TRACK_PILLS: { label: string; color: string; left: string; top: string; speed: number }[] = [
+  { label: "reading speed",           color: "#118ab2", left: "6%",  top: "58%",  speed: 0.72 },
+  { label: "set selection",           color: "#ffd166", left: "30%", top: "66%",  speed: 0.68 },
+  { label: "guess discipline",        color: "#06d6a0", left: "62%", top: "60%",  speed: 0.78 },
+  { label: "time per question",       color: "#7ab5cc", left: "84%", top: "70%",  speed: 0.76 },
+  { label: "accuracy under pressure", color: "#06d6a0", left: "14%", top: "88%",  speed: 0.83 },
+  { label: "win streaks",             color: "#ffd166", left: "48%", top: "92%",  speed: 0.9 },
+  { label: "peak rating",             color: "#ffd166", left: "76%", top: "96%",  speed: 0.7 },
+  { label: "section splits",          color: "#118ab2", left: "8%",  top: "110%", speed: 0.74 },
+  { label: "head-to-head history",    color: "#9f84bd", left: "38%", top: "116%", speed: 0.86 },
+  { label: "league placement",        color: "#c5e8f0", left: "68%", top: "112%", speed: 0.69 },
+  { label: "daily tasks",             color: "#06d6a0", left: "20%", top: "130%", speed: 0.8 },
+  { label: "season rank",             color: "#ffd166", left: "56%", top: "134%", speed: 0.73 },
+  { label: "speed bonus rate",        color: "#06d6a0", left: "82%", top: "128%", speed: 0.88 },
+  { label: "comeback record",         color: "#ef476f", left: "12%", top: "148%", speed: 0.77 },
+  { label: "first-60s decisions",     color: "#7ab5cc", left: "44%", top: "152%", speed: 0.92 },
+];
+
+function PillParallax({ scrollParent }: { scrollParent: React.RefObject<HTMLDivElement | null> }) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const pillRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const update = useCallback(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    const vh = window.innerHeight;
+    const rect = section.getBoundingClientRect();
+    const travel = rect.height - vh;
+    const progress = Math.max(0, Math.min(1, -rect.top / travel));
+    pillRefs.current.forEach((el, i) => {
+      if (el) el.style.transform = `translateY(${-progress * travel * TRACK_PILLS[i].speed}px)`;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // settle mid-scene so the pills read as a static composition
+      pillRefs.current.forEach((el, i) => {
+        const section = sectionRef.current;
+        if (el && section) el.style.transform = `translateY(${-0.5 * (section.getBoundingClientRect().height - window.innerHeight) * TRACK_PILLS[i].speed}px)`;
+      });
+      return;
+    }
+    const parent = scrollParent.current;
+    if (!parent) return;
+    let raf = 0;
+    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(update); };
+    parent.addEventListener("scroll", onScroll, { passive: true });
+    update();
+    return () => { parent.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+  }, [scrollParent, update]);
+
+  return (
+    <section ref={sectionRef} className="relative border-t border-[#222222]" style={{ height: "220vh" }}>
+      <div className="sticky top-0 h-screen overflow-hidden">
+        {/* center sentence */}
+        <div className="absolute inset-0 flex items-center justify-center px-10 z-10">
+          <h2 className="font-pixel text-[clamp(1.9rem,4vw,3.4rem)] leading-[1.05] text-center text-balance">
+            One rating.<br />
+            <span className="text-[#06d6a0]">Every habit it exposes.</span>
+          </h2>
+        </div>
+        {/* drifting pills */}
+        <div aria-hidden className="absolute inset-0">
+          {TRACK_PILLS.map((p, i) => (
+            <div
+              key={p.label}
+              ref={el => { pillRefs.current[i] = el; }}
+              className="absolute flex items-center gap-2 rounded-full border px-3.5 py-1.5 whitespace-nowrap"
+              style={{
+                left: p.left, top: p.top,
+                color: p.color, borderColor: `${p.color}33`, background: `${p.color}0f`,
+                willChange: "transform",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: p.color }} />
+              <span className="font-pixel text-[11px]">{p.label}</span>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="text-center">
-        <p className="font-black text-2xl transition-colors leading-none" style={{ color: strokeColor, fontFamily: "var(--font-geist-mono, monospace)" }}>+{Math.round(100 * pct)} pts</p>
-        <p className="text-white/20 text-[10px] mt-1.5 font-mono">answer now for max</p>
-      </div>
-    </div>
+    </section>
   );
 }
 
-function ChallengeCard() {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="bg-[#120F17]/55 border border-[#9f84bd]/15 rounded-2xl p-5 backdrop-blur-sm">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-9 h-9 rounded-full bg-[#9f84bd]/12 flex items-center justify-center text-lg shrink-0">🥷</div>
-        <div className="min-w-0">
-          <p className="text-white text-sm font-semibold">arcxx1995</p>
-          <p className="text-[#9f84bd]/45 text-xs">challenges you to a rated match</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 bg-[#120F17]/80 rounded-lg p-3 mb-4 border border-[#9f84bd]/8">
-        <span className="text-[#9f84bd]/35 text-[10px] flex-1 truncate font-mono">ninjatest.app/c/abc123</span>
-        <button onClick={() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-          className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition-all shrink-0 ${copied ? "bg-[#06d6a0] text-[#120F17]" : "bg-[#9f84bd]/12 text-[#9f84bd]/70"}`}>
-          {copied ? "copied ✓" : "copy"}
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] font-mono text-[#9f84bd]/35 bg-[#9f84bd]/5 border border-[#9f84bd]/8 rounded-lg p-3 mb-4">
-        <span>9 questions</span><span>3 sections</span>
-        <span className="text-[#ef476f]/60">⚔ rated</span><span>expires 14:32</span>
-      </div>
-      <button className="w-full bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-xl py-2.5 hover:bg-[#06d6a0]/90 transition-colors">accept the challenge →</button>
-    </div>
-  );
-}
-
-function LeaderboardPreview() {
-  const [tab, setTab] = useState<"weekly" | "monthly">("weekly");
-  const data = {
-    weekly: [
-      { rank: 1, name: "rizz_master99", elo: 2341, delta: +87 },
-      { rank: 2, name: "catslayer", elo: 2289, delta: +64 },
-      { rank: 3, name: "quantqueen", elo: 2201, delta: +43 },
-      { rank: 4, name: "dilr_demon", elo: 2156, delta: -12 },
-      { rank: 5, name: "arcxx1995", elo: 2089, delta: +29 },
-    ],
-    monthly: [
-      { rank: 1, name: "catslayer", elo: 2489, delta: +312 },
-      { rank: 2, name: "rizz_master99", elo: 2441, delta: +287 },
-      { rank: 3, name: "varc_villain", elo: 2378, delta: +201 },
-      { rank: 4, name: "quantqueen", elo: 2301, delta: +143 },
-      { rank: 5, name: "arcxx1995", elo: 2189, delta: +129 },
-    ],
-  };
-  const medals = ["🥇", "🥈", "🥉"];
-  return (
-    <div className="bg-[#120F17]/55 border border-[#9f84bd]/15 rounded-2xl overflow-hidden backdrop-blur-sm">
-      <div className="flex">
-        {(["weekly", "monthly"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-3 text-[9px] font-black tracking-[0.18em] uppercase transition-colors border-b ${tab === t ? "text-[#06d6a0] border-[#06d6a0]/50" : "text-[#9f84bd]/30 border-[#9f84bd]/8 hover:text-[#9f84bd]/55"}`}>
-            {t === "weekly" ? "this week" : "this month"}
-          </button>
-        ))}
-      </div>
-      <div className="divide-y divide-[#9f84bd]/5">
-        {data[tab].map(row => (
-          <div key={row.rank} className="flex items-center gap-3 px-4 py-2.5">
-            <span className="w-5 text-center shrink-0 text-base">
-              {row.rank <= 3 ? medals[row.rank - 1] : <span className="text-[#9f84bd]/30 text-[10px] font-mono">#{row.rank}</span>}
-            </span>
-            <span className={`text-sm flex-1 truncate ${row.name === "arcxx1995" ? "text-[#06d6a0] font-bold" : "text-white/75"}`}>{row.name}</span>
-            <span className="text-[#ffd166] font-black text-sm font-mono shrink-0">{row.elo}</span>
-            <span className={`text-[10px] font-bold font-mono w-9 text-right shrink-0 ${row.delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]"}`}>{row.delta >= 0 ? "+" : ""}{row.delta}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
+/* ── S2: marquee ticker ── */
 function LogoMarquee() {
-  const items = ["VARC", "DILR", "QUANT", "ELO RATED", "REALTIME 1v1", "SPEED SCORING", "FRIEND CHALLENGES", "SERVER AUTHORITATIVE", "NEXT.JS", "SUPABASE", "TAILWIND CSS", "TYPESCRIPT"];
+  const items = [
+    "CAT", "XAT", "GMAT", "SSC", "BANK", "JEE", "NEET",
+    "2,400 ELO CEILING", "90S PER VARC QUESTION", "ZERO-SUM RATINGS",
+    "SEASONS RESET MONTHLY", "SPECTATE LIVE MATCHES", "SERVER-SCORED",
+  ];
   return (
-    <div className="overflow-hidden border-y border-[#9f84bd]/8 py-5 my-2">
-      <div className="flex animate-marquee" style={{ width: "max-content" }}>
+    <div className="overflow-hidden border-y border-[#222222] py-5">
+      <div className="flex animate-marquee hover:[animation-play-state:paused]" style={{ width: "max-content" }}>
         {[...items, ...items].map((item, i) => (
-          <span key={i} className="shrink-0 px-6 text-[#9f84bd]/22 text-[10px] font-mono tracking-[0.3em] uppercase">
-            {item}<span className="ml-5 text-[#9f84bd]/12">✦</span>
+          <span key={i} className="shrink-0 px-6 font-pixel text-[10px] text-[#7ab5cc]/40 tracking-[0.3em] uppercase">
+            {item}<span className="ml-5 text-[#06d6a0]/25">✦</span>
           </span>
         ))}
       </div>

@@ -214,6 +214,46 @@
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* Landing: Geist Pixel display type */
+.font-pixel {
+  font-family: var(--font-geist-pixel-square), var(--font-geist-mono), monospace;
+}
+
+/* Landing: slow badge-icon spin (19th smiley idiom) */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 18s linear infinite;
+}
+
+/* Landing: spring pulse for CTA/success feedback */
+@keyframes spring-pulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.spring-pulse {
+  animation: spring-pulse 0.52s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Landing: scroll entrance reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin-slow { animation: none; }
+  .spring-pulse { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
 /* Landing: exam name flip (airport-board shutter) */
 @keyframes examFlip {
   0%   { transform: perspective(280px) rotateX(90deg); opacity: 0; filter: blur(6px); }
