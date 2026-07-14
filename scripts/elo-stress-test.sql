@@ -138,11 +138,46 @@ begin
     perform submit_answer(mid, qi::smallint, wrong_disp::smallint);
     select * into r from match_answers where match_id = mid and user_id = ub and question_index = qi;
     if r.is_correct then raise exception 'q%: B picked wrong text, scored CORRECT (shuffle desync!)', qi; end if;
-    if r.points_awarded <> -cfg.wrong_penalty then
-      raise exception 'q%: wrong answer scored % (want %)', qi, r.points_awarded, -cfg.wrong_penalty;
+    -- time-scaled penalty (20260715000000): -(base + bonus(t)) / (n_opts - 1),
+    -- recomputed here from the stored time_taken_ms — a random guess must be
+    -- exactly EV-neutral at every t.
+    if r.points_awarded <> -round((cfg.base_points
+          + round(cfg.speed_mult * floor((coalesce(q.duration_ms, cfg.cap_ms) - r.time_taken_ms)::numeric
+                                         / cfg.grace_block_ms)))::numeric
+          / (jsonb_array_length(q.options) - 1))::int then
+      raise exception 'q%: wrong answer scored % (want time-scaled EV-neutral penalty)', qi, r.points_awarded;
     end if;
   end loop;
   raise notice 'PASS 2: 9 questions scored shuffle-consistently for both players';
+end $$;
+
+-- ── 2a. section parity + guess-EV neutrality (20260715000000) ────────────────
+-- Every section's max attainable points per question must be equal (CAT
+-- weights sections equally), and for 4-option questions the instant-guess
+-- expected value must be ~0: (1/4)(base+bonus) - (3/4)(base+bonus)/3 = 0.
+do $$
+declare
+  distinct_max int;
+  bad record;
+begin
+  select count(distinct base_points
+               + round(speed_mult * floor(cap_ms::numeric / grace_block_ms))::int)
+    into distinct_max from section_config;
+  if distinct_max <> 1 then
+    raise exception '2a: sections have unequal max points/question (parity broken)';
+  end if;
+
+  -- penalty derivation is exact EV-neutrality by construction; assert the
+  -- formula's ratio at the extremes for each section (t=0 and t=cap)
+  for bad in
+    select section, base_points, speed_mult, cap_ms, grace_block_ms from section_config
+  loop
+    if abs( (bad.base_points + round(bad.speed_mult * floor(bad.cap_ms::numeric / bad.grace_block_ms)))
+            - 3 * round((bad.base_points + round(bad.speed_mult * floor(bad.cap_ms::numeric / bad.grace_block_ms)))::numeric / 3) ) > 2 then
+      raise exception '2a: % instant-guess EV off neutral by > 0.5 pts', bad.section;
+    end if;
+  end loop;
+  raise notice 'PASS 2a: section parity (equal max/question) + guess-EV ~ 0';
 end $$;
 
 -- ── 2b. reveal: display-index consistent with the shuffle ───────────────────

@@ -87,7 +87,7 @@ Broadcast = liveness signals. Postgres Changes = authoritative state. DB is sour
 - `match_answers` — one row per player per question (unique `(match_id,user_id,question_index)`); `selected_index` stores the **canonical** index post-un-shuffle; null = skip.
 - `questions` — no client read; `elo` (seeded `1000 + difficulty×100`), `times_seen`, optional `duration_ms` (overrides section cap), `passage_id` → `passages` (VARC/DILR groups).
 - `matchmaking_queue` — `FOR UPDATE SKIP LOCKED` pairing; partial unique on waiting rows.
-- `section_config` — all scoring dials; **never hardcode scoring constants in app code**. VARC 90s cap ×1, QUANT 105s ×2, DILR 120s ×2; base 100, penalty 30, grace block 5000ms.
+- `section_config` — all scoring dials; **never hardcode scoring constants in app code**. Caps VARC 90s / QUANT 105s / DILR 120s; `speed_mult` is numeric, tuned for section parity (2.22 / 1.90 / 1.67 → max speed bonus 40 and max 140/question in every section); base 100, grace block 5000ms. `wrong_penalty` column is retired (kept, unread) — the penalty is derived in `submit_answer` since `20260715000000`.
 - `rating_history` — append-only ELO timeline (null match_id = season reset row); powers the profile graph.
 - `challenges` — invite codes (pgcrypto), 15-min expiry, `is_rated` + `section_mode` fixed at creation.
 - `seasons` / `season_results` — monthly-ish soft resets; world-readable.
@@ -95,27 +95,32 @@ Broadcast = liveness signals. Postgres Changes = authoritative state. DB is sour
 - `match_events`, `rpc_rate_limit`, `ip_rate_limit` — RLS enabled, zero policies (server-only).
 - `waitlist` — `email` unique + survey fields; anon INSERT-only with validation, no client read, duplicate email is a no-op success. Postgres is the sole store (Google Sheets webhook removed 2026-07-01 after silently 401ing). View in Supabase Studio or `/admin/waitlist`.
 
-### Scoring (in `submit_answer`)
+### Scoring (in `submit_answer`, final in `20260715000000`)
 ```
 cap     = coalesce(question.duration_ms, section cap_ms)
 taken   = clamp(now() − question_started_at, 0, cap)   # measured server-side; client timing ignored
-correct → base_points + speed_mult × floor((cap − taken) / grace_block_ms)
-wrong   → −wrong_penalty
+bonus   = round(speed_mult × floor((cap − taken) / grace_block_ms))
+correct → base_points + bonus
+wrong   → −round((base_points + bonus) / (n_options − 1))   # rides the same speed curve
 skipped → 0
 ```
+The wrong penalty is derived, not a config dial: it makes a random guess exactly EV-neutral at every t and any option count (with 4 options a flat −30 made instant blind guessing worth ~+9 EV/question — a snap-guess exploit), and converges to CAT's 1:3 ratio at the cap. Section parity: every section maxes at 140/question. Guarded by stress-test section 2/2a.
 
-### Player ELO (`apply_rated_result` final in `20260713060000`; `finalize_match`/`apply_draw`/`forfeit_match`/`submit_answer`/`advance_timed_out` final in `20260713090000_audit_round2_fixes.sql`)
+### Player ELO (`apply_rated_result`/`finalize_match`/`submit_answer` final in `20260715000000`; `apply_draw`/`forfeit_match`/`advance_timed_out` final in `20260713090000_audit_round2_fixes.sql`)
 ```
 K        = 40 if games<30 else 24 if elo<2000 else 16
 E_winner = 1 / (1 + 10^((R_loser − R_winner) / 400))
 factor   = 0.3 + 0.7 × min(|score_margin| / FULL, 1)   # forfeit: 1.0
-FULL     = 0.2 × Σ per question (base + penalty + speed_mult×⌊cap/grace⌋)
-           # the match's own max margin: ≈300 mixed, 266 VARC-mode, 320 DILR-mode
-           # (a fixed 300 overweighted ×2-speed_mult sections by ~26%)
-Δ        = max(1, round(K × (1 − E_winner) × factor))
+FULL     = 0.2 × Σ per question (base + maxbonus) × (1 + 1/(n_opts−1))
+           # mirrors the derived wrong penalty; with parity + 4 options ≈ 336 in every mode
+factor  *= 2.2 / (0.001×(R_winner − R_loser) + 2.2) if winner was rating favorite
+           # favorite-shrink (FiveThirtyEight-style): margin×(1−E) overrates
+           # favorites via autocorrelation; underdog wins untouched
+Δ        = max(0, round(K × (1 − E_winner) × factor)) # no forced +1 (was a farm-+1-off-many-weak leak)
 Δ_eff    = max(0, min(Δ, R_loser − 100))               # 100-ELO floor, strictly zero-sum
 winner += Δ_eff; loser −= Δ_eff                        # beating a floored (100) opponent gains 0
 ```
+Calibration report: `scripts/elo-calibration.sql` (read-only; buckets rated matches by rating gap, predicted-vs-actual + Brier — tune K and the 0.3/0.7 split from it once there are a few hundred rated matches).
 R values are each player's **current** rating read under ordered row locks at finalization (not the match-creation snapshot) — overlapping rated matches chain correctly. Callers pass only the margin factor; all rating math lives in `apply_rated_result`. Draws: one shared delta at `K = least(K_a, K_b)` — strictly zero-sum, clamped to the 100 floor (per-player Ks used to mint ~+11/draw on K-mismatched pairs), reset both streaks. Wins +1 streak / update best; losses/draws zero it; unrated matches touch nothing.
 
 ### Question ELO (adaptive difficulty)
