@@ -24,6 +24,8 @@
 --  10. draws are zero-sum at K = least(K_a, K_b); streaks reset; history rows
 --  11. join_queue rejects callers already in a live match; leave_queue
 --      reports whether a row was cancelled; queue_heartbeat liveness
+--  12. passage reading time: question_cap_ms extends only the passage
+--      opener's clock; the reading window never inflates the speed bonus
 --
 -- Note on timing: now() is frozen inside a transaction, so every submit lands
 -- at taken_ms = 0. That makes all of A's correct answers 'fast_answer'
@@ -684,6 +686,89 @@ begin
 
   perform set_config('request.jwt.claims', null, true);
   raise notice 'PASS 11: live-match queue lockout; leave_queue/queue_heartbeat report correctly';
+end $$;
+
+-- ── 12. passage reading time (20260715010000) ────────────────────────────────
+-- question_cap_ms: FIRST question of a passage in the match array gets
+-- cap + reading_ms; later questions of the same passage and standalones get
+-- the plain cap. The reading window must NOT inflate the speed bonus: an
+-- instant correct answer on a passage opener scores exactly base + max bonus
+-- (the least(cap - taken, base) term in submit_answer).
+do $$
+declare
+  ue uuid := gen_random_uuid();
+  uf uuid := gen_random_uuid();
+  pid uuid;
+  qids uuid[];
+  mid2 uuid;
+  cfg section_config%rowtype;
+  q questions%rowtype;
+  opts jsonb; disp int;
+  expected int; got int;
+begin
+  insert into auth.users (id, aud, role, email)
+  values (ue, 'authenticated', 'authenticated', 'stress-e@test.local'),
+         (uf, 'authenticated', 'authenticated', 'stress-f@test.local');
+  insert into profiles (id, username, display_name)
+  values (ue, 'stress_e', 'E'), (uf, 'stress_f', 'F')
+  on conflict (id) do nothing;
+
+  insert into passages (section, body) values ('VARC', 'stress passage')
+  returning id into pid;
+  insert into questions (section, difficulty, body, options, correct_index, explanation, elo, passage_id)
+  select 'VARC', 3, 'stress pq' || g, '["w","x","y","z"]'::jsonb, 0, 'because', 1200, pid
+  from generate_series(1, 3) g;
+  insert into questions (section, difficulty, body, options, correct_index, explanation, elo)
+  select (array['DILR','DILR','DILR','QUANT','QUANT','QUANT'])[g]::cat_section,
+         3, 'stress sq' || g, '["w","x","y","z"]'::jsonb, 0, 'because', 1200
+  from generate_series(1, 6) g;
+  select array_agg(id order by body) into qids
+  from questions where body like 'stress pq%' or body like 'stress sq%';
+  -- 'stress pq1..3' sort after 'sq'? No: 'pq' < 'sq', so passage questions are
+  -- indexes 0..2 and the passage opener is index 0.
+
+  select * into cfg from section_config where section = 'VARC';
+  if question_cap_ms(qids, 0) <> cfg.cap_ms + cfg.reading_ms then
+    raise exception '12: passage opener cap % <> cap_ms + reading_ms %',
+      question_cap_ms(qids, 0), cfg.cap_ms + cfg.reading_ms;
+  end if;
+  if question_cap_ms(qids, 1) <> cfg.cap_ms then
+    raise exception '12: second passage question cap % <> plain cap_ms %',
+      question_cap_ms(qids, 1), cfg.cap_ms;
+  end if;
+  select * into cfg from section_config where section = 'DILR';
+  if question_cap_ms(qids, 3) <> cfg.cap_ms then
+    raise exception '12: standalone cap % <> plain cap_ms %',
+      question_cap_ms(qids, 3), cfg.cap_ms;
+  end if;
+
+  -- drive the opener: instant correct must score base + max bonus, where max
+  -- bonus is derived from the BASE cap (reading window mints no extra points)
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (ue, uf, 'active', false, qids, 1000, 1000, 0, now())
+  returning id into mid2;
+
+  select * into cfg from section_config where section = 'VARC';
+  select * into q from questions where id = qids[1];
+  perform set_config('request.jwt.claims', json_build_object('sub', ue, 'role', 'authenticated')::text, true);
+  select options into opts from get_match_question(mid2, 0::smallint);
+  select ord - 1 into disp
+  from jsonb_array_elements(opts) with ordinality e(val, ord)
+  where val = q.options -> q.correct_index;
+  perform submit_answer(mid2, 0::smallint, disp::smallint);
+
+  expected := cfg.base_points
+              + round(cfg.speed_mult * floor(cfg.cap_ms::numeric / cfg.grace_block_ms))::int;
+  select points_awarded into got from match_answers
+  where match_id = mid2 and user_id = ue and question_index = 0;
+  if got <> expected then
+    raise exception '12: passage opener instant-correct scored % (want % — reading window must not inflate the bonus)',
+      got, expected;
+  end if;
+
+  perform set_config('request.jwt.claims', null, true);
+  raise notice 'PASS 12: passage reading time — opener cap extended, bonus not inflated';
 end $$;
 
 rollback;

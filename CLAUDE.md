@@ -87,7 +87,7 @@ Broadcast = liveness signals. Postgres Changes = authoritative state. DB is sour
 - `match_answers` — one row per player per question (unique `(match_id,user_id,question_index)`); `selected_index` stores the **canonical** index post-un-shuffle; null = skip.
 - `questions` — no client read; `elo` (seeded `1000 + difficulty×100`), `times_seen`, optional `duration_ms` (overrides section cap), `passage_id` → `passages` (VARC/DILR groups).
 - `matchmaking_queue` — `FOR UPDATE SKIP LOCKED` pairing; partial unique on waiting rows.
-- `section_config` — all scoring dials; **never hardcode scoring constants in app code**. Caps VARC 90s / QUANT 105s / DILR 120s; `speed_mult` is numeric, tuned for section parity (2.22 / 1.90 / 1.67 → max speed bonus 40 and max 140/question in every section); base 100, grace block 5000ms. `wrong_penalty` column is retired (kept, unread) — the penalty is derived in `submit_answer` since `20260715000000`.
+- `section_config` — all scoring dials; **never hardcode scoring constants in app code**. Caps VARC 90s / QUANT 105s / DILR 120s; `reading_ms` (VARC/DILR 60s, QUANT 0) extends the clock of the FIRST question of a passage group in a match (`20260715100000`); `speed_mult` is numeric, tuned for section parity (2.22 / 1.90 / 1.67 → max speed bonus 40 and max 140/question in every section); base 100, grace block 5000ms. `wrong_penalty` column is retired (kept, unread) — the penalty is derived in `submit_answer` since `20260715000000`.
 - `rating_history` — append-only ELO timeline (null match_id = season reset row); powers the profile graph.
 - `challenges` — invite codes (pgcrypto), 15-min expiry, `is_rated` + `section_mode` fixed at creation.
 - `seasons` / `season_results` — monthly-ish soft resets; world-readable.
@@ -95,15 +95,17 @@ Broadcast = liveness signals. Postgres Changes = authoritative state. DB is sour
 - `match_events`, `rpc_rate_limit`, `ip_rate_limit` — RLS enabled, zero policies (server-only).
 - `waitlist` — `email` unique + survey fields; anon INSERT-only with validation, no client read, duplicate email is a no-op success. Postgres is the sole store (Google Sheets webhook removed 2026-07-01 after silently 401ing). View in Supabase Studio or `/admin/waitlist`.
 
-### Scoring (in `submit_answer`, final in `20260715000000`)
+### Scoring (in `submit_answer`, final in `20260715100000`)
 ```
-cap     = coalesce(question.duration_ms, section cap_ms)
+base    = coalesce(question.duration_ms, section cap_ms)
+cap     = question_cap_ms(question_ids, index)         # base + reading_ms iff first question of its passage in the match
 taken   = clamp(now() − question_started_at, 0, cap)   # measured server-side; client timing ignored
-bonus   = round(speed_mult × floor((cap − taken) / grace_block_ms))
+bonus   = round(speed_mult × floor(least(cap − taken, base) / grace_block_ms))   # reading window is bonus-free grace
 correct → base_points + bonus
 wrong   → −round((base_points + bonus) / (n_options − 1))   # rides the same speed curve
 skipped → 0
 ```
+**`question_cap_ms` is the single cap source** — `get_match_question`, `get_match_question_spectator`, `submit_answer`, `advance_timed_out`, `forfeit_match`, `bot_act`, `get_debrief_data` all call it (`20260715100000`); never reintroduce an inline `coalesce(duration_ms, cap_ms)` in a match-context function or timers desync. `finalize_match`'s FULL margin deliberately stays on the base cap (max bonus is base-derived). Guarded by stress-test section 12.
 The wrong penalty is derived, not a config dial: it makes a random guess exactly EV-neutral at every t and any option count (with 4 options a flat −30 made instant blind guessing worth ~+9 EV/question — a snap-guess exploit), and converges to CAT's 1:3 ratio at the cap. Section parity: every section maxes at 140/question. Guarded by stress-test section 2/2a.
 
 ### Player ELO (`apply_rated_result`/`finalize_match`/`submit_answer` final in `20260715000000`; `apply_draw`/`forfeit_match`/`advance_timed_out` final in `20260713090000_audit_round2_fixes.sql`)
