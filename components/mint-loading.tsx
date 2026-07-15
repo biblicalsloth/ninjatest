@@ -1,4 +1,4 @@
-import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjatestLogo } from "@/components/ninja-logo";
 
 // Mirrors the mint auth panel (components/auth-panel.tsx). Used as the
 // Suspense fallback in route loading.tsx files — Next swaps it out the
@@ -14,12 +14,7 @@ export function MintLoading({ message }: { message: string }) {
         }
       `}</style>
       <div className="w-full max-w-sm text-center">
-        <div className="inline-flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden">
-            <NinjaLogo color="#06d6a0" className="w-5 h-5" />
-          </div>
-          <span className="text-[#120F17] font-bold text-xl tracking-tight">Ninjatest</span>
-        </div>
+        <NinjatestLogo onMint className="mb-2" />
         <p className="text-[#120F17]/60 text-sm mb-8">{message}</p>
         <div className="h-2 rounded-full bg-[#120F17]/10 overflow-hidden">
           <div

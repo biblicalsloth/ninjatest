@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
-import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ThermalBoundary } from "@/components/landing/thermal-boundary";
 import { ParticleFlow } from "@/components/landing/particle-flow";
@@ -200,12 +200,7 @@ export default function LandingClient() {
 
           {/* Nav */}
           <nav className="px-10 pt-8 flex items-center justify-between sticky top-0 bg-[#120F17]/60 backdrop-blur-sm z-20 py-5">
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-full bg-[#06d6a0] flex items-center justify-center shrink-0 overflow-hidden">
-                <NinjaLogo color="#120F17" className="w-5 h-5" />
-              </div>
-              <span className="font-semibold tracking-tight">Ninjatest</span>
-            </div>
+            <NinjatestLogo />
             <div className="flex items-center gap-7">
               <a href="#ai" className="text-white/45 hover:text-white text-sm transition-colors">Ninja AI</a>
               <a href="#matchmaking" className="text-white/45 hover:text-white text-sm transition-colors">Matchmaking</a>
@@ -405,12 +400,7 @@ export default function LandingClient() {
 
           <footer className="px-10 py-12 border-t border-[#222222]">
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden">
-                  <NinjaLogo color="#120F17" className="w-5 h-5" />
-                </div>
-                <span className="font-semibold tracking-tight text-white">Ninjatest</span>
-              </div>
+              <NinjatestLogo />
               <div className="flex items-center gap-6">
                 <a href="/privacy" className="text-white/35 hover:text-white/60 text-xs transition-colors">Privacy Policy</a>
                 <a href="/terms" className="text-white/35 hover:text-white/60 text-xs transition-colors">Terms &amp; Conditions</a>
@@ -467,11 +457,8 @@ export default function LandingClient() {
             /* ── Waitlist survey ── */
             <div className="w-full max-w-sm">
               {/* Logo header */}
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <div className="w-9 h-9 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden shrink-0">
-                  <NinjaLogo color="#06d6a0" className="w-6 h-6" />
-                </div>
-                <span className="text-[#120F17] font-black text-2xl tracking-tight">Ninjatest</span>
+              <div className="flex justify-center mb-8">
+                <NinjatestLogo onMint />
               </div>
 
               {surveyDone ? (
@@ -570,12 +557,7 @@ export default function LandingClient() {
             /* ── Auth form ── */
             <div className="w-full max-w-sm">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden">
-                    <NinjaLogo color="#06d6a0" className="w-5 h-5" />
-                  </div>
-                  <span className="text-[#120F17] font-bold text-xl tracking-tight">Ninjatest</span>
-                </div>
+                <NinjatestLogo onMint className="mb-2" />
                 <p className="text-[#120F17]/60 text-sm">{authMode === "signin" ? "Welcome back." : "Join the arena."}</p>
               </div>
 

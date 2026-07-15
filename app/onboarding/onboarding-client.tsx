@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjatestLogo } from "@/components/ninja-logo";
 
 // Mirrors components/auth-panel.tsx: solid mint #06d6a0 backdrop, dark-ink
 // inputs, dark button with mint label. A 3-step post-signup survey that writes
@@ -60,12 +60,7 @@ export default function OnboardingClient({
     <div className="min-h-screen flex items-center justify-center bg-[#06d6a0] px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#120F17] flex items-center justify-center overflow-hidden">
-              <NinjaLogo color="#06d6a0" className="w-5 h-5" />
-            </div>
-            <span className="text-[#120F17] font-bold text-xl tracking-tight">Ninjatest</span>
-          </div>
+          <NinjatestLogo onMint className="mb-2" />
           <p className="text-[#120F17]/60 text-sm">Let&apos;s set up your profile.</p>
         </div>
 

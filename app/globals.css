@@ -214,6 +214,11 @@
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* Brand wordmark: Geist sans, matches ninjatest_logo.svg */
+.font-brand {
+  font-family: var(--font-geist-sans), -apple-system, system-ui, sans-serif;
+}
+
 /* Landing: Geist Pixel display type */
 .font-pixel {
   font-family: var(--font-geist-pixel-square), var(--font-geist-mono), monospace;

@@ -19,7 +19,6 @@ import {
   ChevronRight,
   Target,
 } from "lucide-react";
-import { NinjaLogo } from "@/components/ninja-logo";
 import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,6 @@ import { NinjaCoach } from "@/components/ninja-coach";
 import type { Profile } from "@/lib/supabase/types";
 import { cn, formatPoints, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
-import { useOnlineCount } from "@/lib/hooks/use-online-count";
 
 interface RecentMatch {
   match_id: string;
@@ -64,7 +62,6 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
   const router = useRouter();
   const [joining, setJoining] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
-  const onlineCount = useOnlineCount(profile.id);
   // is_admin lives on the row (select("*")) but lags in types.ts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isAdmin = Boolean((profile as any).is_admin);
@@ -93,30 +90,12 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      {/* Top strip — brand + live presence */}
-      <div className="border-b border-[#1c1a24] px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden">
-              <NinjaLogo color="#073b4c" className="w-5 h-5" />
-            </div>
-            <span className="font-semibold tracking-tight">Ninjatest</span>
-          </div>
-          {onlineCount !== null && (
-            <div className="flex items-center gap-1.5 bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#06d6a0] animate-pulse" />
-              <span className="text-[#06d6a0] text-xs font-medium">{onlineCount} online</span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Dashboard grid: main matchmaking hub + side rail */}
       <main className="max-w-5xl mx-auto px-4 pt-6 pb-32 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left / center — matchmaking is the home state */}
         <section className="lg:col-span-2 space-y-6">
           <div>
-            <h1 className="text-lg font-semibold">Play</h1>
+            <h1 className="font-pixel text-lg">Play</h1>
             <p className="text-[#7ab5cc] text-sm">Pick a mode to enter a battle.</p>
           </div>
 
@@ -132,7 +111,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                 <ChevronRight size={18} className="opacity-60 group-hover:translate-x-0.5 transition-transform" />
               </div>
               <div className="mt-8">
-                <div className="font-bold text-lg">Ranked 1v1</div>
+                <div className="font-pixel text-lg">Ranked 1v1</div>
                 <div className="text-sm text-[#073b4c]/80">
                   {joining ? "Joining queue…" : "Mixed 3·3·3 · ELO rated"}
                 </div>
@@ -149,7 +128,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                 <ChevronRight size={18} className="text-[#4a8fa8] group-hover:translate-x-0.5 transition-transform" />
               </div>
               <div className="mt-8">
-                <div className="font-bold text-lg text-white">Challenge a Friend</div>
+                <div className="font-pixel text-lg text-white">Challenge a Friend</div>
                 <div className="text-sm text-[#7ab5cc]">Invite by code · rated or section mode</div>
               </div>
             </button>
@@ -164,7 +143,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                 <ChevronRight size={18} className="text-[#4a8fa8] group-hover:translate-x-0.5 transition-transform" />
               </div>
               <div className="mt-8">
-                <div className="font-bold text-lg text-white">Practice</div>
+                <div className="font-pixel text-lg text-white">Practice</div>
                 <div className="text-sm text-[#7ab5cc]">Solo drill · targets your weak sections</div>
               </div>
             </Link>
@@ -179,7 +158,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                 <ChevronRight size={18} className="text-[#4a8fa8] group-hover:translate-x-0.5 transition-transform" />
               </div>
               <div className="mt-8">
-                <div className="font-bold text-lg text-white">Spectate</div>
+                <div className="font-pixel text-lg text-white">Spectate</div>
                 <div className="text-sm text-[#7ab5cc]">Watch live matches</div>
               </div>
             </Link>
@@ -194,7 +173,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                 <ChevronRight size={18} className="text-[#4a8fa8] group-hover:translate-x-0.5 transition-transform" />
               </div>
               <div className="mt-8">
-                <div className="font-bold text-lg text-white">Leaderboard</div>
+                <div className="font-pixel text-lg text-white">Leaderboard</div>
                 <div className="text-sm text-[#7ab5cc]">Season top 100</div>
               </div>
             </Link>
@@ -203,7 +182,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
           {/* Recent matches */}
           {recentMatches.length > 0 && (
             <div>
-              <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent matches</h2>
+              <h2 className="font-pixel text-[#7ab5cc] text-sm mb-3">Recent matches</h2>
               <div className="space-y-2">
                 {recentMatches.map((m) => (
                   <div
@@ -279,7 +258,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
 
           {/* Daily challenges */}
           <div className="bg-[#111111] rounded-xl p-5">
-            <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Today</h2>
+            <h2 className="font-pixel text-[#7ab5cc] text-sm mb-3">Today</h2>
             <div className="space-y-2.5">
               {DAILY_TASKS.map((t) => {
                 const value = t.get(dailyProgress);
