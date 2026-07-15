@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
-import { runCoach, PLAN_SYSTEM } from "@/lib/ai/coach";
+import { runCoach, PLAN_SYSTEM, SOCRATIC_SYSTEM } from "@/lib/ai/coach";
 
 // Ninja Coach: freeform "how am I doing / what should I work on" Q&A. The model
 // autonomously pulls the caller's own stats (tools bound to their username
@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const isPlan = body?.mode === "plan";
+  const isSocratic = body?.mode === "socratic";
+  const system = isPlan ? PLAN_SYSTEM : isSocratic ? SOCRATIC_SYSTEM : undefined;
+  const matchId = typeof body?.match_id === "string" ? body.match_id : null;
   const question = isPlan
     ? "Build my weekly study plan."
     : typeof body?.question === "string" ? body.question.trim() : "";
@@ -43,8 +46,21 @@ export async function POST(req: NextRequest) {
   const username = prof?.username as string | undefined;
   if (!username) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
+  // Conversational memory: the last few turns of THIS thread (match bucket or
+  // general). One-shot plan mode skips it — history would fight its output contract.
+  let priorTurns: { question: string; answer: string }[] = [];
+  if (!isPlan) {
+    const { data: turns } = await sb.rpc("get_recent_coach_turns", { p_match_id: matchId, p_limit: 8 });
+    priorTurns = ((turns ?? []) as { question: string; answer: string }[])
+      .map((t) => ({ question: t.question, answer: t.answer }));
+  }
+
   try {
-    const { text, model } = await runCoach(sb, username, question, config, isPlan ? PLAN_SYSTEM : undefined);
+    const { text, model } = await runCoach(sb, username, question, config, system, priorTurns);
+    // Persist the turn (best-effort — a save blip must not fail the answer).
+    await sb.rpc("save_ninja_coach_turn", {
+      p_match_id: matchId, p_question: question, p_answer: text, p_model: model,
+    }).then(({ error }: { error: unknown }) => { if (error) console.error("save coach turn:", error); });
     return NextResponse.json({ content: text, model_id: model });
   } catch (e) {
     console.error("Ninja coach failed:", e);

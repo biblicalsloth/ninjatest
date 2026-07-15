@@ -24,6 +24,18 @@ When you answer:
 - Reference opponent ELO relative to theirs to explain whether recent matchups were favorable or tough.
 - Be concise, specific, and actionable. No generic "practice more." Give a concrete next step tied to the data.`;
 
+// Socratic study-buddy mode: same agentic loop + tools + memory, but the model
+// guides with questions and one hint at a time instead of dumping the solution.
+// Multi-turn — relies on runCoach's message history to build on prior turns.
+export const SOCRATIC_SYSTEM = `You are Ninja, a CAT (Common Admission Test) prep study buddy using the Socratic method.
+Guide the user to the answer with questions and ONE small hint at a time — never give the full solution up front.
+
+- Ask a focused question or give one hint, then STOP and wait for their reply. Keep each turn short (1-3 sentences).
+- Build on what they just said. If they stay stuck after 2-3 hints on the same step, give that step, then probe the next.
+- When they get it, confirm briefly and move to the next step.
+- Ground yourself in real data when relevant: call the tools to reference their weak sections or their actual recent mistakes (get_my_recent_mistakes).
+- Never dump the whole explanation in one message. The point is to make them think.`;
+
 // Study-plan mode: same agentic loop and tools, different output contract.
 // The plan leans on the SAME grounded stats (rating curve, section stats,
 // recent form) — never generic advice.
@@ -81,6 +93,11 @@ function buildCoachTools(sb: Sb, username: string): ToolSet {
       inputSchema: NO_INPUT,
       execute: () => call("get_daily_progress", {}),
     }),
+    get_my_recent_mistakes: tool({
+      description: "The user's recent WRONG or SKIPPED questions across matches: section, question text, their answer vs the correct answer, and the explanation. Use this for concrete, question-specific coaching or to pick something to drill — not for stats (use the stats tools for numbers).",
+      inputSchema: NO_INPUT,
+      execute: () => call("get_recent_mistakes", { p_limit: 10 }),
+    }),
   };
 }
 
@@ -92,16 +109,23 @@ export async function runCoach(
   question: string,
   config: AiConfig,
   system: string = COACH_SYSTEM,
+  priorTurns: { question: string; answer: string }[] = [],
 ): Promise<{ text: string; model: string }> {
   const tools = buildCoachTools(sb, username);
   const models = [config.model_id, config.fallback_model_id].filter(Boolean) as string[];
+  // Conversational memory: replay prior turns so multi-turn (esp. Socratic)
+  // builds on context. Empty for one-shot modes → same as a bare prompt.
+  const history = priorTurns.flatMap((t) => [
+    { role: "user" as const, content: t.question },
+    { role: "assistant" as const, content: t.answer },
+  ]);
   let lastErr: unknown = null;
   for (const modelId of models) {
     try {
       const res = await generateText({
         model: getModel(config.provider, modelId),
         system,
-        prompt: question,
+        messages: [...history, { role: "user", content: question }],
         tools,
         stopWhen: stepCountIs(6), // cap tool-call rounds; metered LLM
         temperature: config.temperature,

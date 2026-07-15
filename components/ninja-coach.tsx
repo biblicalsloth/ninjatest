@@ -19,11 +19,19 @@ const SUGGESTIONS = [
   "What should I practice next?",
 ];
 
+// Buddy (Socratic) starters — guide the user through their own weak spots.
+const BUDDY_SUGGESTIONS = [
+  "Walk me through my most recent mistake",
+  "Quiz me on my weakest section",
+  "Help me get faster at Quant",
+];
+
 // Floating Ninja Coach: freeform Q&A over the user's own stats. Server-side the
 // model pulls their profile/sections/margins/opponents and answers grounded in
 // real numbers. Collapsed to a badge until opened.
 export function NinjaCoach() {
   const [state, setState] = useState<CoachState>("closed");
+  const [mode, setMode] = useState<"coach" | "buddy">("coach");
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
@@ -47,9 +55,11 @@ export function NinjaCoach() {
     return () => window.removeEventListener("keydown", onKey);
   }, [state]);
 
-  const ask = async (question: string, mode?: "plan") => {
+  const ask = async (question: string, override?: "plan" | "socratic") => {
     const q = question.trim();
     if (!q || busy) return;
+    // Buddy toggle → Socratic; plan pill passes its own override.
+    const reqMode = override ?? (mode === "buddy" ? "socratic" : undefined);
     setInput("");
     setBusy(true);
     const idx = turns.length;
@@ -58,7 +68,7 @@ export function NinjaCoach() {
       const res = await fetch("/api/ninja/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, ...(mode ? { mode } : {}) }),
+        body: JSON.stringify({ question: q, ...(reqMode ? { mode: reqMode } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       setTurns((t) => t.map((turn, i) =>
@@ -102,7 +112,20 @@ export function NinjaCoach() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#222222]">
         <div className="flex items-center gap-2">
           <NinjaLogo color="#06d6a0" className="w-5 h-5" />
-          <span className="text-white text-sm font-semibold">Ninja Coach</span>
+          <div className="flex rounded-full bg-[#120F17] p-0.5 text-xs font-semibold">
+            {(["coach", "buddy"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                aria-pressed={mode === m}
+                className={`rounded-full px-2.5 py-1 capitalize transition ${
+                  mode === m ? "bg-[#06d6a0] text-[#073b4c]" : "text-[#7ab5cc] hover:text-white"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -121,13 +144,19 @@ export function NinjaCoach() {
       <div ref={scrollRef} className={`overflow-y-auto px-4 py-3 space-y-4 ${expanded ? "flex-1" : "max-h-[55vh] min-h-[120px]"}`}>
         {turns.length === 0 && (
           <div className="space-y-2">
-            <p className="text-[#7ab5cc] text-sm">Ask about your stats, weak sections, or what to practice.</p>
+            <p className="text-[#7ab5cc] text-sm">
+              {mode === "buddy"
+                ? "I'll guide you step by step — pick something to work through."
+                : "Ask about your stats, weak sections, or what to practice."}
+            </p>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => ask("Build my weekly study plan", "plan")}
-                className="rounded-full border border-[#06d6a0]/50 bg-[#06d6a0]/10 px-3 py-1 text-xs text-[#06d6a0] hover:bg-[#06d6a0]/20 transition font-semibold">
-                📅 Build my weekly plan
-              </button>
-              {SUGGESTIONS.map((s) => (
+              {mode === "coach" && (
+                <button onClick={() => ask("Build my weekly study plan", "plan")}
+                  className="rounded-full border border-[#06d6a0]/50 bg-[#06d6a0]/10 px-3 py-1 text-xs text-[#06d6a0] hover:bg-[#06d6a0]/20 transition font-semibold">
+                  📅 Build my weekly plan
+                </button>
+              )}
+              {(mode === "buddy" ? BUDDY_SUGGESTIONS : SUGGESTIONS).map((s) => (
                 <button key={s} onClick={() => ask(s)}
                   className="rounded-full border border-[#333333] px-3 py-1 text-xs text-[#c5e8f0] hover:border-[#06d6a0] hover:text-[#06d6a0] transition">
                   {s}
@@ -163,7 +192,7 @@ export function NinjaCoach() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={busy}
-          placeholder="Ask Ninja…"
+          placeholder={mode === "buddy" ? "Tell me what you're stuck on…" : "Ask Ninja…"}
           className="flex-1 bg-transparent text-sm text-white placeholder:text-[#4a8fa8] outline-none disabled:opacity-50"
         />
         <button type="submit" disabled={busy || !input.trim()} aria-label="Send"
