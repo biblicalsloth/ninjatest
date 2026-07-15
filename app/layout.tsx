@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GeistPixelSquare } from "geist/font/pixel";
 import { Toaster } from "@/components/ui/sonner";
-import { AppNav } from "@/components/app-nav";
+import { SideNav } from "@/components/side-nav";
 import { AuthListener } from "@/components/auth-listener";
 import { NinjaCoachMount } from "@/components/ninja-coach-mount";
 import "./globals.css";
@@ -34,7 +34,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AuthListener />
-        <AppNav />
+        <SideNav />
         {children}
         <NinjaCoachMount />
         <Toaster richColors theme="dark" />
