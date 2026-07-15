@@ -5,7 +5,7 @@ import { NinjatestLogo } from "@/components/ninja-logo";
 // moment the page resolves, so the bar never lingers past load.
 export function MintLoading({ message }: { message: string }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#06d6a0] px-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06d6a0] px-6">
       <style>{`
         @keyframes mint-fill {
           0% { width: 0%; }
