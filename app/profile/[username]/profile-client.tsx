@@ -3,7 +3,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Settings, Swords, Trophy, BarChart2, History, Flame, Users, UserPlus, Check, X, Search } from "lucide-react";
+import { Settings, Swords, Trophy, BarChart2, History, Flame, Users, UserPlus, Check, X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -239,11 +239,7 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
       <header className="border-b border-[#222222] px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/lobby" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
-            <ArrowLeft size={14} />
-            Back
-          </Link>
+        <div className="max-w-2xl mx-auto flex items-center justify-end min-h-[24px]">
           <div className="flex items-center gap-3">
             {isOwnProfile && (
               <Badge className="bg-[#06d6a0]/10 text-[#06d6a0] border border-[#06d6a0]/30 text-xs px-2 py-0.5">

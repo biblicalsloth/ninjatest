@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   UserPlus,
@@ -231,9 +230,6 @@ export default function FriendsClient({ myId }: Props) {
     <div className="min-h-screen bg-[#120F17] text-white">
       <div className="border-b border-[#1c1a24] px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <Link href="/lobby" className="text-[#7ab5cc] hover:text-white">
-            <ArrowLeft size={18} />
-          </Link>
           <h1 className="font-semibold tracking-tight">Friends</h1>
         </div>
       </div>

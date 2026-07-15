@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Camera, Loader2 } from "lucide-react";
-import Link from "next/link";
+import { Camera, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -129,12 +128,8 @@ export default function SettingsClient() {
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
       <header className="border-b border-[#222222] px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center">
-          <Link href={`/profile/${username}`} className="text-[#7ab5cc] hover:text-white flex items-center gap-1.5 text-sm transition-colors">
-            <ArrowLeft size={14} />
-            Back
-          </Link>
-          <h1 className="text-white font-semibold mx-auto">Settings</h1>
+        <div className="max-w-lg mx-auto flex items-center justify-center">
+          <h1 className="text-white font-semibold">Settings</h1>
         </div>
       </header>
 

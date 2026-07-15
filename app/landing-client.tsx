@@ -210,7 +210,7 @@ export default function LandingClient() {
         <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden no-scrollbar" style={{ zIndex: 1 }}>
 
           {/* Nav */}
-          <nav className="px-10 pt-8 flex items-center justify-between sticky top-0 bg-[#120F17]/60 backdrop-blur-sm z-20 py-5">
+          <nav className="px-10 pt-8 flex items-center justify-between sticky top-0 z-20 py-5">
             <NinjatestLogo />
             <div className="flex items-center gap-7">
               <a href="#ai" className="text-white/45 hover:text-white text-sm transition-colors">Ninja AI</a>
@@ -231,8 +231,8 @@ export default function LandingClient() {
           </nav>
 
           {/* ── S1: Hero ── */}
-          <section className="relative overflow-hidden">
-            <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-14 pb-10">
+          <section className="relative overflow-hidden bg-[#120F17]">
+            <div data-parallax="0.07" style={{ willChange: "transform" }} className="relative z-10 px-10 pt-14 pb-10">
               <div className="inline-flex items-center gap-2.5 bg-[#06d6a0]/8 border border-[#06d6a0]/20 rounded-full pl-2 pr-4 py-1.5 mb-8">
                 <span className="w-5 h-5 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden animate-spin-slow">
                   <NinjaLogo color="#120F17" className="w-3.5 h-3.5" />

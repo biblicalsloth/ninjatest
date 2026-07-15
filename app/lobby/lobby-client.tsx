@@ -8,21 +8,16 @@ import {
   Zap,
   Users,
   Trophy,
-  LogOut,
   Flame,
   Check,
   Circle,
   Eye,
-  Settings,
-  Shield,
-  Home,
   ChevronRight,
   Target,
   Bot,
 } from "lucide-react";
 import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
 import { createClient } from "@/lib/supabase/client";
-import { signOut } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
@@ -50,7 +45,6 @@ interface Props {
   profile: Profile;
   recentMatches: RecentMatch[];
   dailyProgress: DailyProgress;
-  friendsBadge?: number;
 }
 
 const DAILY_TASKS = [
@@ -58,14 +52,12 @@ const DAILY_TASKS = [
   { key: "wins" as const, label: "Win 2 matches today", target: 2, get: (p: DailyProgress) => p.wins_today },
 ];
 
-export default function LobbyClient({ profile, recentMatches, dailyProgress, friendsBadge = 0 }: Props) {
+export default function LobbyClient({ profile, recentMatches, dailyProgress }: Props) {
   const router = useRouter();
   const [joining, setJoining] = useState(false);
   const [startingBot, setStartingBot] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
-  // is_admin lives on the row (select("*")) but lags in types.ts
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isAdmin = Boolean((profile as any).is_admin);
+  const displayName = profile.display_name ?? profile.username;
 
   async function handleFindMatch() {
     setJoining(true);
@@ -93,13 +85,6 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
     router.push(`/match/${data}`);
   }
 
-  async function handleSignOut() {
-    await signOut();
-    // Hard replace (not router.push): drops the history entry so Back can't
-    // return to the authed lobby, and forces a server round-trip past middleware.
-    window.location.replace("/auth/login");
-  }
-
   const winRate = getWinRate(profile.wins, profile.matches_played);
   const league = getLeague(profile.elo);
 
@@ -110,8 +95,11 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
         {/* Left / center — matchmaking is the home state */}
         <section className="lg:col-span-2 space-y-6">
           <div>
-            <h1 className="font-pixel text-lg">Play</h1>
-            <p className="text-[#7ab5cc] text-sm">Pick a mode to enter a battle.</p>
+            <h1 className="font-pixel text-2xl">
+              Welcome, <span className="text-[#06d6a0]">{displayName}</span>
+            </h1>
+            <p className="font-pixel text-[#7ab5cc] text-sm mt-2">Play</p>
+            <p className="text-[#4a8fa8] text-sm">Pick a mode to enter a battle.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -247,162 +235,87 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
           )}
         </section>
 
-        {/* Right rail — profile snapshot + stats + dailies */}
-        <aside className="space-y-6">
-          {/* Profile card */}
-          <div className="bg-[#111111] rounded-xl p-5 flex items-center gap-4">
-            <Avatar className="w-14 h-14">
-              <AvatarImage src={profile.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-[#120F17] text-[#06d6a0] font-bold text-lg">
-                {profile.username.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-white truncate">{profile.display_name ?? profile.username}</p>
-                <Badge
-                  variant="outline"
-                  className="shrink-0"
-                  style={{
-                    color: league.color,
-                    borderColor: `${league.color}4d`,
-                    backgroundColor: `${league.color}1a`,
-                  }}
-                >
-                  {league.name}
-                </Badge>
-              </div>
-              <p className="text-[#7ab5cc] text-sm">@{profile.username}</p>
-              {profile.current_streak >= 3 && (
-                <div className="flex items-center gap-1 mt-1">
-                  <Flame size={12} className="text-[#ffd166]" />
-                  <span className="text-[#ffd166] text-xs font-semibold">{profile.current_streak} streak</span>
+        {/* Right rail — profile snapshot + stats + dailies, boxed off from the play area */}
+        <aside>
+          <div className="lg:sticky lg:top-6 rounded-2xl border border-white/10 bg-[#111111] p-5 space-y-5">
+            {/* Profile header */}
+            <div className="flex items-center gap-4">
+              <Avatar className="w-14 h-14">
+                <AvatarImage src={profile.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-[#120F17] text-[#06d6a0] font-bold text-lg">
+                  {profile.username.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-white truncate">{displayName}</p>
+                  <Badge
+                    variant="outline"
+                    className="shrink-0"
+                    style={{
+                      color: league.color,
+                      borderColor: `${league.color}4d`,
+                      backgroundColor: `${league.color}1a`,
+                    }}
+                  >
+                    {league.name}
+                  </Badge>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard label="ELO" value={profile.elo.toString()} gold />
-            <StatCard label="Win rate" value={winRate} accent />
-            <StatCard label="Peak" value={profile.peak_elo.toString()} gold />
-          </div>
-
-          {/* Daily challenges */}
-          <div className="bg-[#111111] rounded-xl p-5">
-            <h2 className="font-pixel text-[#7ab5cc] text-sm mb-3">Today</h2>
-            <div className="space-y-2.5">
-              {DAILY_TASKS.map((t) => {
-                const value = t.get(dailyProgress);
-                const done = value >= t.target;
-                return (
-                  <div key={t.key} className="flex items-center gap-2.5">
-                    {done ? (
-                      <Check size={16} className="text-[#06d6a0] shrink-0" />
-                    ) : (
-                      <Circle size={16} className="text-[#4a8fa8] shrink-0" />
-                    )}
-                    <span className={cn("text-sm", done ? "text-[#06d6a0]" : "text-[#7ab5cc]")}>
-                      {t.label}
-                    </span>
-                    <span className="text-[#4a8fa8] text-xs ml-auto">
-                      {Math.min(value, t.target)}/{t.target}
-                    </span>
+                <p className="text-[#7ab5cc] text-sm">@{profile.username}</p>
+                {profile.current_streak >= 3 && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Flame size={12} className="text-[#ffd166]" />
+                    <span className="text-[#ffd166] text-xs font-semibold">{profile.current_streak} streak</span>
                   </div>
-                );
-              })}
-              <NinjaDailyFocus />
+                )}
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3 border-t border-white/10 pt-5">
+              <StatCard label="ELO" value={profile.elo.toString()} gold />
+              <StatCard label="Win rate" value={winRate} accent />
+              <StatCard label="Peak" value={profile.peak_elo.toString()} gold />
+            </div>
+
+            {/* Daily challenges */}
+            <div className="border-t border-white/10 pt-5">
+              <h2 className="font-pixel text-[#7ab5cc] text-sm mb-3">Today</h2>
+              <div className="space-y-2.5">
+                {DAILY_TASKS.map((t) => {
+                  const value = t.get(dailyProgress);
+                  const done = value >= t.target;
+                  return (
+                    <div key={t.key} className="flex items-center gap-2.5">
+                      {done ? (
+                        <Check size={16} className="text-[#06d6a0] shrink-0" />
+                      ) : (
+                        <Circle size={16} className="text-[#4a8fa8] shrink-0" />
+                      )}
+                      <span className={cn("text-sm", done ? "text-[#06d6a0]" : "text-[#7ab5cc]")}>
+                        {t.label}
+                      </span>
+                      <span className="text-[#4a8fa8] text-xs ml-auto">
+                        {Math.min(value, t.target)}/{t.target}
+                      </span>
+                    </div>
+                  );
+                })}
+                <NinjaDailyFocus />
+              </div>
             </div>
           </div>
         </aside>
       </main>
-
-      {/* Suspended Apple-dock nav — mint, floating with shadow. Profile rightmost. */}
-      <nav
-        aria-label="Primary"
-        className="fixed left-6 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1 sm:gap-2 rounded-full px-2 py-3
-          bg-gradient-to-b from-[#0be4ad] to-[#06d6a0] border border-[#3af0c8]/40
-          shadow-[0_24px_60px_-12px_rgba(6,214,160,0.55),0_8px_20px_-6px_rgba(0,0,0,0.6)]
-          backdrop-blur-sm"
-      >
-        <DockItem href="/lobby" label="Home" active icon={<Home size={20} />} />
-        <DockItem href="/friends" label="Friends" icon={<Users size={20} />} badge={friendsBadge} />
-        <DockItem href="/spectate" label="Spectate" icon={<Eye size={20} />} />
-        <DockItem href="/leaderboard" label="Leaderboard" icon={<Trophy size={20} />} />
-        <DockItem href="/settings" label="Settings" icon={<Settings size={20} />} />
-        {isAdmin && <DockItem href="/admin" label="Admin" icon={<Shield size={20} />} />}
-
-        <span className="h-px w-6 bg-[#073b4c]/25 my-0.5" />
-
-        <DockButton onClick={handleSignOut} label="Sign out" icon={<LogOut size={20} />} />
-
-        {/* Profile — rightmost */}
-        <Link
-          href={`/profile/${profile.username}`}
-          title="Profile"
-          className="group relative mt-0.5 transition-transform duration-150 hover:scale-125 hover:translate-x-1"
-        >
-          <Avatar className="w-9 h-9 ring-2 ring-[#073b4c]/30">
-            <AvatarImage src={profile.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-[#073b4c] text-[#06d6a0] text-xs font-bold">
-              {profile.username.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <DockTip>Profile</DockTip>
-        </Link>
-      </nav>
 
       <ChallengeDialog open={showChallenge} onOpenChange={setShowChallenge} />
     </div>
   );
 }
 
-function DockItem({ href, label, icon, active, badge = 0 }: { href: string; label: string; icon: React.ReactNode; active?: boolean; badge?: number }) {
-  return (
-    <Link
-      href={href}
-      title={label}
-      className={cn(
-        "group relative flex items-center justify-center w-11 h-11 rounded-full text-[#073b4c] transition-transform duration-150 hover:scale-125 hover:translate-x-1",
-        active && "bg-[#073b4c]/15"
-      )}
-    >
-      {icon}
-      {badge > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-[#ef476f] text-white text-[10px] font-bold flex items-center justify-center">
-          {badge > 9 ? "9+" : badge}
-        </span>
-      )}
-      <DockTip>{label}</DockTip>
-    </Link>
-  );
-}
-
-function DockButton({ onClick, label, icon }: { onClick: () => void; label: string; icon: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      className="group relative flex items-center justify-center w-11 h-11 rounded-full text-[#073b4c] transition-transform duration-150 hover:scale-125 hover:translate-x-1"
-    >
-      {icon}
-      <DockTip>{label}</DockTip>
-    </button>
-  );
-}
-
-function DockTip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap rounded-md bg-[#111111] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
-      {children}
-    </span>
-  );
-}
-
 function StatCard({ label, value, accent, gold }: { label: string; value: string; accent?: boolean; gold?: boolean }) {
   return (
-    <div className="bg-[#111111] rounded-xl p-4 text-center">
+    <div className="bg-[#181818] rounded-xl p-4 text-center">
       <div className={`text-xl font-bold ${gold ? "text-[#ffd166]" : accent ? "text-[#06d6a0]" : "text-white"}`}>{value}</div>
       <div className="text-[#7ab5cc] text-xs mt-0.5">{label}</div>
     </div>
