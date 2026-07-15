@@ -229,7 +229,7 @@ export default function LandingClient() {
                 <span className="text-[#06d6a0] text-xs font-medium tracking-wide">Now rating aspirants across India</span>
               </div>
               <h1 className="font-pixel text-[clamp(2.9rem,5.8vw,5.2rem)] leading-[0.98] text-balance">
-                <FlipWord /> prep is a solo sport.<br />
+                <span className="text-[#06d6a0]">Competitive Exams</span> prep is a solo sport.<br />
                 <span className="text-[#06d6a0]">Not anymore.</span>
               </h1>
               <p className="mt-8 text-[#c5e8f0]/70 text-lg font-light max-w-[46ch] leading-relaxed">
@@ -243,9 +243,6 @@ export default function LandingClient() {
                 >
                   {IS_WAITLIST ? "Join the waitlist →" : "Enter the arena →"}
                 </button>
-                <span className="text-[#7ab5cc]/50 text-xs font-mono">
-                  9 questions · VARC / DILR / QUANT · ELO rated · under 10 minutes
-                </span>
               </div>
             </div>
             <ThermalBoundary flipped height={190} />
@@ -253,6 +250,14 @@ export default function LandingClient() {
 
           {/* ── S2: Marquee ── */}
           <LogoMarquee />
+
+          {/* ── S2b: Built for battle prep ── */}
+          <section className="px-10 py-10 border-b border-[#222222] text-center">
+            <p className="font-pixel text-[clamp(1.4rem,3vw,2.4rem)] leading-[1.05]">
+              Built for battle prep{" "}
+              <FlipWord />
+            </p>
+          </section>
 
           {/* ── S3: Match carousel ── */}
           <section className="overflow-hidden border-t border-[#222222] py-20">

@@ -179,7 +179,17 @@ export function ThermalBoundary({ flipped = false, height = 220 }: { flipped?: b
       ref={canvasRef}
       aria-hidden
       className="block w-full"
-      style={{ height, imageRendering: "auto" }}
+      style={{
+        height,
+        imageRendering: "auto",
+        // feather all four edges so the flare dissolves into the hero bg
+        WebkitMaskImage:
+          "linear-gradient(to right, transparent, #000 14%, #000 86%, transparent), linear-gradient(to bottom, transparent, #000 20%, #000 100%)",
+        maskImage:
+          "linear-gradient(to right, transparent, #000 14%, #000 86%, transparent), linear-gradient(to bottom, transparent, #000 20%, #000 100%)",
+        WebkitMaskComposite: "source-in",
+        maskComposite: "intersect",
+      }}
     />
   );
 }
