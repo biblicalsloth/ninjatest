@@ -11,7 +11,7 @@ The actual, shipped design system — extracted from the live code, not aspirati
 **Feel:** competitive, terminal-adjacent, nocturnal. A quiz-battle arena that reads like a developer tool, not an ed-tech site. Monospace everywhere, near-black surfaces, one saturated mint-green accent doing all the CTA work, gold reserved for ratings and prestige.
 
 - **Dark mode is the product.** The `.dark` block in `globals.css` is the real theme; the `:root` light block exists as a fallback and is not designed against.
-- **Monospace is the brand.** `--font-sans` and `--font-mono` both resolve to Geist Mono (`app/layout.tsx` loads it via `next/font`). There is no proportional typeface anywhere.
+- **Geist × Geist Pixel is the brand pairing.** `--font-sans` resolves to Geist (proportional, body default); `.font-pixel` (Geist Pixel Square) is the display face for headings/wordmark contexts; `--font-mono` stays Geist Mono for explicit `font-mono` accents (ranks, timers, micro-labels). All loaded in `app/layout.tsx` via `next/font`.
 - **One accent rules.** Brand mint `#06d6a0` is the only color allowed on primary actions. Gold, pink, ocean, and lavender are informational, never competing CTAs.
 
 ## 2. Color
@@ -69,7 +69,7 @@ Diamond `#06d6a0` (≥2100) · Platinum `#c5e8f0` (≥1800) · Gold `#ffd166` (�
 
 ## 3. Typography
 
-Single family: **Geist Mono**, all weights, all contexts.
+Pairing: **Geist** (body, everything by default) + **Geist Pixel Square** (`.font-pixel` display headings) + **Geist Mono** (explicit `font-mono` accents only).
 
 Observed scale (usage-frequency order — this is a small-type UI):
 
