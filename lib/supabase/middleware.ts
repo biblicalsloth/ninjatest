@@ -67,6 +67,17 @@ export async function updateSession(request: NextRequest) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const isAuthed = !!claimsData?.claims?.sub;
 
+  // Authed pages must never sit in bfcache: after logout the browser Back button
+  // restores the last rendered page WITHOUT re-running this middleware, leaking
+  // an authed screen. no-store makes the browser skip bfcache and re-hit the
+  // server (→ redirect to `/`) on Back. Applies to every authed response below.
+  if (isAuthed) {
+    supabaseResponse.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate"
+    );
+  }
+
   const url = request.nextUrl.clone();
 
   // Admin deployment: serve ONLY the console. Root → /admin, /auth signs the

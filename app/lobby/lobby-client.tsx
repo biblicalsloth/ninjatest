@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
 import { createClient } from "@/lib/supabase/client";
+import { signOut } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
@@ -93,10 +94,10 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
   }
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/auth/login");
-    router.refresh();
+    await signOut();
+    // Hard replace (not router.push): drops the history entry so Back can't
+    // return to the authed lobby, and forces a server round-trip past middleware.
+    window.location.replace("/auth/login");
   }
 
   const winRate = getWinRate(profile.wins, profile.matches_played);
