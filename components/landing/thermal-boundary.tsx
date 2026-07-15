@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
  * Heat maps through a LUT ramping #120F17 → deep teal → mint → pale cyan.
  * `flipped` puts the hot edge at the top (used under the hero).
  */
-export function ThermalBoundary({ flipped = false, height = 220 }: { flipped?: boolean; height?: number }) {
+export function ThermalBoundary({ flipped = false, height = 220, className = "" }: { flipped?: boolean; height?: number; className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -178,7 +178,7 @@ export function ThermalBoundary({ flipped = false, height = 220 }: { flipped?: b
     <canvas
       ref={canvasRef}
       aria-hidden
-      className="block w-full"
+      className={`block w-full ${className}`}
       style={{
         height,
         imageRendering: "auto",
