@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { GeistPixelSquare } from "geist/font/pixel";
 import { Toaster } from "@/components/ui/sonner";
 import { AppNav } from "@/components/app-nav";
+import { NinjaCoachMount } from "@/components/ninja-coach-mount";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AppNav />
         {children}
+        <NinjaCoachMount />
         <Toaster richColors theme="dark" />
       </body>
     </html>

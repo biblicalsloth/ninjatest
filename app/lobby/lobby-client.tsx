@@ -18,14 +18,13 @@ import {
   Home,
   ChevronRight,
   Target,
+  Bot,
 } from "lucide-react";
 import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
-import { NinjaCoach } from "@/components/ninja-coach";
 import type { Profile } from "@/lib/supabase/types";
 import { cn, formatPoints, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
@@ -61,6 +60,7 @@ const DAILY_TASKS = [
 export default function LobbyClient({ profile, recentMatches, dailyProgress, friendsBadge = 0 }: Props) {
   const router = useRouter();
   const [joining, setJoining] = useState(false);
+  const [startingBot, setStartingBot] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   // is_admin lives on the row (select("*")) but lags in types.ts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,6 +76,20 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
       return;
     }
     router.push("/queue");
+  }
+
+  async function handlePlayBot() {
+    if (startingBot) return;
+    setStartingBot(true);
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("match_with_bot");
+    if (error || !data) {
+      toast.error("Bot unavailable right now — try again");
+      setStartingBot(false);
+      return;
+    }
+    router.push(`/match/${data}`);
   }
 
   async function handleSignOut() {
@@ -147,6 +161,24 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
                 <div className="text-sm text-[#7ab5cc]">Solo drill · targets your weak sections</div>
               </div>
             </Link>
+
+            {/* Vs Ninja Bot */}
+            <button
+              onClick={handlePlayBot}
+              disabled={startingBot}
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-colors disabled:opacity-70"
+            >
+              <div className="flex items-center justify-between">
+                <Bot size={22} className="text-[#06d6a0]" />
+                <ChevronRight size={18} className="text-[#4a8fa8] group-hover:translate-x-0.5 transition-transform" />
+              </div>
+              <div className="mt-8">
+                <div className="font-pixel text-lg text-white">Vs Ninja Bot</div>
+                <div className="text-sm text-[#7ab5cc]">
+                  {startingBot ? "Starting…" : "Instant match · unrated · adapts to your ELO"}
+                </div>
+              </div>
+            </button>
 
             {/* Spectate */}
             <Link
@@ -321,7 +353,6 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress, fri
       </nav>
 
       <ChallengeDialog open={showChallenge} onOpenChange={setShowChallenge} />
-      <NinjaCoach />
     </div>
   );
 }

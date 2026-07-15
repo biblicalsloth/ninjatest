@@ -1,8 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ChevronDown, Send, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Maximize2, Minimize2, Send, X } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
+import { NINJA_COACH_EVENT } from "@/lib/ninja";
+
+type CoachState = "closed" | "panel" | "expanded";
 
 interface Turn {
   q: string;
@@ -20,11 +23,29 @@ const SUGGESTIONS = [
 // model pulls their profile/sections/margins/opponents and answers grounded in
 // real numbers. Collapsed to a badge until opened.
 export function NinjaCoach() {
-  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<CoachState>("closed");
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Nav "Ask Ninja" button fires NINJA_COACH_EVENT: closed → panel, panel → expanded.
+  useEffect(() => {
+    const open = () => setState((s) => (s === "expanded" ? "expanded" : s === "panel" ? "expanded" : "panel"));
+    window.addEventListener(NINJA_COACH_EVENT, open);
+    return () => window.removeEventListener(NINJA_COACH_EVENT, open);
+  }, []);
+
+  // Escape returns expanded → panel; focus the input when opening either surface.
+  useEffect(() => {
+    if (state === "closed") return;
+    inputRef.current?.focus();
+    if (state !== "expanded") return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setState("panel");
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state]);
 
   const ask = async (question: string, mode?: "plan") => {
     const q = question.trim();
@@ -53,10 +74,10 @@ export function NinjaCoach() {
     }
   };
 
-  if (!open) {
+  if (state === "closed") {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setState("panel")}
         aria-label="Ask Ninja about your stats"
         className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-[#06d6a0] pl-3 pr-4 py-2.5 text-[#073b4c] font-semibold shadow-lg shadow-[#06d6a0]/20 hover:brightness-105 transition"
       >
@@ -66,19 +87,38 @@ export function NinjaCoach() {
     );
   }
 
-  return (
-    <div className="fixed bottom-5 right-5 z-50 w-[min(92vw,400px)] rounded-2xl border border-[#333333] bg-[#111111] shadow-2xl overflow-hidden flex flex-col">
+  const expanded = state === "expanded";
+
+  const dialog = (
+    <div
+      className={
+        expanded
+          ? "w-[min(92vw,720px)] h-[min(80vh,640px)] rounded-2xl border border-[#333333] bg-[#111111] shadow-2xl overflow-hidden flex flex-col"
+          : "fixed bottom-5 right-5 z-50 w-[min(92vw,400px)] rounded-2xl border border-[#333333] bg-[#111111] shadow-2xl overflow-hidden flex flex-col"
+      }
+      role={expanded ? "dialog" : undefined}
+      aria-modal={expanded ? true : undefined}
+    >
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#222222]">
         <div className="flex items-center gap-2">
           <NinjaLogo color="#06d6a0" className="w-5 h-5" />
           <span className="text-white text-sm font-semibold">Ninja Coach</span>
         </div>
-        <button onClick={() => setOpen(false)} aria-label="Collapse" className="text-[#7ab5cc] hover:text-white">
-          <ChevronDown size={18} />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setState(expanded ? "panel" : "expanded")}
+            aria-label={expanded ? "Minimize" : "Expand"}
+            className="text-[#7ab5cc] hover:text-white"
+          >
+            {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+          <button onClick={() => setState("closed")} aria-label="Collapse" className="text-[#7ab5cc] hover:text-white">
+            <ChevronDown size={18} />
+          </button>
+        </div>
       </div>
 
-      <div ref={scrollRef} className="max-h-[55vh] min-h-[120px] overflow-y-auto px-4 py-3 space-y-4">
+      <div ref={scrollRef} className={`overflow-y-auto px-4 py-3 space-y-4 ${expanded ? "flex-1" : "max-h-[55vh] min-h-[120px]"}`}>
         {turns.length === 0 && (
           <div className="space-y-2">
             <p className="text-[#7ab5cc] text-sm">Ask about your stats, weak sections, or what to practice.</p>
@@ -119,6 +159,7 @@ export function NinjaCoach() {
         className="flex items-center gap-2 border-t border-[#222222] px-3 py-2.5"
       >
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={busy}
@@ -130,6 +171,17 @@ export function NinjaCoach() {
           <Send size={18} />
         </button>
       </form>
+    </div>
+  );
+
+  if (!expanded) return dialog;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={() => setState("panel")}
+    >
+      <div onClick={(e) => e.stopPropagation()}>{dialog}</div>
     </div>
   );
 }
