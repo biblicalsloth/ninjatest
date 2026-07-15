@@ -16,7 +16,7 @@ const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false }
 const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
 
 /* ── Airport-board flip word ── */
-const EXAMS = ["CAT", "XAT", "GMAT", "SSC", "Bank", "JEE", "NEET"];
+const EXAMS = ["GMAT", "CAT", "GRE", "LSAT", "JEE", "UPSC", "NEET", "MCAT", "SAT", "UCAT", "ACT", "TSA"];
 function FlipTile({ word }: { word: string }) {
   return (
     <span style={{ display: "inline-block", color: "#06d6a0", animation: "examFlip 0.32s cubic-bezier(0.22,1,0.36,1)" }}>
@@ -30,7 +30,19 @@ function FlipWord() {
     const id = setInterval(() => setIdx(i => (i + 1) % EXAMS.length), 1100);
     return () => clearInterval(id);
   }, []);
-  return <FlipTile key={idx} word={EXAMS[idx]} />;
+  // Hidden stack of every word sizes the box to the widest exam; the visible
+  // word is absolutely positioned on top, so it's out of flow and can never
+  // shift "Built for" / "prep battles" as it flips.
+  return (
+    <span style={{ position: "relative", display: "inline-grid", verticalAlign: "baseline" }}>
+      {EXAMS.map(w => (
+        <span key={w} aria-hidden style={{ gridArea: "1 / 1", visibility: "hidden" }}>{w}</span>
+      ))}
+      <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+        <FlipTile key={idx} word={EXAMS[idx]} />
+      </span>
+    </span>
+  );
 }
 
 /* ── Survey questions ── */
@@ -252,8 +264,10 @@ export default function LandingClient() {
           {/* ── S2b: Built for battle prep ── */}
           <section className="px-10 py-10 border-b border-[#222222] text-center">
             <p className="font-pixel text-[clamp(1.4rem,3vw,2.4rem)] leading-[1.05]">
-              Built for battle prep{" "}
-              <FlipWord />
+              Built for <FlipWord /> prep battles
+            </p>
+            <p className="mt-4 text-[#c5e8f0]/50 text-sm font-mono uppercase tracking-[0.2em]">
+              One arena for the world&apos;s toughest competitive exams
             </p>
           </section>
 
@@ -1002,7 +1016,7 @@ function PillParallax({ scrollParent }: { scrollParent: React.RefObject<HTMLDivE
 /* ── S2: marquee ticker ── */
 function LogoMarquee() {
   const items = [
-    "CAT", "XAT", "GMAT", "SSC", "BANK", "JEE", "NEET",
+    "GMAT", "CAT", "GRE", "LSAT", "JEE", "UPSC", "NEET", "MCAT", "SAT", "UCAT", "ACT", "TSA",
     "2,400 ELO CEILING", "90S PER VARC QUESTION", "ZERO-SUM RATINGS",
     "SEASONS RESET MONTHLY", "SPECTATE LIVE MATCHES", "SERVER-SCORED",
   ];
