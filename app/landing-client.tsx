@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
 import { GoogleSignInButton } from "@/components/google-signin-button";
-import { ThermalBoundary } from "@/components/landing/thermal-boundary";
 import { ParticleFlow } from "@/components/landing/particle-flow";
 import dynamic from "next/dynamic";
 
@@ -221,8 +220,7 @@ export default function LandingClient() {
 
           {/* ── S1: Hero ── */}
           <section className="relative overflow-hidden">
-            <ThermalBoundary flipped height={340} className="absolute inset-x-0 bottom-0 z-0" />
-            <div data-parallax="0.07" style={{ willChange: "transform" }} className="relative z-10 px-10 pt-14 pb-32">
+            <div data-parallax="0.07" style={{ willChange: "transform" }} className="px-10 pt-14 pb-10">
               <div className="inline-flex items-center gap-2.5 bg-[#06d6a0]/8 border border-[#06d6a0]/20 rounded-full pl-2 pr-4 py-1.5 mb-8">
                 <span className="w-5 h-5 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden animate-spin-slow">
                   <NinjaLogo color="#120F17" className="w-3.5 h-3.5" />
@@ -400,7 +398,6 @@ export default function LandingClient() {
                 </button>
               </Reveal>
             </div>
-            <ThermalBoundary height={170} />
           </section>
 
           <footer className="px-10 py-12 border-t border-[#222222]">
