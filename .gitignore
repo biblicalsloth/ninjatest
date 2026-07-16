@@ -42,3 +42,6 @@ next-env.d.ts
 
 # supabase local temp (linked project metadata, not secrets but not needed in repo)
 supabase/.temp/
+
+# Source exam papers for the ingest scripts — large binaries, not code.
+*.pdf

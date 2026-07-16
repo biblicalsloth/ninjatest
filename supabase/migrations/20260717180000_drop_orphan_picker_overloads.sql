@@ -1,0 +1,32 @@
+-- ─────────────────────────────────────────────────────────
+-- Drop the 2-arg picker overloads that 20260716220817 accidentally left behind.
+--
+-- WHY. `create or replace function f(a, b, c default …)` when `f(a, b)` already
+-- exists does NOT replace it — a different argument list is a different
+-- function, so it creates an OVERLOAD. 20260716220817 added the `p_users` arg to
+-- both pickers that way, so the pre-unseen-preference versions survived:
+--
+--   pick_quant_question_ids(integer, integer)              <- orphan
+--   pick_quant_question_ids(integer, integer, uuid[])      <- live
+--   pick_section_question_ids(cat_section, integer)         <- orphan
+--   pick_section_question_ids(cat_section, integer, uuid[]) <- live
+--
+-- NOT a live bug, verified before dropping: every real caller
+-- (try_match_internal, accept_challenge, match_with_bot, start_practice) passes
+-- three args, and Postgres resolves the exact arity first, so they all bind the
+-- live version. The only 2-arg call in the database is orphan
+-- pick_section_question_ids calling orphan pick_quant_question_ids — the two
+-- dead functions call each other and nothing else reaches them.
+--
+-- Dropped anyway because the trap is silent and asymmetric: a future caller
+-- written as `pick_quant_question_ids(elo, 3)` would compile, run, return three
+-- plausible questions, and quietly serve ones the player has already answered —
+-- no error, no missing column, just the seen-question exploit back. Deleting the
+-- overload turns that into a hard "function does not exist".
+--
+-- The same trap is why 20260717170000 used DROP + CREATE for
+-- submit_practice_answer rather than adding p_answer_text via create-or-replace.
+-- ─────────────────────────────────────────────────────────
+
+drop function if exists pick_section_question_ids(cat_section, integer);
+drop function if exists pick_quant_question_ids(integer, integer);
