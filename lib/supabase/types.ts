@@ -91,6 +91,7 @@ export interface Database {
           question_id: string;
           question_index: number;
           selected_index: number | null;
+          answer_text: string | null;   // TITA: the typed answer. null for mcq.
           is_correct: boolean;
           points_awarded: number;
           time_taken_ms: number | null;

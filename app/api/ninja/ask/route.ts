@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     options: Array.isArray(q.options) ? q.options : [],
     correct_index: q.correct_index, explanation: q.explanation, passage_body: q.passage_body,
     my_selected_index: q.my_selected_index, my_is_correct: q.my_is_correct,
+    qtype: q.qtype, answer_value: q.answer_value, my_answer_text: q.my_answer_text,
   });
 
   const models = [config.model_id, config.fallback_model_id].filter(Boolean) as string[];
@@ -68,7 +69,11 @@ export async function POST(req: NextRequest) {
       });
       text = res.text.trim();
       usedModel = modelId;
-      break;
+      // Only a non-empty answer ends the loop. glm-5.2 spends maxOutputTokens on
+      // reasoning BEFORE emitting text, so a truncated call returns content=null
+      // without throwing — an unconditional break made the fallback dead code for
+      // the single most likely failure mode. Mirrors debrief/daily.
+      if (text) break;
     } catch (e) {
       lastErr = e; // try fallback
     }
