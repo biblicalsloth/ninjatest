@@ -33,6 +33,18 @@ npm run build        # build
 npm run lint         # lint
 npx tsc --noEmit     # type check
 
+# migrations — db push is the ONLY drift-free path; see Migration discipline #3/#4.
+# `supabase projects list` must show ftdbmubdddgcoprqxxxs first, or the CLI is on the
+# wrong account and every command below 403s.
+supabase migration list --linked                    # remote vs files; both columns filled = no drift
+SUPABASE_DB_PASSWORD=… supabase db push             # apply pending to REMOTE (records the file version)
+supabase migration up --local                       # apply pending to the local Docker stack
+
+# `supabase start` restores a CACHED volume — migrations added since it was created are NOT
+# applied and it says nothing. Run `migration up --local` after, or `db reset` to rebuild.
+# No psql on the host; the local stack's is reachable through the container:
+docker exec -i supabase_db_ninjatest psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < <file>.sql
+
 # invariant tests (rollback harness — inserts auth.users; run on a branch/local DB, never prod)
 psql "$DB_URL" -v ON_ERROR_STOP=1 -f scripts/elo-stress-test.sql
 
@@ -223,8 +235,10 @@ Public pages (leaderboard, profile) use `createPublicClient()` (cookieless, `per
 ## Migration discipline (learned the hard way)
 1. **`CREATE OR REPLACE` from a stale copy is the #1 regression vector.** It has bitten three times: `20260702000600` reverted `advance_timed_out` fixes (restored `000700`), `20260713030000` reverted the option shuffle (restored `040000`), and `20260713055000_oauth` silently dropped the `is_admin` seed from `handle_new_user`. Always start from the *latest* definition of a function, and re-check any invariant partner functions.
 2. New `SECURITY DEFINER` functions: pin `set search_path = pg_catalog, public` **inline** (the `20260627000000` blanket pin is dropped by `create or replace`; add `extensions` if you need pgcrypto — the blanket pin once broke `create_challenge`), revoke from public/anon and grant explicitly, wrap `auth.uid()` in policies.
-3. **MCP `apply_migration` gotcha**: applying DDL via the Supabase MCP does not insert into `supabase_migrations.schema_migrations` — the tracking table drifts from the files. Keep repo migrations as the source of truth and reconcile tracking when using MCP.
-4. `002_rpc_functions.sql` is the original surface; nearly everything in it has been superseded. Grep all migrations for a function name and take the last definition.
+3. **Use `supabase db push`, not MCP `apply_migration`. The MCP is what makes the tracking table drift.** It *does* insert into `supabase_migrations.schema_migrations` (an older note here claimed it doesn't — measured false on 2026-07-17: the ghost rows had their `statements` stored), but under the **apply-time** version, not the file's prefix. So `20260716220817_prefer_unseen_questions.sql` got tracked as `20260717140000`, and the CLI then refuses everything with `LegacyMigrationMissingLocalError` — a remote version with no local file. `db push` records the file version and the drift cannot happen. If you must use the MCP, reconcile the row's version to the file prefix in the same session.
+4. **The CLI was signed into the wrong Supabase account for a long time, and that is the root cause of the recurring drift.** ninjatest is project `ftdbmubdddgcoprqxxxs` in org `mpwdxqwhzhkkbdzowzed` (`arpanroychowdhury393@…`); the CLI held a *different* account (orgs `Rabbitshark`, `Glassbottles.app`) that cannot see the project at all. Its `403 ... does not have the necessary privileges` reads like a permissions bug and is not one — it is the wrong identity, and no grant fixes it. With the CLI unusable, every session fell back to the MCP, which is exactly what drifted the tracking. `supabase login` is **global** (no multi-account support), so it trades away the other orgs; the browser flow also silently reuses whatever account is already signed in there. Check identity with `supabase projects list` before believing any CLI failure — if ninjatest isn't listed, nothing else you try will work.
+5. **Repair recipe** (local and remote drift *independently* — fixing one proves nothing about the other): `supabase migration repair --status reverted <ghost>` then `--status applied <real-file-version>`, then `migration up`. **Verify before marking anything applied**, or the repair permanently hides a real difference: compare `md5(prosrc)` from `pg_proc` against the `$$…$$` body in the file. A tracking row with `statements is null` was never actually run — it is a bare row from a previous `--status applied` repair. Both traps were live on 2026-07-17: `20260716180000 question_embeddings` was a bare row, and the real apply sat in a ghost holding a copy that predated the pgvector storage ALTER.
+6. `002_rpc_functions.sql` is the original surface; nearly everything in it has been superseded. Grep all migrations for a function name and take the last definition.
 
 ## Security hardening history (context for new code)
 2026-06-27: search_path pinning, grant hardening + storage policy cleanup, anon RPC revocation, RLS initplan + 9 FK indexes. 2026-07-13: option shuffle, `match_events` anti-cheat telemetry, durable IP rate limiting, admin unification on `profiles.is_admin`, OAuth-safe signup trigger, current-ELO zero-sum rating. `next.config.ts` ships a strict CSP (Supabase origin + wss only), HSTS preload, frame-deny, and a locked Permissions-Policy. Follow these patterns; the Supabase linter flags drift.
@@ -286,6 +300,8 @@ Traps, all learned the hard way:
 | `PRIVATE_LEADERBOARD` | `ninjatest-flbe` only (Prod + Preview) | `=1` drops `/leaderboard` from `isPublicRoute` so the staging board isn't publicly browsable. **Never set it on `ninjatest`** — that would make the real leaderboard auth-only and forfeit its ISR caching. |
 | `ALLOW_PROD_DEPLOY` | `ninjatest` Production, **only while promoting** | `=1` bypasses `vercel.json`'s `ignoreCommand` so production actually builds. Read by the build guard, not by app code. Remove it after the deploy or production is auto-deploying again. |
 | `SUPABASE_SERVICE_ROLE_KEY` | local ingest scripts only | never in app code |
+| `SUPABASE_DB_PASSWORD` | **your shell, only while running `supabase db push`** | The CLI needs it to connect; it is deliberately **not** in `.env.local` and nothing reads it at runtime. Reset it in Dashboard → Settings → Database. Pass it per-command (`SUPABASE_DB_PASSWORD=… supabase db push`) — **never export it in `~/.zshrc`**, same reason as the OpenRouter key below. |
+| `SUPABASE_ACCESS_TOKEN` | optional, per-command | Overrides the CLI's global login for one command, so pushing ninjatest doesn't require signing out of the other orgs (see Migration discipline #4). Create at Dashboard → Account → Tokens **as the account that owns the project**. |
 
 `.env.local.example` is current as of 2026-07-17 (rewritten to match this table; the unused `NEXT_PUBLIC_APP_URL` is gone). `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere — safe to delete.
 
