@@ -8,10 +8,17 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { NinjaPill } from "@/components/ninja-pill";
+import { askNinja } from "@/lib/ninja";
+import { NinjaLogo } from "@/components/ninja-logo";
 
 // Solo practice drill. All keys stay server-side: get_practice_question serves
 // body/options only; submit_practice_answer locks the answer and returns the
 // reveal. State machine: idle → question → feedback → … → summary.
+//
+// Ninja is reachable only from the feedback phase — the server enforces the
+// same rule (get_practice_question_for_ninja raises 'question not answered'),
+// so the button's placement is convenience, not the guard.
 
 type Question = {
   section: string;
@@ -244,10 +251,25 @@ export default function PracticeClient() {
                       {reveal.explanation}
                     </p>
                   )}
-                  <Button onClick={next} disabled={busy}
-                    className="w-full h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088]">
-                    {busy ? <Loader2 className="animate-spin" size={16} /> : reveal.done ? "See summary" : "Next question"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={next} disabled={busy}
+                      className="flex-1 h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088]">
+                      {busy ? <Loader2 className="animate-spin" size={16} /> : reveal.done ? "See summary" : "Next question"}
+                    </Button>
+                    <Button
+                      onClick={() => sessionId && askNinja({
+                        practiceSessionId: sessionId,
+                        questionIndex: index,
+                        label: `Q${index + 1} · ${question.section}`,
+                      })}
+                      disabled={busy || !sessionId}
+                      variant="outline"
+                      title="Ask Ninja to explain this question"
+                      className="h-11 border-[#333333] text-[#7ab5cc] rounded-full hover:bg-[#120F17] flex items-center gap-1.5"
+                    >
+                      <NinjaLogo color="#06d6a0" className="w-4 h-4" /> Ask Ninja
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -292,6 +314,9 @@ export default function PracticeClient() {
           </div>
         )}
       </div>
+
+      {/* Listens for the ninja:ask event fired from the feedback panel. */}
+      <NinjaPill />
     </div>
   );
 }

@@ -1,13 +1,22 @@
 // Pure parsing helpers for the admin question uploader.
-// No React / DOM deps so they can be unit-checked in isolation (see parse.check.mjs).
+// No React / DOM deps so they can be unit-checked in isolation:
+//   node app/admin/parse.check.mts
 
 export type SectionCode = "VARC" | "DILR" | "QUANT";
+
+export type QuestionType = "mcq" | "tita";
 
 export type QuestionInput = {
   id?: string;
   body: string;
+  /** Defaults to "mcq" when the upload omits it, so existing files keep working. */
+  qtype: QuestionType;
+  /** Always [] for tita — the answer is typed, not picked. */
   options: string[];
+  /** Always 0 for tita; admin_upsert_questions ignores it on that branch. */
   correct_index: number;
+  /** tita only: the exact expected answer, matched by tita_matches(). */
+  answer_value?: string;
   difficulty?: number;
   explanation?: string | null;
   duration_ms?: number | null;
@@ -24,6 +33,11 @@ export type GroupInput = {
 
 const SECTIONS: SectionCode[] = ["VARC", "DILR", "QUANT"];
 
+// Numeric TITA keys only: grouped thousands (1,234) or plain/decimal (8, 0.5, -3).
+// Must stay in step with questions_tita_answer_numeric (20260717150000) and with
+// TITA_INPUT in app/match/[matchId]/match-client.tsx.
+const TITA_ANSWER = /^[+-]?[0-9]{1,3}(,[0-9]{3})*(\.[0-9]+)?$|^[+-]?[0-9]*\.?[0-9]+$/;
+
 function asSection(v: unknown, where: string): SectionCode {
   const s = String(v ?? "").trim().toUpperCase();
   if (!SECTIONS.includes(s as SectionCode)) {
@@ -37,14 +51,49 @@ function validateQuestion(q: unknown, where: string): QuestionInput {
   const o = q as Record<string, unknown>;
   const body = o.body;
   if (typeof body !== "string" || !body.trim()) throw new Error(`${where}: "body" is required`);
-  if (!Array.isArray(o.options) || o.options.length < 2 || !o.options.every((x) => typeof x === "string" && x.trim())) {
-    throw new Error(`${where}: "options" must be an array of 2+ non-empty strings`);
+
+  const qtype = (o.qtype == null || o.qtype === "" ? "mcq" : String(o.qtype).trim().toLowerCase()) as QuestionType;
+  if (qtype !== "mcq" && qtype !== "tita") {
+    throw new Error(`${where}: "qtype" must be "mcq" or "tita", got "${String(o.qtype)}"`);
   }
-  const ci = o.correct_index;
-  if (typeof ci !== "number" || !Number.isInteger(ci) || ci < 0 || ci >= o.options.length) {
-    throw new Error(`${where}: "correct_index" must be an integer in range 0..${o.options.length - 1}`);
+
+  // The two types are scored by different columns: MCQ by correct_index into
+  // options, TITA by tita_matches() against answer_value. A TITA carries
+  // neither option nor index, so mirror admin_upsert_questions and store the
+  // ([], 0) placeholders the NOT NULL columns require.
+  let options: string[] = [];
+  let correct_index = 0;
+  let answer_value: string | undefined;
+
+  if (qtype === "tita") {
+    const av = o.answer_value;
+    if (typeof av !== "string" || !av.trim()) {
+      throw new Error(`${where}: tita questions require a non-empty "answer_value"`);
+    }
+    if (av.trim().length > 200) throw new Error(`${where}: "answer_value" must be at most 200 chars`);
+    if (!TITA_ANSWER.test(av.trim())) {
+      // The in-match answer box accepts digits only, so a key carrying a unit
+      // could never be matched by anyone. Mirrors the DB's
+      // questions_tita_answer_numeric constraint.
+      throw new Error(
+        `${where}: "answer_value" must be numeric — no units, currency or words (e.g. 1900, not "Rs.1900")`
+      );
+    }
+    answer_value = av.trim();
+  } else {
+    if (!Array.isArray(o.options) || o.options.length < 2 || !o.options.every((x) => typeof x === "string" && x.trim())) {
+      throw new Error(`${where}: "options" must be an array of 2+ non-empty strings`);
+    }
+    const ci = o.correct_index;
+    if (typeof ci !== "number" || !Number.isInteger(ci) || ci < 0 || ci >= o.options.length) {
+      throw new Error(`${where}: "correct_index" must be an integer in range 0..${o.options.length - 1}`);
+    }
+    options = o.options as string[];
+    correct_index = ci;
   }
-  const out: QuestionInput = { body, options: o.options as string[], correct_index: ci };
+
+  const out: QuestionInput = { body, qtype, options, correct_index };
+  if (answer_value != null) out.answer_value = answer_value;
   if (o.id != null) out.id = String(o.id);
   if (o.difficulty != null) {
     const d = Number(o.difficulty);
@@ -165,8 +214,19 @@ export function parseCsv(text: string): GroupInput[] {
   const iBody = col("body");
   const iOptions = col("options");
   const iCorrect = col("correct_index");
-  if (iSection < 0 || iBody < 0 || iOptions < 0 || iCorrect < 0) {
+  const iQtype = col("qtype");
+  const iAnswer = col("answer_value");
+  if (iSection < 0 || iBody < 0) {
+    throw new Error('CSV header must include at least: section, body');
+  }
+  // A TITA-only sheet legitimately has no options/correct_index columns, so
+  // those are only mandatory for a sheet that never declares a qtype (i.e. every
+  // pre-TITA file, whose error message is preserved exactly).
+  if (iQtype < 0 && (iOptions < 0 || iCorrect < 0)) {
     throw new Error('CSV header must include at least: section, body, options, correct_index');
+  }
+  if (iQtype >= 0 && iAnswer < 0) {
+    throw new Error('CSV header declares "qtype" but has no "answer_value" column for tita rows');
   }
   const iGroup = col("passage_group");
   const iPassage = col("passage_body");
@@ -189,12 +249,18 @@ export function parseCsv(text: string): GroupInput[] {
     const section = asSection(get(iSection), where);
     const optionsRaw = get(iOptions);
     const options = optionsRaw.split("|").map((s) => s.trim()).filter((s) => s.length > 0);
+    const correctRaw = iCorrect >= 0 ? get(iCorrect) : "";
     const q = validateQuestion(
       {
         id: get(iId) || undefined,
         body: get(iBody),
+        qtype: (iQtype >= 0 ? get(iQtype) : "") || undefined,
         options,
-        correct_index: Number(get(iCorrect)),
+        // NaN, not Number(""), for a blank cell: Number("") is 0, which is a
+        // VALID correct_index, so a row with an empty correct_index used to be
+        // accepted silently as "option A is correct" instead of erroring.
+        correct_index: correctRaw === "" ? NaN : Number(correctRaw),
+        answer_value: (iAnswer >= 0 ? get(iAnswer) : "") || undefined,
         difficulty: get(iDifficulty) || undefined,
         explanation: get(iExplanation) || undefined,
         duration_ms: get(iDuration) || undefined,

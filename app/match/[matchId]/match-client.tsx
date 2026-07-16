@@ -31,6 +31,12 @@ interface RevealData {
   is_correct: boolean;
 }
 
+// TITA answers are numeric — the DB enforces it (questions_tita_answer_numeric),
+// so the box can refuse everything else. Permissive enough to type THROUGH:
+// "", "-", "1,", "1900." are all valid intermediate states. Rejects the inputs
+// that scored a right solve as wrong: "Rs.1900", "1900m", "1900 metres".
+const TITA_INPUT = /^-?[0-9]*(?:,[0-9]*)*(?:\.[0-9]*)?$/;
+
 export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, userId }: Props) {
   const router = useRouter();
   const supabase = createClient();
@@ -635,6 +641,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
                   id="tita-answer"
                   value={typedAnswer}
                   onChange={(e) => {
+                    // Reject rather than sanitise. Stripping non-numerics would turn
+                    // "Rs.1900" into ".1900" (= 0.19) — inventing a wrong answer out
+                    // of a right one. Refusing the keystroke keeps what the player
+                    // sees identical to what gets scored.
+                    if (!TITA_INPUT.test(e.target.value)) return;
                     setTypedAnswer(e.target.value);
                     typedAnswerRef.current = e.target.value;
                   }}

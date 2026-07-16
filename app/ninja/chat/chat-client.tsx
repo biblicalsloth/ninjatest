@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Send, Trash2, PanelLeft, X, Loader2 } from "lucide-react";
+import { Plus, Search, Send, Trash2, PanelLeft, X, Loader2, CalendarDays } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,9 +24,24 @@ interface Turn {
 const SUGGESTIONS = [
   "What's my weakest section?",
   "Am I improving or plateauing?",
-  "Build my weekly study plan",
+  "Which section is costing me the most points?",
   "Walk me through my most recent mistake",
 ];
+
+type Mode = "coach" | "buddy" | "plan";
+
+const MODE_LABEL: Record<Mode, string> = { coach: "coach", buddy: "buddy", plan: "plan" };
+const MODE_HINT: Record<Mode, string> = {
+  coach: "Grounded in your real stats",
+  buddy: "Socratic — I guide, you solve",
+  plan: "A 7-day plan from your own numbers",
+};
+// Plan mode is one-shot: the server ignores any typed question and overrides it
+// to this exact string (and skips thread history — it would fight the plan's
+// output contract). The client sends the same text so the saved turn and the
+// rendered bubble agree after a reload.
+const PLAN_QUESTION = "Build my weekly study plan.";
+const REQ_MODE: Record<Mode, string | undefined> = { coach: undefined, buddy: "socratic", plan: "plan" };
 
 // /ninja/chat — modern-LLM chat over the user's own stats. Left rail = saved
 // conversations (searchable); main = the active thread + a chatbox. Each chat is
@@ -40,7 +55,7 @@ export default function ChatClient() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
   const [input, setInput] = useState("");
-  const [mode, setMode] = useState<"coach" | "buddy">("coach");
+  const [mode, setMode] = useState<Mode>("coach");
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false); // mobile sidebar
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -94,7 +109,7 @@ export default function ChatClient() {
     const convId = activeId ?? crypto.randomUUID();
     const isNew = activeId === null;
     if (isNew) setActiveId(convId);
-    const reqMode = mode === "buddy" ? "socratic" : undefined;
+    const reqMode = REQ_MODE[mode];
     setInput("");
     setBusy(true);
     const idx = turns.length;
@@ -217,7 +232,7 @@ export default function ChatClient() {
             <PanelLeft size={18} />
           </button>
           <div className="flex rounded-full bg-[#111111] p-0.5 text-xs font-semibold">
-            {(["coach", "buddy"] as const).map((m) => (
+            {(["coach", "buddy", "plan"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -226,13 +241,11 @@ export default function ChatClient() {
                   mode === m ? "bg-[#06d6a0] text-[#073b4c]" : "text-[#7ab5cc] hover:text-white"
                 }`}
               >
-                {m}
+                {MODE_LABEL[m]}
               </button>
             ))}
           </div>
-          <span className="ml-auto text-[11px] text-[#4a8fa8]">
-            {mode === "buddy" ? "Socratic — I guide, you solve" : "Grounded in your real stats"}
-          </span>
+          <span className="ml-auto text-[11px] text-[#4a8fa8]">{MODE_HINT[mode]}</span>
         </div>
 
         {/* Thread */}
@@ -272,32 +285,46 @@ export default function ChatClient() {
           )}
         </div>
 
-        {/* Composer */}
+        {/* Composer — plan mode takes no input (the server fixes the prompt),
+            so it gets a single button instead of a textarea that goes nowhere. */}
         <div className="border-t border-[#222222] px-4 py-3">
-          <form
-            onSubmit={(e) => { e.preventDefault(); send(input); }}
-            className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-[#333333] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
-          >
-            <textarea
-              ref={taRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              rows={1}
-              placeholder={mode === "buddy" ? "Tell me what you're stuck on…" : "Ask Ninja about your stats, plan, or mistakes…"}
-              className="max-h-40 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-[#4a8fa8] outline-none"
-            />
+          {mode === "plan" ? (
             <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              aria-label="Send"
-              className="mb-0.5 rounded-lg bg-[#06d6a0] p-1.5 text-[#073b4c] disabled:opacity-30 hover:brightness-105 transition"
+              onClick={() => send(PLAN_QUESTION)}
+              disabled={busy}
+              className="mx-auto flex h-11 w-full max-w-3xl items-center justify-center gap-2 rounded-2xl bg-[#06d6a0] text-sm font-semibold text-[#073b4c] disabled:opacity-40 hover:brightness-105 transition"
             >
-              {busy ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+              {busy ? <Loader2 className="animate-spin" size={16} /> : <CalendarDays size={16} />}
+              {busy ? "Building your plan…" : "Build my 7-day plan"}
             </button>
-          </form>
+          ) : (
+            <form
+              onSubmit={(e) => { e.preventDefault(); send(input); }}
+              className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-[#333333] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
+            >
+              <textarea
+                ref={taRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={1}
+                placeholder={mode === "buddy" ? "Tell me what you're stuck on…" : "Ask Ninja about your stats, plan, or mistakes…"}
+                className="max-h-40 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-[#4a8fa8] outline-none"
+              />
+              <button
+                type="submit"
+                disabled={busy || !input.trim()}
+                aria-label="Send"
+                className="mb-0.5 rounded-lg bg-[#06d6a0] p-1.5 text-[#073b4c] disabled:opacity-30 hover:brightness-105 transition"
+              >
+                {busy ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+              </button>
+            </form>
+          )}
           <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-[#4a8fa8]">
-            Ninja can be wrong — verify anything important. Enter to send, Shift+Enter for a new line.
+            {mode === "plan"
+              ? "Ninja can be wrong — verify anything important. Your plan is built from your real stats."
+              : "Ninja can be wrong — verify anything important. Enter to send, Shift+Enter for a new line."}
           </p>
         </div>
       </div>
@@ -305,29 +332,39 @@ export default function ChatClient() {
   );
 }
 
-function Hero({ mode, onPick }: { mode: "coach" | "buddy"; onPick: (q: string) => void }) {
+const HERO_TITLE: Record<Mode, string> = {
+  coach: "Ask Ninja anything",
+  buddy: "Ask Ninja anything",
+  plan: "Your 7-day study plan",
+};
+const HERO_BLURB: Record<Mode, string> = {
+  coach: "Grounded in your real stats — sections, margins, streaks, and recent mistakes.",
+  buddy: "I'll guide you through your weak spots step by step.",
+  plan: "One task a day, built from your ELO trend and your weakest section. Hit the button below.",
+};
+
+function Hero({ mode, onPick }: { mode: Mode; onPick: (q: string) => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-5 px-6 text-center">
       <NinjaLogo color="#06d6a0" className="h-12 w-12" />
       <div>
-        <h1 className="text-white text-xl font-semibold">Ask Ninja anything</h1>
-        <p className="mt-1 text-[#7ab5cc] text-sm max-w-md">
-          {mode === "buddy"
-            ? "I'll guide you through your weak spots step by step."
-            : "Grounded in your real stats — sections, margins, streaks, and recent mistakes."}
-        </p>
+        <h1 className="text-white text-xl font-semibold">{HERO_TITLE[mode]}</h1>
+        <p className="mt-1 text-[#7ab5cc] text-sm max-w-md">{HERO_BLURB[mode]}</p>
       </div>
-      <div className="flex max-w-lg flex-wrap justify-center gap-2">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s}
-            onClick={() => onPick(s)}
-            className="rounded-full border border-[#333333] px-3.5 py-1.5 text-xs text-[#c5e8f0] hover:border-[#06d6a0] hover:text-[#06d6a0] transition"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
+      {/* Plan mode ignores any typed question, so suggestion chips would lie. */}
+      {mode !== "plan" && (
+        <div className="flex max-w-lg flex-wrap justify-center gap-2">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              onClick={() => onPick(s)}
+              className="rounded-full border border-[#333333] px-3.5 py-1.5 text-xs text-[#c5e8f0] hover:border-[#06d6a0] hover:text-[#06d6a0] transition"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

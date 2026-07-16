@@ -28,10 +28,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
+  // One route, two sources: a finished match question or an answered practice
+  // drill question. Both end at the same prompt/model/fallback loop — only the
+  // guard RPC and the save RPC differ, because the ownership and reveal rules
+  // differ (participant+reached vs owner+answered). Exactly one id, never both:
+  // ambiguity here would silently pick a source the caller didn't mean.
   const matchId = typeof body?.match_id === "string" ? body.match_id : "";
+  const sessionId = typeof body?.practice_session_id === "string" ? body.practice_session_id : "";
   const index = Number.isInteger(body?.question_index) ? body.question_index : -1;
-  if (!matchId || index < 0 || index > 8) {
-    return NextResponse.json({ error: "Missing match_id or question_index" }, { status: 400 });
+  if (Boolean(matchId) === Boolean(sessionId) || index < 0 || index > 8) {
+    return NextResponse.json(
+      { error: "Provide exactly one of match_id / practice_session_id, plus question_index" },
+      { status: 400 },
+    );
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,8 +52,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Ninja is currently disabled" }, { status: 503 });
   }
 
-  // Ownership + reach guard lives in the RPC (raises 'forbidden' for non-participants).
-  const { data: rows, error: qErr } = await sb.rpc("get_question_for_ninja", { p_match_id: matchId, p_index: index });
+  // Ownership + reveal + attempt-ceiling guards all live in the RPC (raises
+  // 'forbidden' for a question that isn't the caller's to see). Same return
+  // shape either way, so buildQuestionPrompt below needs no branch.
+  const { data: rows, error: qErr } = sessionId
+    ? await sb.rpc("get_practice_question_for_ninja", { p_session: sessionId, p_index: index })
+    : await sb.rpc("get_question_for_ninja", { p_match_id: matchId, p_index: index });
   const q = Array.isArray(rows) ? rows[0] : null;
   if (qErr || !q) {
     const msg = qErr?.message ?? "";
@@ -53,6 +66,9 @@ export async function POST(req: NextRequest) {
     }
     if (msg.includes("not reached")) {
       return NextResponse.json({ error: "This question wasn't reached in the match." }, { status: 403 });
+    }
+    if (msg.includes("not answered")) {
+      return NextResponse.json({ error: "Answer the question first — then Ninja will explain it." }, { status: 403 });
     }
     return NextResponse.json({ error: "Not allowed for this question" }, { status: 403 });
   }
@@ -95,9 +111,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Server-side save (definer RPC) — client never asserts authorship.
-  const { data: savedId } = await sb.rpc("save_ninja_response", {
-    p_match_id: matchId, p_index: index, p_model: usedModel, p_content: text,
-  });
+  const { data: savedId } = sessionId
+    ? await sb.rpc("save_ninja_practice_response", {
+        p_session: sessionId, p_index: index, p_model: usedModel, p_content: text,
+      })
+    : await sb.rpc("save_ninja_response", {
+        p_match_id: matchId, p_index: index, p_model: usedModel, p_content: text,
+      });
 
   return NextResponse.json({ id: savedId ?? null, content: text, model_id: usedModel });
 }

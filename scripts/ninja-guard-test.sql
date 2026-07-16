@@ -20,6 +20,9 @@
 --   8. a caller can see their own live match row under RLS — the data source
 --      behind lib/ai/live-match.ts::inLiveMatch, which gates all five
 --      user-facing routes (ask, debrief, coach, solve, daily)
+--   9. the practice twin of the same boundary (20260717160000): owner-only, an
+--      UNANSWERED drill question is refused (practice's reveal gate — the
+--      analogue of #4), and the 3-attempt cap holds per (session, question)
 -- =========================================================
 begin;
 
@@ -220,6 +223,80 @@ begin
     end if;
     reset role;
     raise notice 'PASS 8: live-match visibility under RLS backs the ask/coach/solve/daily/debrief gate';
+  end;
+
+  -- 9. Practice asks (20260717160000). Same boundary as the match path, one
+  -- guard swapped: "reached" becomes "answered", because submit_practice_answer
+  -- is the moment the key is revealed anyway. Before it, sending a drill
+  -- question to Ninja would be an answer-key leak over the 45 questions/day a
+  -- user can pull — questions is RLS `using(false)` to stop exactly that.
+  declare psid uuid; prow record; pn int;
+  begin
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+    insert into practice_sessions (user_id, question_ids, current_index)
+    values (ua, qids, 1) returning id into psid;
+    -- ua answered q0 (wrong: picked 0, key is 1); q1..q8 remain unanswered.
+    insert into practice_answers (session_id, question_index, selected_index, is_correct)
+    values (psid, 0, 0, false);
+
+    -- answered → served, with the caller's own pick attached so the prompt can
+    -- name the distractor they fell for
+    select * into prow from get_practice_question_for_ninja(psid, 0);
+    if prow.body is null or prow.correct_index <> 1 then
+      raise exception 'FAIL: practice ninja read wrong question data: %', prow;
+    end if;
+    if prow.my_selected_index <> 0 or prow.my_is_correct is not false then
+      raise exception 'FAIL: practice ninja lost the caller''s own answer (got %, %)',
+        prow.my_selected_index, prow.my_is_correct;
+    end if;
+
+    -- UNANSWERED → refused. This is the bank-leak guard.
+    begin
+      perform * from get_practice_question_for_ninja(psid, 5);
+      raise exception 'FAIL: pulled an UNANSWERED practice question (answer-key leak)';
+    exception when others then
+      if sqlerrm not like '%not answered%' then raise; end if;
+    end;
+
+    -- outsider → refused on both the read and the save
+    perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+    begin
+      perform * from get_practice_question_for_ninja(psid, 0);
+      raise exception 'FAIL: outsider read another user''s practice question';
+    exception when others then
+      if sqlerrm not like '%forbidden%' then raise; end if;
+    end;
+    begin
+      perform save_ninja_practice_response(psid, 0, 'm', 'x');
+      raise exception 'FAIL: outsider saved into another user''s practice session';
+    exception when others then
+      if sqlerrm not like '%forbidden%' then raise; end if;
+    end;
+
+    -- 3-attempt cap per (session, question, user) — the cost guard, pre-spend
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+    perform save_ninja_practice_response(psid, 0, 'm', 'p1');
+    perform save_ninja_practice_response(psid, 0, 'm', 'p2');
+    perform save_ninja_practice_response(psid, 0, 'm', 'p3');
+    begin
+      perform * from get_practice_question_for_ninja(psid, 0);
+      raise exception 'FAIL: 4th practice ninja attempt allowed (cost cap broken)';
+    exception when others then
+      if sqlerrm not like '%attempt limit%' then raise; end if;
+    end;
+
+    select count(*) into pn from get_ninja_practice_responses(psid, 0);
+    if pn <> 3 then raise exception 'FAIL: expected 3 practice responses, got %', pn; end if;
+
+    -- XOR: a practice row must not also claim a match, and vice versa
+    begin
+      insert into ninja_responses (user_id, match_id, practice_session_id, question_index, model_id, content)
+      values (ua, mid, psid, 0, 'm', 'both');
+      raise exception 'FAIL: a ninja_response claimed BOTH a match and a practice session';
+    exception when check_violation then null;
+    end;
+
+    raise notice 'PASS 9: practice asks are owner-only, answered-only, and capped at 3';
   end;
 end $$;
 

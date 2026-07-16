@@ -15,6 +15,7 @@ interface Item {
 }
 interface Session {
   match_id: string | null;
+  practice_session_id: string | null;
   opponent: string | null;
   result: "win" | "loss" | "draw" | null;
   played_at: string | null;
@@ -24,20 +25,26 @@ interface Session {
 
 const RESULT_COLOR = { win: "#06d6a0", loss: "#ef476f", draw: "#ffd166" } as const;
 
-function kindLabel(it: Item): string {
+// A session is keyed by whichever id it has; both null = the general coach bucket.
+const sessionKey = (s: Session) => s.match_id ?? s.practice_session_id ?? "general";
+
+function kindLabel(it: Item, isPractice: boolean): string {
   if (it.kind === "coach") return "Coach chat";
   if (it.kind === "debrief") return "Match debrief";
-  return `In-match hint · Q${(it.question_index ?? 0) + 1}`;
+  const q = `Q${(it.question_index ?? 0) + 1}`;
+  return isPractice ? `Practice hint · ${q}` : `In-match hint · ${q}`;
 }
 
 function sessionTitle(s: Session): string {
+  if (s.practice_session_id) return "Practice drill";
   if (!s.match_id) return "General chat";
   return s.opponent ? `vs ${s.opponent}` : "Match session";
 }
 
 // /ninja — browsable history of every Ninja AI output (coach chat, match
-// debriefs, in-match hints), grouped into per-match sessions. Reuses the
-// coach's dark card idiom; empty state fires the floating coach.
+// debriefs, in-match hints, practice-drill hints), grouped into per-match and
+// per-drill sessions. Reuses the coach's dark card idiom; empty state fires the
+// floating coach.
 export default function NinjaHistoryClient() {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [selected, setSelected] = useState(0);
@@ -112,7 +119,7 @@ export default function NinjaHistoryClient() {
             const on = i === selected;
             return (
               <button
-                key={s.match_id ?? "general"}
+                key={sessionKey(s)}
                 onClick={() => setSelected(i)}
                 className={`text-left rounded-lg px-3 py-2.5 border transition ${
                   on ? "bg-[#111111] border-[#06d6a0]/50" : "bg-[#111111]/60 border-[#222222] hover:border-[#333333]"
@@ -150,7 +157,7 @@ export default function NinjaHistoryClient() {
             {active.items.map((it, i) => (
               <div key={i} className="space-y-1.5">
                 <p className="text-[#7ab5cc] text-[11px] font-medium uppercase tracking-wider">
-                  {kindLabel(it)}
+                  {kindLabel(it, active.practice_session_id !== null)}
                   <span className="text-[#4a8fa8] normal-case tracking-normal ml-2">
                     {new Date(it.created_at).toLocaleString()}
                   </span>

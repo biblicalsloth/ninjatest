@@ -31,6 +31,9 @@ type ListRow = {
   passage_body: string | null;
   passage_is_active: boolean | null;
   created_at: string;
+  qtype: "mcq" | "tita";
+  /** tita only: the exact expected answer. null for mcq. */
+  answer_value: string | null;
 };
 
 const SECTIONS: SectionCode[] = ["VARC", "DILR", "QUANT"];
@@ -821,6 +824,13 @@ function AuditPanel({ reloadKey, onChanged }: { reloadKey: number; onChanged: ()
   const supabase = createClient() as AnyClient;
   const [flagged, setFlagged] = useState<FlaggedRow[]>([]);
   const [section, setSection] = useState<"ALL" | SectionCode>("ALL");
+  // Type filter. Without it TITA is unauditable in practice: the audit takes the
+  // first 25 of admin_list_questions' order (section, passage_id nulls last,
+  // created_at), and the earliest TITA sits at ~#1006 of 1142 active QUANT rows,
+  // so "AI-audit up to 25" would never reach one. TITA needs this most — a wrong
+  // answer_value is silent (a correct solve just scores 0), so the audit is the
+  // only thing that catches it.
+  const [qtype, setQtype] = useState<"ALL" | "mcq" | "tita">("ALL");
   const [auditing, setAuditing] = useState(false);
   const [progress, setProgress] = useState("");
   const [verdicts, setVerdicts] = useState<Record<string, AuditVerdict>>({});
@@ -859,7 +869,9 @@ function AuditPanel({ reloadKey, onChanged }: { reloadKey: number; onChanged: ()
       if (error) throw new Error(error.message);
       const all = (data as ListRow[]) ?? [];
       const flaggedIds = new Set(flagged.map((f) => f.id));
-      const inScope = all.filter((r) => section === "ALL" || r.section === section);
+      const inScope = all.filter((r) =>
+        (section === "ALL" || r.section === section) &&
+        (qtype === "ALL" || r.qtype === qtype));
       const prioritized = [
         ...inScope.filter((r) => flaggedIds.has(r.id)),
         ...inScope.filter((r) => !flaggedIds.has(r.id)),
@@ -881,6 +893,7 @@ function AuditPanel({ reloadKey, onChanged }: { reloadKey: number; onChanged: ()
             questions: batch.map((r) => ({
               id: r.id, section: r.section, body: r.body, options: r.options,
               correct_index: r.correct_index, passage_body: r.passage_body,
+              qtype: r.qtype, answer_value: r.answer_value,
             })),
           }),
         });
@@ -914,6 +927,12 @@ function AuditPanel({ reloadKey, onChanged }: { reloadKey: number; onChanged: ()
             className="bg-[#120F17] border border-[#333333] text-[#c5e8f0] text-sm rounded-lg px-2.5 py-1.5 focus:border-[#06d6a0] outline-none">
             <option value="ALL">All sections</option>
             {SECTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={qtype} onChange={(e) => setQtype(e.target.value as "ALL" | "mcq" | "tita")}
+            className="bg-[#120F17] border border-[#333333] text-[#c5e8f0] text-sm rounded-lg px-2.5 py-1.5 focus:border-[#06d6a0] outline-none">
+            <option value="ALL">All types</option>
+            <option value="mcq">MCQ</option>
+            <option value="tita">TITA</option>
           </select>
           <Button onClick={runAudit} disabled={auditing} size="sm"
             className="bg-[#ffd166] text-[#073b4c] font-semibold rounded-lg hover:bg-[#e6bc5c] flex items-center gap-1.5">

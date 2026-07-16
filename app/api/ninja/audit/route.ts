@@ -10,13 +10,21 @@ import { getModel, type AiConfig } from "@/lib/ai/model";
 // on them via the existing active toggles.
 
 const AUDIT_SYSTEM = `You are a CAT (Common Admission Test) question-bank quality auditor.
-For EACH question given, independently solve it from scratch, then check:
+Questions come in two types.
+
+MCQ — has options and a marked correct_index. For each, independently solve it from scratch, then check:
 1. KEY: does your independently-derived answer match the marked correct_index?
 2. AMBIGUITY: is more than one option defensible, or no option correct?
 3. CLARITY: missing data, contradictory conditions, or unanswerable from the given text?
+
+TITA (Type-In-The-Answer) — no options; the player types an exact value, and the marked key is that value. For each, independently solve it from scratch, then check:
+1. KEY: does your independently-derived value equal the marked expected answer? Treat it as matching if it is the same number written differently (2000 vs 2,000 vs 2000.0) — the app compares numerically. Flag it only if the VALUE differs.
+2. WELL-POSED: does the question have exactly ONE numeric answer? TITA is scored by exact match, so a question with a range, multiple valid values, or an answer depending on an unstated assumption is a real defect — the player cannot type it.
+3. CLARITY: missing data or a dropped constraint (common when a question was extracted from a PDF and a condition was lost) — if the question as written is unbounded or unanswerable, say so even when the marked key is the "known" answer to the original question.
+
 Be strict but not pedantic — flag real defects, not stylistic taste.
 Output ONLY a JSON array, one object per question, same order as given:
-[{"id":"<echoed id>","verdict":"ok"|"suspect","issues":"empty string if ok, else one concise sentence naming the defect and the option you believe is correct"}]`;
+[{"id":"<echoed id>","verdict":"ok"|"suspect","issues":"empty string if ok, else one concise sentence naming the defect and the answer you believe is correct"}]`;
 
 type AuditItem = {
   id: string;
@@ -25,6 +33,8 @@ type AuditItem = {
   options: string[];
   correct_index: number;
   passage_body: string | null;
+  qtype: "mcq" | "tita";
+  answer_value: string | null;
 };
 
 function extractJsonArray(text: string): string {
@@ -62,9 +72,18 @@ export async function POST(req: NextRequest) {
       options: Array.isArray(q?.options) ? (q.options as unknown[]).map(String).slice(0, 8) : [],
       correct_index: Number.isInteger(q?.correct_index) ? (q.correct_index as number) : -1,
       passage_body: typeof q?.passage_body === "string" ? q.passage_body.slice(0, 20000) : null,
+      qtype: q?.qtype === "tita" ? ("tita" as const) : ("mcq" as const),
+      answer_value: typeof q?.answer_value === "string" ? q.answer_value.slice(0, 200) : null,
     }))
-    .filter((q: AuditItem) => q.id && q.body && q.options.length >= 2
-      && q.correct_index >= 0 && q.correct_index < q.options.length);
+    // A TITA row carries options='[]' and correct_index=0, so the MCQ predicate
+    // silently dropped every one of them — auditing the bank looked complete
+    // while never checking a single typed-answer key. Each type validates on
+    // the field that actually holds its key.
+    .filter((q: AuditItem) => q.id && q.body && (
+      q.qtype === "tita"
+        ? !!q.answer_value?.trim()
+        : q.options.length >= 2 && q.correct_index >= 0 && q.correct_index < q.options.length
+    ));
   if (items.length === 0) {
     return NextResponse.json({ error: "No auditable questions in payload (max 5 per call)" }, { status: 400 });
   }
@@ -76,11 +95,17 @@ export async function POST(req: NextRequest) {
   }
 
   const prompt = items.map((q, i) => [
-    `--- Question ${i + 1} (id: ${q.id}, section: ${q.section}) ---`,
+    `--- Question ${i + 1} (id: ${q.id}, section: ${q.section}, type: ${q.qtype.toUpperCase()}) ---`,
     q.passage_body ? `Passage/context:\n${q.passage_body}` : "",
     `Body:\n${q.body}`,
-    `Options:\n${q.options.map((o, oi) => `${oi}. ${o}`).join("\n")}`,
-    `Marked correct_index: ${q.correct_index}`,
+    // TITA's key is answer_value; its options/correct_index are empty
+    // placeholders and must never be shown as if they were the key.
+    ...(q.qtype === "tita"
+      ? [`Marked expected answer (typed in, exact value): ${q.answer_value}`]
+      : [
+          `Options:\n${q.options.map((o, oi) => `${oi}. ${o}`).join("\n")}`,
+          `Marked correct_index: ${q.correct_index}`,
+        ]),
   ].filter(Boolean).join("\n")).join("\n\n");
 
   const models = [config.model_id, config.fallback_model_id].filter(Boolean) as string[];
