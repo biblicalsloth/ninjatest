@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "[ \"$VERCEL_PROJECT_ID\" != \"prj_sV4FQcYYjoYPcG8KjAJkleGhBPej\" ] && [ \"$ALLOW_PROD_DEPLOY\" != \"1\" ]"
+  "ignoreCommand": "[ \"$VERCEL_PROJECT_ID\" != \"prj_sV4FQcYYjoYPcG8KjAJkleGhBPej\" ] && [ \"$VERCEL_ENV\" != \"preview\" ] && [ \"$ALLOW_PROD_DEPLOY\" != \"1\" ]"
 }
