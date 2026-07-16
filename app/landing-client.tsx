@@ -9,6 +9,9 @@ import { Sparkles } from "lucide-react";
 import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ParticleFlow } from "@/components/landing/particle-flow";
+import dynamic from "next/dynamic";
+
+const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
 
 const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
 
@@ -192,6 +195,18 @@ export default function LandingClient() {
           transition: "width 500ms ease-in-out, opacity 200ms ease-in-out",
         }}
       >
+        <div className="absolute inset-0 pointer-events-none">
+          <Grainient
+            color1="#120F17" color2="#120F17" color3="#9f84bd"
+            timeSpeed={0.45} colorBalance={-0.2} warpStrength={0.6}
+            warpFrequency={5} warpSpeed={2} warpAmplitude={50}
+            blendAngle={0} blendSoftness={0.05} rotationAmount={500}
+            noiseScale={2} grainAmount={0.1} grainScale={2}
+            grainAnimated={false} contrast={1.5} gamma={1} saturation={1}
+            centerX={0} centerY={0} zoom={0.9}
+          />
+        </div>
+
         <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden no-scrollbar" style={{ zIndex: 1 }}>
 
           {/* Nav */}
