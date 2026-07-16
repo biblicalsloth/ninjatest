@@ -178,7 +178,16 @@ The repo builds under **three separate Vercel projects**, each with its own env 
 | `ninjatest-flbe` | `main` | `test.ninjatest.app` **and** `ninjatest-test.vercel.app` | **full app**, deployed as its own *production* | yes |
 | admin console | — | `admin.<domain>`, behind Vercel Authentication | `ADMIN_ENABLED=1` | — |
 
-**Both production projects build `main`.** Staging is not a branch — it is a second project off the same branch with different env vars. The `test` branch is vestigial: it only produces SSO-gated previews nobody looks at. Don't reach for branches to change what staging runs; reach for that project's env vars.
+**Both production projects build `main`.** Staging is not a branch — it is a second project off the same branch with different env vars. Don't reach for branches to change what staging runs; reach for that project's env vars.
+
+**The `test` branch does NOT feed `test.ninjatest.app`** — the names collide, and that has already caused wrong conclusions. `test.ninjatest.app` is `ninjatest-flbe`'s *production*, which builds `main`. Pushing `test` only produces previews:
+
+| Push to | `ninjatest` | `ninjatest-flbe` |
+|---|---|---|
+| `main` | cancelled by the guard | **production** → `test.ninjatest.app` |
+| `test` | cancelled by the guard | preview → `ninjatest-flbe-git-test-*.vercel.app` (Vercel-SSO-gated) |
+
+So the only place `test`-branch code is viewable is that SSO-gated preview URL, behind your Vercel login. The branch is kept for short-lived work; to put something in front of `test.ninjatest.app`, it has to land on `main`.
 
 ### Release flow (deliberately one-way)
 A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard: it exits 0 (skip) for every project except staging, so `ninjatest` Git builds are cancelled and production is frozen until promoted by hand.
