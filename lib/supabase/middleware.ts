@@ -105,18 +105,20 @@ export async function updateSession(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
-  // /leaderboard is public in production (anon-callable RPC + ISR, see the
-  // caching notes in CLAUDE.md) but auth-gated on preview deployments, so the
-  // staging board on test.ninjatest.app isn't publicly browsable. Keyed on
-  // VERCEL_ENV rather than the hostname because every preview also answers on
-  // its ninjatest-git-<branch>-*.vercel.app alias.
-  const isPreview = process.env.VERCEL_ENV === "preview";
+  // /leaderboard is public in the real app (anon-callable RPC + public client
+  // + ISR — see the caching notes in CLAUDE.md). PRIVATE_LEADERBOARD=1 is set
+  // ONLY on the ninjatest-flbe project (the staging app, which builds `test`
+  // and serves test.ninjatest.app), so its board isn't publicly browsable.
+  // Project-scoped rather than a hostname check because that project also
+  // answers on ninjatest-test.vercel.app; VERCEL_ENV is no use either, since
+  // staging deploys as its own production.
+  const privateLeaderboard = process.env.PRIVATE_LEADERBOARD === "1";
 
   const isPublicRoute =
     pathname === "/" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/c/") ||
-    (!isPreview && pathname.startsWith("/leaderboard")) ||
+    (!privateLeaderboard && pathname.startsWith("/leaderboard")) ||
     pathname.startsWith("/profile");
 
   if (!isAuthed && !isPublicRoute) {
