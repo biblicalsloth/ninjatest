@@ -30,6 +30,7 @@
 // Flags: --section VARC|DILR|QUANT  --limit N  --batch N (default 96)  --dry-run
 
 import { pathToFileURL } from "node:url";
+import { loadEnvLocal } from "./env.mjs";
 import { createClient } from "@supabase/supabase-js";
 import { createOpenAI } from "@ai-sdk/openai";
 import { embedMany } from "ai";
@@ -98,7 +99,10 @@ if (args.selfTest) {
   process.exit(0);
 }
 
-try { process.loadEnvFile(".env.local"); } catch { /* env may already be exported */ }
+// .env.local beats the ambient shell env, and says so when they differ — see
+// scripts/env.mjs. A stale exported OPENROUTER_API_KEY silently winning here is
+// a `User not found.` 401 that names nothing.
+loadEnvLocal();
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -262,7 +262,11 @@ Traps, all learned the hard way:
 
 `.env.local.example` is current as of 2026-07-17 (rewritten to match this table; the unused `NEXT_PUBLIC_APP_URL` is gone). `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere — safe to delete.
 
-**A shell export of `OPENROUTER_API_KEY` silently shadows `.env.local`.** `process.loadEnvFile()` (both backfill scripts) and Next.js refuse to override an already-set `process.env` var, so a stale key in `~/.zshrc` always wins and OpenRouter answers a bare `User not found.` naming neither the key nor its source. This cost real debugging time on 2026-07-16. If a local AI call 401s while `.env.local` looks right, check the ambient env first: `env -i HOME=$HOME zsh -lic 'echo ${OPENROUTER_API_KEY:-unset}'`.
+**A shell export of `OPENROUTER_API_KEY` silently shadows `.env.local`** — `process.env` wins over the file and OpenRouter answers a bare `User not found.` naming neither the key nor its source. Cost real time twice: 2026-07-16 (a `~/.zshrc` export) and 2026-07-17 (the same dead key still living in an already-running process after `~/.zshrc` was fixed).
+
+- **The scripts are immune as of 2026-07-17.** The backfill scripts call `loadEnvLocal()` (`scripts/env.mjs`) instead of `process.loadEnvFile()`, which refuses to override an already-set var. Use it in any new script under `scripts/`. `.env.local` wins and any conflict prints one line naming both suffixes. They are local-only, so the file is the truth; Vercel has no `.env.local` and is unaffected. `node scripts/env.mjs --self-test` guards it.
+- **`npm run dev` is still exposed** — Next.js will not let a file override `process.env`, and that is correct on Vercel. Don't export LLM keys in your shell; `~/.zshrc:8` carries a comment saying so.
+- **Diagnose the *process*, not the login shell.** `env -i HOME=$HOME zsh -lic 'echo $OPENROUTER_API_KEY'` only proves your rc files are clean — a process that inherited a stale export before you fixed them keeps it until restarted, and that gap is exactly what made this look resolved when it wasn't. Check the env you're actually in (`echo ${OPENROUTER_API_KEY:0:14}`) and compare against `.env.local`. Fix by restarting the process **from a new terminal**; relaunching from the same stale one re-inherits it. `launchctl getenv OPENROUTER_API_KEY` catches the reboot-persistent variant that no rc file shows.
 
 ## Known dead code / drift
 - `components/Aurora.tsx`, `components/error-boundary.tsx`, `components/ui/dropdown-menu.tsx` — unreferenced.
