@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Layer | Choice |
 |---|---|
 | Framework | Next.js 16 (App Router, RSC + route handlers, `proxy.ts` not `middleware.ts`), React 19 |
-| Hosting | Vercel |
+| Hosting | Vercel — **three projects off this one repo** (waitlist / staging / admin), see Deployments |
 | DB + Auth | Supabase (Postgres + Auth + RLS), Google OAuth via `signInWithOAuth` |
 | Realtime | Supabase Realtime (Broadcast + Presence + Postgres Changes) |
 | Authoritative logic | Supabase `security definer` RPCs (Postgres functions; no Edge Functions) |
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | UI | Tailwind v4 + shadcn/ui (`components.json`, style `base-nova`), Lucide, sonner, `next-themes` (dark forced) |
 | Charts | Recharts (`components/elo-graph.tsx`) |
 | Email | Resend (`lib/email.ts`, `app/api/email/{challenge,result}/route.ts`) |
-| Landing FX | `@antoineview/grainient` + `ogl` (`components/Grainient.jsx`) — landing page only |
+| Landing FX | `@antoineview/grainient` + `ogl` (`components/Grainient.jsx`) — landing page only. Mounted `dynamic(ssr:false)` in an `absolute inset-0` layer *behind* the scroll container, so it never appears in server HTML. **Every landing `<section>` must stay transparent** — an opaque `bg-[#120F17]` on one reads as a framed box against the gradient (the hero's did, removed in `320ffc1`). `components/Aurora.tsx` also imports `ogl` and is otherwise dead — deleting it means dropping the dep. |
 
 ## Commands
 
@@ -47,7 +47,7 @@ node scripts/simulate-question-elo.mjs
 - `/lobby` → `/queue` → `/match/[matchId]` → `/result/[matchId]` — the battle loop
 - `/spectate` (live-match browser) → `/spectate/[matchId]` (read-only viewer)
 - `/profile/[username]` — tabs: overview / history / stats / friends; ISR `revalidate=60`
-- `/leaderboard` — top 100 + season banner; ISR `revalidate=60`
+- `/leaderboard` — top 100 + season banner; ISR `revalidate=60`. Public in the real app; auth-gated where `PRIVATE_LEADERBOARD=1` (staging only — see Deployments)
 - `/settings` — display name, password, avatar upload (Storage bucket `avatars`, `${userId}/avatar.*`)
 - `/c/[code]` — friend-challenge accept (15-min expiry)
 - `/admin` — question-bank console (JSON/CSV upload, passage groups, active toggles, per-section STARVED flags); `/admin/waitlist` — signups table. Both gated on `profiles.is_admin`.
@@ -169,8 +169,34 @@ Public pages (leaderboard, profile) use `createPublicClient()` (cookieless, `per
 ## UI
 See `DESIGN.md` — now the accurate shipped system. Essentials: dark-only, page bg `#120F17` (near-black violet, *not* teal), cards `#111111`, mint accent `#06d6a0` as the only CTA color, gold `#ffd166` for ratings, pink `#ef476f` for losses. Type pairing: Geist (body default via `--font-sans`) + Geist Pixel Square (`.font-pixel` display) + Geist Mono for explicit `font-mono` accents. Component code writes raw hex arbitrary values (`text-[#7ab5cc]`) rather than token classes — match that idiom in existing files. Tokens live in `app/globals.css:7-32`; section badge + league color vocabularies in `lib/utils.ts` / `lib/leagues.ts`.
 
+## Deployments (three Vercel projects, one repo — check this before debugging any "it works on X but not Y")
+The repo builds under **three separate Vercel projects**, each with its own env vars. Behaviour differs by *project*, not by branch or `VERCEL_ENV`, and nothing in the code names them — this has burned real debugging time.
+
+| Project | Branch | Serves | Mode |
+|---|---|---|---|
+| `ninjatest` | `main` | `ninjatest.app` → 308 → `www.ninjatest.app` | **waitlist** (`NEXT_PUBLIC_APP_MODE=waitlist` on Production) |
+| `ninjatest-flbe` | `test` | `test.ninjatest.app` **and** `ninjatest-test.vercel.app` | **full app**, deployed as its own *production* |
+| admin console | — | `admin.<domain>`, behind Vercel Authentication | `ADMIN_ENABLED=1` |
+
+Traps, all learned the hard way:
+- **`test.ninjatest.app` is NOT a preview of `ninjatest`.** It is `ninjatest-flbe`'s *production*, so `VERCEL_ENV === "preview"` is false there. Gating staging behaviour on `VERCEL_ENV` is a silent no-op.
+- **`ninjatest-flbe` answers on two public hostnames**, so a hostname check on `test.ninjatest.app` leaves `ninjatest-test.vercel.app` serving the same thing. Gate on a project-scoped env var instead.
+- `ninjatest-flbe` has no `NEXT_PUBLIC_APP_MODE` — undefined `!== "waitlist"`, which is *why* it runs the full app.
+- Per-commit `*.vercel.app` preview URLs are Vercel-SSO-gated; the two hostnames above are not.
+- `vercel env pull` redacts every value to `""`. To find out what a deployment actually does, curl it.
+
 ## Environment
-Used in code: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_MODE`, `RESEND_API_KEY`, `NEXT_PUBLIC_SITE_URL`. Note `.env.local.example` is stale (lists unused `SUPABASE_SERVICE_ROLE_KEY`/`NEXT_PUBLIC_APP_URL`, omits the last three); `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere.
+| Var | Where | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | all | |
+| `NEXT_PUBLIC_APP_MODE` | `ninjatest` Production only | `waitlist` = landing-only front door. Absent everywhere else → full app. |
+| `NEXT_PUBLIC_SITE_URL`, `RESEND_API_KEY` | all | email links + Resend |
+| `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | `lib/ai/model.ts` | Ninja AI |
+| `ADMIN_ENABLED` | admin deployment + `.env.local` | `=1` makes middleware serve **only** the console: `/` → `/admin`, every other path 404s. Set locally, so `/` will NOT render the landing on your dev server — run `ADMIN_ENABLED= npm run dev` to see it. Elsewhere `/admin*` 404s. |
+| `PRIVATE_LEADERBOARD` | `ninjatest-flbe` only (Prod + Preview) | `=1` drops `/leaderboard` from `isPublicRoute` so the staging board isn't publicly browsable. **Never set it on `ninjatest`** — that would make the real leaderboard auth-only and forfeit its ISR caching. |
+| `SUPABASE_SERVICE_ROLE_KEY` | local ingest scripts only | never in app code |
+
+`.env.local.example` is stale (omits most of the above; lists unused `NEXT_PUBLIC_APP_URL`); `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere.
 
 ## Known dead code / drift
 - `components/Aurora.tsx`, `components/error-boundary.tsx`, `components/ui/dropdown-menu.tsx` — unreferenced.
