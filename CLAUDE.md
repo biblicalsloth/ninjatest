@@ -38,6 +38,12 @@ psql "$DB_URL" -v ON_ERROR_STOP=1 -f scripts/elo-stress-test.sql
 
 # Monte-Carlo backing the question-ELO constants (deterministic seed)
 node scripts/simulate-question-elo.mjs
+
+# Question-bank embeddings — idempotent, only picks up `embedding is null`.
+# Re-run after any /admin body edit; the staleness trigger nulls those rows for you.
+node scripts/backfill-embeddings.mjs --self-test   # no network, no env
+node scripts/backfill-embeddings.mjs --dry-run --limit 5
+node scripts/backfill-embeddings.mjs
 ```
 
 ## Routes (actual)
@@ -51,7 +57,9 @@ node scripts/simulate-question-elo.mjs
 - `/settings` — display name, password, avatar upload (Storage bucket `avatars`, `${userId}/avatar.*`)
 - `/c/[code]` — friend-challenge accept (15-min expiry)
 - `/admin` — question-bank console (JSON/CSV upload, passage groups, active toggles, per-section STARVED flags); `/admin/waitlist` — signups table. Both gated on `profiles.is_admin`.
-- `POST /api/waitlist`, `POST /api/email/challenge`, `POST /api/email/result` — the only route handlers; `proxy.ts` matcher excludes `/api`, each handler does its own auth + rate limiting.
+- `POST /api/waitlist`, `POST /api/email/challenge`, `POST /api/email/result` — `proxy.ts` matcher excludes `/api`, each handler does its own auth + rate limiting.
+- `POST /api/ninja/*` — the AI layer (10 handlers). Same rules: no `proxy.ts` coverage, so **every one does its own auth, admin gate, and rate limiting inline**. See Ninja AI below.
+- `/ninja/{chat,solve}` — user-facing AI pages (coach chat; PDF solver).
 
 ## Architecture
 
@@ -69,7 +77,8 @@ node scripts/simulate-question-elo.mjs
 - **Reads** (intentionally anon-callable for logged-out views): `get_leaderboard`, `get_profile`, `get_profile_matches`, `get_recent_matches`, `get_section_stats`, `get_profile_deep_stats`, `get_daily_progress` (auth-only; computes matches/wins today — dailies are derived, no new tables)
 - **Rate limiting**: `check_rate_limit` (per-user, RAISES on exceed), `check_ip_rate_limit` (per-IP, returns retry-after seconds, 0 = ok; granted to anon for unauth routes)
 - **Telemetry**: `log_match_event` (client whitelist: `tab_hidden`/`window_blur`; 40/10s) → `match_events`; server adds `fast_answer` (correct <2s)
-- **Admin** (first statement is an `is_admin` guard): `admin_upsert_questions`, `admin_list_questions`, `admin_set_question_active`, `admin_set_passage_active`, `get_waitlist_admin`
+- **Admin** (first statement is an `is_admin` guard): `admin_upsert_questions`, `admin_list_questions`, `admin_set_question_active`, `admin_set_passage_active`, `get_waitlist_admin`, `admin_set_ai_config`, `admin_suspect_matches`, `admin_update_question_options`
+- **Ninja AI** (final defs: `20260714150000` seed → `20260715050000_ninja_pick_aware` for the ask path → `20260716190000_openrouter_only` for config): `get_ai_config`, `get_question_for_ninja` (participant-only, never an unreached question, **3-attempt ceiling per (match, question, user) — checked pre-spend, it is the cost guard**), `save_ninja_response`/`get_ninja_responses`, `get_debrief_data`/`save_ninja_debrief`/`get_ninja_debrief` (first-write-wins = never re-bill), `get_ninja_daily_focus`/`save_ninja_daily_focus` (1/day), `get_recent_mistakes`, `get_recent_coach_turns`/`get_coach_conversation`/`save_ninja_coach_turn`, `search_questions(p_embedding, p_section, p_limit, p_exclude)` (pgvector cosine; returns **ids + similarity only, never bodies**; `service_role` only and **no consumer wired yet** — takes a server-supplied vector, since an arbitrary caller-supplied one would be a bank-scraping oracle. Read Question embeddings below before granting it to anything)
 - **Trigger**: `handle_new_user` — OAuth-safe (slugified username, collision suffixes, maps Google name/picture; never aborts the auth insert). It does **not** seed `is_admin` — the owner was seeded by a one-time block; grant admin via SQL, not signup logic.
 
 Anon/PUBLIC execute is revoked on all auth-required RPCs (`20260627000200`); internal helpers are revoked from all client roles. Read RPCs stay anon-accessible by design.
@@ -85,7 +94,7 @@ Broadcast = liveness signals. Postgres Changes = authoritative state. DB is sour
 - `profiles` — ELO, peak, W/L/D, `current_streak`/`best_streak`, `is_admin`. Server-owned columns (elo, peak_elo, stats, is_admin) frozen from client UPDATE by RLS WITH CHECK.
 - `matches` — status, frozen `question_ids[9]`, `current_index`, `question_started_at`, running scores, `elo_*_before/after`. `elo_*_before` is **re-synced at finalization** to the true locked base (ratings are relative to finalization, not match creation).
 - `match_answers` — one row per player per question (unique `(match_id,user_id,question_index)`); `selected_index` stores the **canonical** index post-un-shuffle; null = skip.
-- `questions` — no client read; `elo` (seeded `1000 + difficulty×100`), `times_seen`, optional `duration_ms` (overrides section cap), `passage_id` → `passages` (VARC/DILR groups).
+- `questions` — no client read; `elo` (seeded `1000 + difficulty×100`), `times_seen`, optional `duration_ms` (overrides section cap), `passage_id` → `passages` (VARC/DILR groups), `embedding` (pgvector, see below).
 - `matchmaking_queue` — `FOR UPDATE SKIP LOCKED` pairing; partial unique on waiting rows.
 - `section_config` — all scoring dials; **never hardcode scoring constants in app code**. Caps VARC 90s / QUANT 105s / DILR 120s; `reading_ms` (VARC/DILR 60s, QUANT 0) extends the clock of the FIRST question of a passage group in a match (`20260715100000`); `speed_mult` is numeric, tuned for section parity (2.22 / 1.90 / 1.67 → max speed bonus 40 and max 140/question in every section); base 100, grace block 5000ms. `wrong_penalty` column is retired (kept, unread) — the penalty is derived in `submit_answer` since `20260715000000`.
 - `rating_history` — append-only ELO timeline (null match_id = season reset row); powers the profile graph.
@@ -94,6 +103,8 @@ Broadcast = liveness signals. Postgres Changes = authoritative state. DB is sour
 - `friendships` — ordered-pair PK (`user_a < user_b`), status pending/accepted; RLS enabled with **zero policies** (definer RPCs only).
 - `match_events`, `rpc_rate_limit`, `ip_rate_limit` — RLS enabled, zero policies (server-only).
 - `waitlist` — `email` unique + survey fields; anon INSERT-only with validation, no client read, duplicate email is a no-op success. Postgres is the sole store (Google Sheets webhook removed 2026-07-01 after silently 401ing). View in Supabase Studio or `/admin/waitlist`.
+- `ai_config` — **one row** (`id boolean primary key check (id)`), read at request time so an admin model switch needs no deploy. Non-secret routing only; the key lives in env. `provider` was dropped 2026-07-17 — OpenRouter is the only provider. RLS on, zero policies (definer-only).
+- `ninja_responses` / `ninja_debriefs` / `ninja_daily_focus` / `ninja_coach_messages` — Ninja output, all RLS-on/zero-policies (definer-only). The debrief and daily rows are **cost caches, not conveniences**: a repeat read returns the stored row and never re-bills.
 
 ### Scoring (in `submit_answer`, final in `20260715100000`)
 ```
@@ -126,7 +137,17 @@ Calibration report: `scripts/elo-calibration.sql` (read-only; buckets rated matc
 R values are each player's **current** rating read under ordered row locks at finalization (not the match-creation snapshot) — overlapping rated matches chain correctly. Callers pass only the margin factor; all rating math lives in `apply_rated_result`. Draws: one shared delta at `K = least(K_a, K_b)` — strictly zero-sum, clamped to the 100 floor (per-player Ks used to mint ~+11/draw on K-mismatched pairs), reset both streaks. Wins +1 streak / update best; losses/draws zero it; unrated matches touch nothing.
 
 ### Question ELO (adaptive difficulty)
-Nudged on every real answer in a **rated** match inside `submit_answer` (unrated matches never nudge — uncapped unrated challenges were a collusion channel into the bank) — one atomic UPDATE, clamp [400, 2800], K=32 while `times_seen < 20` else 16, result `0.35 × (taken_ms/cap)` for correct / `1.0` for wrong; any implausibly-fast (<2s) answer is excluded, correct or wrong (`fast_answer` telemetry stays correct-only). Selection biases toward the players' average ELO with `random()×300` jitter; VARC/DILR prefer one active passage group (≥3 active sub-questions, nearest mean-ELO) with standalone fallback; QUANT picks 3 standalone. Constants backed by `scripts/simulate-question-elo.mjs`; invariants tested by `scripts/elo-stress-test.sql`.
+Nudged on every real answer in a **rated or bot** match inside `submit_answer` (unrated *player-vs-player* matches never nudge — uncapped unrated challenges were a collusion channel into the bank; you can't collude with the bot, and it's the cold-start tool whose own difficulty reads `q.elo`, so gating it on `is_rated` left the bank frozen at its seeds — `20260716160000`). Only the human's submission nudges in a bot match; `bot_act` deliberately never does, since the bot's answer derives *from* `q.elo`. One atomic UPDATE, clamp [400, 2800], K=32 while `times_seen < 20` else 16, result `0.35 × (taken_ms/cap)` for correct / `1.0` for wrong; any implausibly-fast (<2s) answer is excluded, correct or wrong (`fast_answer` telemetry stays correct-only). Selection biases toward the players' average ELO with `random()×300` jitter; VARC/DILR prefer one active passage group (≥3 active sub-questions, nearest mean-ELO) with standalone fallback; QUANT picks 3 standalone. Constants backed by `scripts/simulate-question-elo.mjs`; invariants tested by `scripts/elo-stress-test.sql`.
+
+### Question embeddings (pgvector, `20260716180000`)
+**The single source of truth for embeddings — everything else on the topic points here.**
+
+`questions.embedding vector(1536)` — `openai/text-embedding-3-small` over `body` only, via **OpenRouter** on the same key and base URL as every chat call. It proxies OpenAI's embedding models on `/api/v1/embeddings` even though its `/api/v1/models` catalog lists **zero** of them, so a catalog search is not evidence it's unsupported. Both `openai/text-embedding-3-small` and the bare `text-embedding-3-small` return 200/1536-d (verified 2026-07-17) — the prefixed id is a consistency choice, not a requirement; earlier docs claiming the bare name 404s were wrong. Anthropic publishes no embedding model at all, so there is no Claude option for this slot; `ai_config` governs the *chat* model (GLM) and is unrelated. Changing the model means a migration + full re-embed, not a config edit.
+
+- **`scripts/backfill-embeddings.mjs` is the only writer.** Idempotent — selects `embedding is null` only, so re-running it *is* the repair path. `embedInput()` is the contract: read-time query embedding **must** call it or the query vector lands in a different space and similarity is quietly garbage. Guarded by `isMain`, so importing that function doesn't trigger a backfill.
+- **Staleness is a trigger, not a caller's job.** `questions_null_stale_embedding_trg` (`before update of body`) nulls the embedding on any real body change, from any writer — `admin_upsert_questions`, `admin_update_question_options`, and anything future. It doesn't fire on `submit_answer`'s elo/times_seen UPDATE, so the match hot path pays nothing.
+- **`search_questions(embedding, section, limit, exclude)` returns IDS ONLY, never bodies** — and is granted to `service_role` only. `questions` is RLS `using(false)` and every body-serving RPC is reached-guarded; an endpoint returning question text for a caller-supplied embedding is a bank-scraping oracle. **No consumer is wired yet.** When one is: pass a server-derived embedding, not caller-supplied text (the similarity score is a "how close is my guess" oracle even without bodies), and note Supabase's default privileges grant EXECUTE to `authenticated` on every new function — revoking `public, anon` alone leaves that standing.
+- **Storage is `PLAIN`, deliberately.** pgvector defaults vector columns to EXTERNAL, putting every 6148-byte embedding in TOAST; the exact scan then pays a detoast per row (75ms → 12ms for one ALTER, measured at 1247 rows). No HNSW index — exact search has no recall loss and doesn't earn one at this size.
 
 ### Option-shuffle invariant (critical)
 `option_perm(match_id, user_id, q_index, n)` — IMMUTABLE md5-based deterministic permutation. Three functions must share it: `get_match_question` (serves shuffled), `submit_answer` (maps display → canonical), `get_answer_reveal` (maps canonical correct → display). **Never change one without the other two.** Migration `20260713030000` recreated the readers from a pre-shuffle base and silently desynced scoring (fixed `20260713040000`); section 2 of `elo-stress-test.sql` guards this.
@@ -144,13 +165,28 @@ Pure computed ELO tiers, no table (`lib/leagues.ts`): Diamond ≥2100, Platinum 
 ### Email routes (auth checks matter)
 `/api/email/challenge` verifies the caller **owns** the challenge and it isn't expired; `is_rated` read from DB, never the client. `/api/email/result` verifies the caller is a match participant and sends only to the caller's auth email. Don't relax these — the open-relay variant was a real finding.
 
+### Ninja AI (`lib/ai/*`, `app/api/ninja/*`, `ai_config`)
+**One provider: OpenRouter. One key: `OPENROUTER_API_KEY`.** There is no OpenAI-direct path — `ai_config.provider` and the `getModel(provider, id)` switch were removed in `20260716190000_openrouter_only`. Switching upstream = editing the model id in `/admin` (`z-ai/…`, `google/…`, `openai/…`), no deploy. `@ai-sdk/openai` is still the client package: OpenRouter speaks the OpenAI wire format, so the package name is about protocol, not billing.
+
+**`ai_config` is a one-row table read at request time.** Live: `model_id = z-ai/glm-5.2`, `fallback_model_id = null`, `temperature 0.3`, `max_tokens 4000`. Every route does `[model_id, fallback_model_id].filter(Boolean)` and loops, so a null fallback is just a one-element list.
+
+**Why no fallback model.** OpenRouter already load-balances and fails over across **28 upstream providers** for `z-ai/glm-5.2` alone, so a cross-model fallback adds no availability — only a second model whose answers differ from the one you evaluated. The original seeded fallback (`google/gemini-2.0-flash-001`) was **silently delisted**, which made every fallback loop a guaranteed throw and turned "fallback" into a 502. **Check any model id against `curl https://openrouter.ai/api/v1/models` before pinning it — nothing validates it at startup.**
+
+**glm-5.2 emits reasoning tokens. This is the #1 footgun here.** They bill as completion ($2.97/Mtok) *and* consume `maxOutputTokens` **before** any answer text. Measured: "2+2" → 83 reasoning of 108 completion; a real CAT quant solve → 224 of 417; at a 300 cap, `content` came back **null**. So **never size `maxOutputTokens` to the visible answer** — leave room for the trace and truncate the text afterward (`/api/ninja/daily` does exactly this: it needs one 140-char line but asks for `max(max_tokens, 1200)`). `reasoning:{enabled:false}` cuts a solve 68% and still answers correctly; deliberately NOT enabled — it's an unmeasured quality trade on hard DILR/Quant. `effort:"low"` does nothing useful.
+
+**glm-5.2 is text-only.** `/api/ninja/{solve,extract}` send PDF file parts, so OpenRouter transparently runs its default **mistral-ocr** shim: **$2/1000 pages on top of tokens**, ~38% of a solve's cost and the most expensive thing in the repo. Escape hatches in `lib/ai/extract.ts`.
+
+**Cost shape** (measured 2026-07-16, glm-5.2 at $0.944/$2.97 per Mtok): ask ~$0.0012–0.003/call · debrief ~$0.0014 (cached per match, first-write-wins) · daily ~$0.0008 (cached 1/day) · coach **$0.007–0.043** (agentic, `stepCountIs(6)`, replays the transcript each step — cost is quadratic in turns, and `get_my_profile` returns an *unbounded* rating curve) · solve **$0.06–$0.31** per PDF (15 chunks at 60 pages) — the single most expensive user action. Every route is rate-limited per-user **and** per-IP, fail-closed; `ask` is additionally capped at 3 attempts per (match, question, user) in `get_question_for_ninja`, which is the only thing making its 15/min limiter safe. Don't remove it.
+
+**Embeddings also go through OpenRouter** — same key, same base URL, `openai/text-embedding-3-small`. So this section's "one provider, one key" rule covers the whole AI surface, chat and embeddings alike. Everything else about them (why the catalog lists none, why there's no Claude option, the `embedInput` contract, the ids-only search rule) lives in **Question embeddings** above — one place, don't restate it here.
+
 ### Caching pattern
 Public pages (leaderboard, profile) use `createPublicClient()` (cookieless, `persistSession:false`) + `revalidate=60` ISR; "(you)" highlighting is resolved client-side to keep the page cacheable. Auth-dependent pages are `force-dynamic`.
 
 ## RLS rules
 - `questions` / `passages`: `using (false)` — served only via definer RPCs.
 - `profiles`: world-readable; self-update with server-owned columns frozen via WITH CHECK.
-- `matches` / `match_answers`: participants only. `rating_history`: own rows. `seasons`/`season_results`/`section_config`: public read.
+- `matches`: participants only. `match_answers`: **own rows only** (`20260716160000`) — the old participants-scoped policy let you read the *opponent's* row while the question was still open, and TITA's `answer_text` is plaintext, so whoever answered first handed the other the answer. Never widen it back: every opponent-facing read (`get_answer_reveal`, `get_debrief_data`, the spectator RPCs) is definer and bypasses RLS. `rating_history`: own rows. `seasons`/`season_results`/`section_config`: public read.
 - `matchmaking_queue` / `challenges`: own rows (challenges also readable when open+unexpired for accept flow).
 - `friendships`, `match_events`, `rpc_rate_limit`, `ip_rate_limit`: RLS on, zero policies — definer-only.
 - `waitlist`: validated anon INSERT only (INSERT-not-UPDATE means resubmits can't overwrite rows).
@@ -184,15 +220,15 @@ The repo builds under **three separate Vercel projects**, each with its own env 
 
 | Push to | `ninjatest` | `ninjatest-flbe` |
 |---|---|---|
-| `main` | cancelled by the guard | **production** → `test.ninjatest.app` |
-| `test` | cancelled by the guard | preview → `ninjatest-flbe-git-test-*.vercel.app` (Vercel-SSO-gated) |
+| `main` | **cancelled** by the guard — production stays frozen | **production** → `test.ninjatest.app` |
+| `test` (or any branch) | preview → `ninjatest-git-*.vercel.app` (Vercel-SSO-gated) | preview → `ninjatest-flbe-git-test-*.vercel.app` (Vercel-SSO-gated) |
 
 So the only place `test`-branch code is viewable is that SSO-gated preview URL, behind your Vercel login. The branch is kept for short-lived work; to put something in front of `test.ninjatest.app`, it has to land on `main`.
 
 ### Release flow (deliberately one-way)
-A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard: it exits 0 (skip) for every project except staging, so `ninjatest` Git builds are cancelled and production is frozen until promoted by hand.
+A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard — it exits 0 (skip) / 1 (build), and skips exactly one thing: a **production** build of **`ninjatest`** without the escape hatch. Everything else builds, previews included.
 
-It is written as an **allowlist for `ninjatest-flbe`**, not a blocklist for `ninjatest`, and that direction is load-bearing: `vercel.json` is shared by both projects, and if `VERCEL_PROJECT_ID` were ever unavailable a blocklist would fail *open* and auto-deploy production. This fails closed — nothing builds, which is loud and safe. Keep the guard here, not in project settings: the dashboard's Ignored Build Step is deliberately unset so there is exactly one source of truth.
+Both allowlist tests (`= preview`, and staging by project id) are written that way rather than as blocklists (`!= production`, `!= ninjatest`), and the direction is load-bearing: `vercel.json` is shared by both projects, so if `VERCEL_PROJECT_ID` or `VERCEL_ENV` were ever unavailable, a blocklist would fail *open* and auto-deploy production. This fails closed — the production path skips, which is loud and safe. Keep the guard here, not in project settings: the dashboard's Ignored Build Step is deliberately unset so there is exactly one source of truth.
 
 Verify what you shipped on `test.ninjatest.app`, then go live **once**:
 1. Add `ALLOW_PROD_DEPLOY=1` to `ninjatest` Production (the `ignoreCommand` escape hatch).
@@ -218,13 +254,15 @@ Traps, all learned the hard way:
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | all | |
 | `NEXT_PUBLIC_APP_MODE` | `ninjatest` Production only | `waitlist` = landing-only front door. Absent everywhere else → full app. |
 | `NEXT_PUBLIC_SITE_URL`, `RESEND_API_KEY` | all | email links + Resend |
-| `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | `lib/ai/model.ts` | Ninja AI |
+| `OPENROUTER_API_KEY` | `lib/ai/model.ts`, both backfill scripts | **The only LLM key.** Every Ninja call — chat *and* embeddings — routes through OpenRouter. There is no OpenAI-direct path; switching upstream = changing the model id prefix in `/admin` (`z-ai/…`, `google/…`, `openai/…`). |
 | `ADMIN_ENABLED` | admin deployment + `.env.local` | `=1` makes middleware serve **only** the console: `/` → `/admin`, every other path 404s. Set locally, so `/` will NOT render the landing on your dev server — run `ADMIN_ENABLED= npm run dev` to see it. Elsewhere `/admin*` 404s. |
 | `PRIVATE_LEADERBOARD` | `ninjatest-flbe` only (Prod + Preview) | `=1` drops `/leaderboard` from `isPublicRoute` so the staging board isn't publicly browsable. **Never set it on `ninjatest`** — that would make the real leaderboard auth-only and forfeit its ISR caching. |
 | `ALLOW_PROD_DEPLOY` | `ninjatest` Production, **only while promoting** | `=1` bypasses `vercel.json`'s `ignoreCommand` so production actually builds. Read by the build guard, not by app code. Remove it after the deploy or production is auto-deploying again. |
 | `SUPABASE_SERVICE_ROLE_KEY` | local ingest scripts only | never in app code |
 
-`.env.local.example` is stale (omits most of the above; lists unused `NEXT_PUBLIC_APP_URL`); `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere.
+`.env.local.example` is current as of 2026-07-17 (rewritten to match this table; the unused `NEXT_PUBLIC_APP_URL` is gone). `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere — safe to delete.
+
+**A shell export of `OPENROUTER_API_KEY` silently shadows `.env.local`.** `process.loadEnvFile()` (both backfill scripts) and Next.js refuse to override an already-set `process.env` var, so a stale key in `~/.zshrc` always wins and OpenRouter answers a bare `User not found.` naming neither the key nor its source. This cost real debugging time on 2026-07-16. If a local AI call 401s while `.env.local` looks right, check the ambient env first: `env -i HOME=$HOME zsh -lic 'echo ${OPENROUTER_API_KEY:-unset}'`.
 
 ## Known dead code / drift
 - `components/Aurora.tsx`, `components/error-boundary.tsx`, `components/ui/dropdown-menu.tsx` — unreferenced.
