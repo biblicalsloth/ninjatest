@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
 import { runCoach, PLAN_SYSTEM, SOCRATIC_SYSTEM } from "@/lib/ai/coach";
+import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 // Ninja Coach: freeform "how am I doing / what should I work on" Q&A. The model
 // autonomously pulls the caller's own stats (tools bound to their username
@@ -11,6 +12,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (await inLiveMatch(supabase, user.id)) {
+    return NextResponse.json({ error: LIVE_MATCH_ERROR }, { status: 403 });
+  }
 
   // Metered LLM: fail-closed so a limiter blip can't become an unmetered-spend hole.
   const rl = await rateLimitDb(supabase, user.id, "ninja-coach-user", { limit: 10, windowSeconds: 3600, failClosed: true });

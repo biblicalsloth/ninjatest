@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
 import { extractQuestions } from "@/lib/ai/extract";
+import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 export const runtime = "nodejs";   // pdf-lib needs Node
 export const maxDuration = 300;    // many chunks × LLM calls
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (await inLiveMatch(supabase, user.id)) {
+    return NextResponse.json({ error: LIVE_MATCH_ERROR }, { status: 403 });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;

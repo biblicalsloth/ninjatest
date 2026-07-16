@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { getModel, type AiConfig } from "@/lib/ai/model";
+import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 // Ninja daily focus: one personalized challenge line per day, cached in
 // ninja_daily_focus. Single cheap non-agentic call — the route fetches the
@@ -15,6 +16,14 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // No LLM call of any kind while the caller is in a match. This one takes no
+  // user input, so it isn't a cheat channel like coach/solve — it's here for one
+  // rule, one place. The client reads the cache itself and hides on non-ok, so a
+  // 403 mid-match costs nothing.
+  if (await inLiveMatch(supabase, user.id)) {
+    return NextResponse.json({ error: LIVE_MATCH_ERROR }, { status: 403 });
+  }
 
   const rl = await rateLimitDb(supabase, user.id, "ninja-daily-user", { limit: 4, windowSeconds: 3600, failClosed: true });
   const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-daily-ip", { limit: 30, windowSeconds: 3600, failClosed: true });

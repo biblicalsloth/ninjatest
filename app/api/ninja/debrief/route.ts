@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { getModel, type AiConfig } from "@/lib/ai/model";
+import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 // Post-match debrief: one cached AI analysis per player per match. The data
 // RPC enforces participant + finished; the save RPC is first-write-wins, so a
@@ -20,6 +21,15 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Same shape as the ask gate: get_debrief_data's 'match not finished' raise
+  // only inspects the match the request NAMES, so it stops a debrief of the
+  // CURRENT match and nothing else. Mid-match, a debrief of an OLD finished
+  // match passes it — an LLM call while the caller is in a match. The rule keys
+  // on the CALLER, not the named match. Don't delete this as duplicate cover.
+  if (await inLiveMatch(supabase, user.id)) {
+    return NextResponse.json({ error: LIVE_MATCH_ERROR }, { status: 403 });
+  }
 
   const rl = await rateLimitDb(supabase, user.id, "ninja-debrief-user", { limit: 6, windowSeconds: 60, failClosed: true });
   const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-debrief-ip", { limit: 12, windowSeconds: 60, failClosed: true });

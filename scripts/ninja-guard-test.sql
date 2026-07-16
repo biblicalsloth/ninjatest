@@ -17,6 +17,9 @@
 --   5. the 3-attempt re-ask cap holds (the cost guard)
 --   6. every ask is refused while the match is still active
 --   7. both Ninja reads branch on qtype, so TITA isn't prompted with a blank key
+--   8. a caller can see their own live match row under RLS — the data source
+--      behind lib/ai/live-match.ts::inLiveMatch, which gates all five
+--      user-facing routes (ask, debrief, coach, solve, daily)
 -- =========================================================
 begin;
 
@@ -187,6 +190,37 @@ begin
     raise notice 'PASS 7: get_recent_mistakes reports TITA answers, not nulls-and-skips';
   end;
 
+  -- 8. lib/ai/live-match.ts::inLiveMatch reads `matches` through RLS to gate
+  -- /api/ninja/{ask,coach,solve,daily,debrief} — coach and solve are the
+  -- free-text routes a player could otherwise paste a live question into from a
+  -- second tab; ask and debrief are gated because their per-match RPC guards
+  -- (section 6's 'match still active', 'match not finished') only inspect the
+  -- match the REQUEST NAMES — mid-match, one aimed at an OLD completed match
+  -- passes them. daily rides the same rule for one definition.
+  -- It has no RPC to guard it, so assert its data source:
+  -- the caller must be able to SEE their own live match row through RLS. That is
+  -- the whole property — inLiveMatch filters by the caller's own id, so a leaked
+  -- row can't reach it, but a HIDDEN own row silently returns "not in a match"
+  -- and fails the gate OPEN, which is the cheat.
+  -- Runs under the real `authenticated` role — the rest of this harness is owner
+  -- and bypasses RLS entirely (same trick as elo-stress-test section 9).
+  declare lmid2 uuid; seen int;
+  begin
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (ua, ub, 'active', false, qids, 1200, 1200, 2, now())
+    returning id into lmid2;
+
+    set local role authenticated;
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+    select count(*) into seen from matches
+    where (player_a = ua or player_b = ua) and status in ('active', 'pending');
+    if seen = 0 then
+      raise exception 'FAIL: participant cannot see their own live match under RLS — inLiveMatch fails open';
+    end if;
+    reset role;
+    raise notice 'PASS 8: live-match visibility under RLS backs the ask/coach/solve/daily/debrief gate';
+  end;
 end $$;
 
 rollback;

@@ -3,11 +3,22 @@ import { generateText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { getModel, buildQuestionPrompt, type AiConfig } from "@/lib/ai/model";
+import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // NOT redundant with get_question_for_ninja's 'match still active' raise: that
+  // guard only looks at the match the ask NAMES. Mid-match, an ask against an
+  // OLD completed match passes it — tab two, an LLM solving CAT questions while
+  // your live match runs. The rule is no LLM while the caller is in a match,
+  // whichever match the ask names, so it keys on the caller. Don't delete this as
+  // duplicate cover. One indexed read before a metered LLM call.
+  if (await inLiveMatch(supabase, user.id)) {
+    return NextResponse.json({ error: LIVE_MATCH_ERROR }, { status: 403 });
+  }
 
   const rl = await rateLimitDb(supabase, user.id, "ninja-ask-user", { limit: 15, windowSeconds: 60, failClosed: true });
   const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-ask-ip", { limit: 30, windowSeconds: 60, failClosed: true });
