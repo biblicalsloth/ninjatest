@@ -231,7 +231,7 @@ export default function LandingClient() {
           </nav>
 
           {/* ── S1: Hero ── */}
-          <section className="relative overflow-hidden bg-[#120F17]">
+          <section className="relative overflow-hidden">
             <div data-parallax="0.07" style={{ willChange: "transform" }} className="relative z-10 px-10 pt-14 pb-10">
               <div className="inline-flex items-center gap-2.5 bg-[#06d6a0]/8 border border-[#06d6a0]/20 rounded-full pl-2 pr-4 py-1.5 mb-8">
                 <span className="w-5 h-5 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden animate-spin-slow">
