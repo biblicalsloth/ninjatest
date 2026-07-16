@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import type { AiConfig } from "@/lib/ai/model";
 
 // Admin panel for the Ninja model. Writes ai_config; a change takes effect on
-// the next /api/ninja/ask with no deploy. Keys stay in env — configured here is
-// only which provider/model to route to.
+// the next /api/ninja/ask with no deploy. The key stays in env — configured
+// here is only which OpenRouter model to route to. Every model goes through
+// OpenRouter, so switching upstream means changing the model id prefix
+// (z-ai/…, google/…, openai/…), not a provider setting.
 export function AdminAiConfig() {
   const [cfg, setCfg] = useState<AiConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -25,7 +27,6 @@ export function AdminAiConfig() {
     const supabase = createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc("admin_set_ai_config", {
-      p_provider: cfg.provider,
       p_model_id: cfg.model_id,
       p_fallback_model_id: cfg.fallback_model_id,
       p_enabled: cfg.enabled,
@@ -54,25 +55,16 @@ export function AdminAiConfig() {
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <span className={label}>Provider</span>
-          <select value={cfg.provider} onChange={(e) => set({ provider: e.target.value as AiConfig["provider"] })} className={input}>
-            <option value="openrouter">OpenRouter</option>
-            <option value="openai">OpenAI</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <span className={label}>Model ID</span>
-          <input value={cfg.model_id} onChange={(e) => set({ model_id: e.target.value })} className={input}
-            placeholder="openai/gpt-4o-mini" />
-        </div>
+      <div className="space-y-1">
+        <span className={label}>Model ID</span>
+        <input value={cfg.model_id} onChange={(e) => set({ model_id: e.target.value })} className={input}
+          placeholder="z-ai/glm-5.2" />
       </div>
 
       <div className="space-y-1">
-        <span className={label}>Fallback model (optional)</span>
+        <span className={label}>Fallback model (optional — normally empty)</span>
         <input value={cfg.fallback_model_id ?? ""} onChange={(e) => set({ fallback_model_id: e.target.value || null })}
-          className={input} placeholder="anthropic/claude-3.5-sonnet" />
+          className={input} placeholder="leave empty — OpenRouter fails over within the model" />
       </div>
 
       <div className="space-y-1">

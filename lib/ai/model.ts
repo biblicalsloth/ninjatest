@@ -1,13 +1,17 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
-// Provider switch driven by ai_config. OpenRouter is OpenAI-compatible, so one
-// provider package covers both — OpenRouter via a custom baseURL, OpenAI direct
-// via the default. Add a new provider by extending the switch, not the callers.
-// ponytail: two providers, one package; add @ai-sdk/anthropic etc. only if a
-// non-OpenAI-compatible provider is ever needed.
+// Every Ninja model call goes through OpenRouter. One key (OPENROUTER_API_KEY),
+// one bill, one code path — model_id/fallback_model_id in ai_config pick the
+// model, and OpenRouter picks the upstream. @ai-sdk/openai is the client here
+// because OpenRouter speaks the OpenAI wire format; the package name is about
+// protocol, not about who bills us.
+//
+// ponytail: no provider switch. The old one branched to OpenAI direct and was
+// never used (the live row has been 'openrouter' since it was seeded), and it
+// cost a second API key everywhere. Routing to a different upstream is what
+// OpenRouter is for — prefix the model id (openai/…, google/…, anthropic/…).
 export interface AiConfig {
-  provider: "openrouter" | "openai";
   model_id: string;
   fallback_model_id: string | null;
   enabled: boolean;
@@ -16,15 +20,12 @@ export interface AiConfig {
   max_tokens: number;
 }
 
-export function getModel(provider: AiConfig["provider"], modelId: string): LanguageModel {
-  if (provider === "openrouter") {
-    const key = process.env.OPENROUTER_API_KEY;
-    if (!key) throw new Error("OPENROUTER_API_KEY not set");
-    return createOpenAI({ baseURL: "https://openrouter.ai/api/v1", apiKey: key }).chat(modelId);
-  }
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY not set");
-  return createOpenAI({ apiKey: key }).chat(modelId);
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+export function getModel(modelId: string): LanguageModel {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY not set");
+  return createOpenAI({ baseURL: OPENROUTER_BASE_URL, apiKey: key }).chat(modelId);
 }
 
 // Build the user prompt from the (server-fetched) question. Correct answer +

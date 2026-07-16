@@ -59,11 +59,15 @@ export async function POST(req: NextRequest) {
   for (const modelId of models) {
     try {
       const res = await generateText({
-        model: getModel(config.provider, modelId),
+        model: getModel(modelId),
         system: DAILY_SYSTEM,
         prompt,
         temperature: config.temperature,
-        maxOutputTokens: 200,
+        // Not 200. The output is one ~140-char line, but reasoning models spend
+        // the output budget thinking BEFORE emitting any text — z-ai/glm-5.2
+        // burns ~224 reasoning tokens on a trivial prompt, so a 200 cap returned
+        // an empty string every time. The line is truncated below anyway.
+        maxOutputTokens: Math.max(config.max_tokens, 1200),
       });
       text = res.text.trim().split("\n")[0].slice(0, 200);
       usedModel = modelId;

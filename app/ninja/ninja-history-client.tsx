@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Loader2, MessageSquare } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
-import { openNinjaCoach } from "@/lib/ninja";
 
 interface Item {
   kind: "coach" | "debrief" | "response";
@@ -65,14 +64,22 @@ export default function NinjaHistoryClient() {
         <NinjaLogo color="#06d6a0" className="w-12 h-12" />
         <p className="text-white text-lg font-semibold">No Ninja history yet</p>
         <p className="text-[#7ab5cc] text-sm max-w-sm">
-          Ask Ninja about your stats, or generate a debrief after a match — everything shows up here.
+          Ask Ninja about your stats, solve a paper, or generate a debrief after a match — everything shows up here.
         </p>
-        <button
-          onClick={openNinjaCoach}
-          className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
-        >
-          Ask Ninja
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/ninja/chat"
+            className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
+          >
+            Start a chat
+          </Link>
+          <Link
+            href="/ninja/solve"
+            className="rounded-full border border-[#06d6a0]/50 px-5 py-2.5 text-[#06d6a0] font-semibold hover:bg-[#06d6a0]/10 transition"
+          >
+            Solve a paper
+          </Link>
+        </div>
       </div>
     );
   }
@@ -84,6 +91,18 @@ export default function NinjaHistoryClient() {
       <div className="flex items-center gap-2 mb-6">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
         <h1 className="text-white text-xl font-semibold">Ninja AI</h1>
+        <Link
+          href="/ninja/chat"
+          className="ml-auto rounded-full bg-[#06d6a0] px-4 py-1.5 text-[#073b4c] text-sm font-semibold hover:brightness-105 transition"
+        >
+          New chat
+        </Link>
+        <Link
+          href="/ninja/solve"
+          className="rounded-full border border-[#06d6a0]/50 px-4 py-1.5 text-[#06d6a0] text-sm font-semibold hover:bg-[#06d6a0]/10 transition"
+        >
+          Solve a paper
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4">

@@ -153,6 +153,8 @@ function UploadPanel({ onUpserted }: { onUpserted: () => void }) {
   const [parseError, setParseError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<UpsertResult | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const flat = useMemo(() => (groups ? flattenQuestions(groups) : []), [groups]);
   const errorRows = useMemo(() => {
@@ -165,7 +167,31 @@ function UploadPanel({ onUpserted }: { onUpserted: () => void }) {
     setResult(null);
     setParseError(null);
     setGroups(null);
+    setWarnings([]);
     setFileName(file.name);
+    const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    if (isPdf) {
+      // PDF → Ninja AI extractor (multimodal). Slow (per-chunk LLM calls); the
+      // route returns groups shaped exactly like the JSON/CSV parsers, so the
+      // existing preview + upsert flow handles the rest unchanged.
+      setExtracting(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/ninja/extract", { method: "POST", body: fd });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+        const parsed = (data.groups ?? []) as GroupInput[];
+        if (parsed.length === 0) throw new Error("No questions extracted from that PDF");
+        setGroups(parsed);
+        setWarnings((data.warnings ?? []) as string[]);
+      } catch (e) {
+        setParseError((e as Error).message);
+      } finally {
+        setExtracting(false);
+      }
+      return;
+    }
     try {
       const text = await file.text();
       const isCsv = file.name.toLowerCase().endsWith(".csv");
@@ -231,22 +257,31 @@ function UploadPanel({ onUpserted }: { onUpserted: () => void }) {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
+          if (extracting) return;
           const f = e.dataTransfer.files?.[0];
           if (f) handleFile(f);
         }}
-        onClick={() => fileRef.current?.click()}
+        onClick={() => { if (!extracting) fileRef.current?.click(); }}
         className={`rounded-lg border border-dashed p-8 text-center cursor-pointer transition-colors ${
           dragging ? "border-[#06d6a0] bg-[#06d6a0]/5" : "border-[#333333] hover:border-[#4a8fa8]"
         }`}
       >
-        <Upload className="mx-auto text-[#7ab5cc] mb-2" size={22} />
+        {extracting
+          ? <Loader2 className="mx-auto text-[#06d6a0] mb-2 animate-spin" size={22} />
+          : <Upload className="mx-auto text-[#7ab5cc] mb-2" size={22} />}
         <p className="text-[#c5e8f0] text-sm">
-          {fileName ? <span className="text-white">{fileName}</span> : "Drop a .json or .csv file, or click to pick"}
+          {extracting
+            ? <span className="text-white">Ninja is reading {fileName}… (this can take a minute)</span>
+            : fileName ? <span className="text-white">{fileName}</span>
+            : "Drop a .json, .csv, or .pdf file, or click to pick"}
         </p>
+        {!extracting && !fileName && (
+          <p className="text-[#7ab5cc] text-xs mt-1">PDFs are read by Ninja AI into reviewable questions</p>
+        )}
         <input
           ref={fileRef}
           type="file"
-          accept=".json,.csv,application/json,text/csv"
+          accept=".json,.csv,.pdf,application/json,text/csv,application/pdf"
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
         />
@@ -255,6 +290,13 @@ function UploadPanel({ onUpserted }: { onUpserted: () => void }) {
       {parseError && (
         <div className="rounded-lg border border-[#ef476f]/40 bg-[#ef476f]/10 px-4 py-3 text-[#ef476f] text-sm">
           {parseError}
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="rounded-lg border border-[#ffd166]/40 bg-[#ffd166]/10 px-4 py-3 text-[#ffd166] text-xs space-y-0.5">
+          <p className="font-semibold">Some pages could not be read — review before uploading:</p>
+          <ul className="space-y-0.5">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
         </div>
       )}
 

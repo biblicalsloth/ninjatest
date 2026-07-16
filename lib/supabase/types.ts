@@ -362,11 +362,15 @@ export type Challenge = Database["public"]["Tables"]["challenges"]["Row"];
 export type Question = Database["public"]["Tables"]["questions"]["Row"];
 export type SectionConfig = Database["public"]["Tables"]["section_config"]["Row"];
 
+export type QuestionType = "mcq" | "tita";
+
 export interface MatchQuestion {
   question_id: string;
   section: CatSection;
   body: string;
+  /** empty for tita — the answer is typed, not picked */
   options: string[];
+  qtype: QuestionType;
   cap_ms: number;
   started_at: string;
   passage: string | null;

@@ -26,6 +26,12 @@
 --      reports whether a row was cancelled; queue_heartbeat liveness
 --  12. passage reading time: question_cap_ms extends only the passage
 --      opener's clock; the reading window never inflates the speed bonus
+--  13. TITA: no options, wrong = 0 (no negative marking), blank = skip,
+--      numeric tolerance, reveal; finalize_match's TITA margin span
+--  14. answer privacy (own-rows RLS), bot matches calibrate the question
+--      bank, bot skip discipline on MCQ / never on TITA
+--  15. the bot is absent from every list of real users: leaderboard,
+--      friend search, spectate browser
 --
 -- Note on timing: now() is frozen inside a transaction, so every submit lands
 -- at taken_ms = 0. That makes all of A's correct answers 'fast_answer'
@@ -769,6 +775,393 @@ begin
 
   perform set_config('request.jwt.claims', null, true);
   raise notice 'PASS 12: passage reading time — opener cap extended, bonus not inflated';
+end $$;
+
+-- ── 13. TITA (type-in-the-answer) questions (20260716130000) ────────────────
+-- TITA has no options and NO negative marking. Guards:
+--   a. get_match_question serves options=[] + qtype='tita' (never answer_value)
+--   b. correct typed answer scores base + max bonus (parity with MCQ: 140)
+--   c. WRONG typed answer scores 0 — never the MCQ derived penalty. A regression
+--      here (e.g. reusing the /(n_opts-1) branch) divides by -1 and REWARDS a
+--      wrong answer.
+--   d. blank/whitespace entry is a skip (answer_text null), not a wrong answer
+--   e. numeric tolerance: '50.0' == '50'
+--   f. reveal exposes answer_value + my_answer_text; correct_index is null
+do $$
+declare
+  ug uuid := gen_random_uuid();
+  uh uuid := gen_random_uuid();
+  qids uuid[]; mid3 uuid;
+  opts jsonb; v_qtype text;
+  r match_answers%rowtype;
+  rev record;
+  cfg section_config%rowtype;
+  maxpts int;
+begin
+  insert into auth.users (id, aud, role, email)
+  values (ug, 'authenticated', 'authenticated', 'stress-g@test.local'),
+         (uh, 'authenticated', 'authenticated', 'stress-h@test.local');
+  insert into profiles (id, username, display_name)
+  values (ug, 'stress_g', 'G'), (uh, 'stress_h', 'H')
+  on conflict (id) do nothing;
+
+  insert into questions (section, difficulty, body, options, correct_index, explanation, elo, qtype, answer_value)
+  select 'QUANT', 3, 'stress tita' || g, '[]'::jsonb, 0, 'because', 1200, 'tita', '50'
+  from generate_series(1, 9) g;
+  select array_agg(id order by body) into qids from questions where body like 'stress tita%';
+
+  select * into cfg from section_config where section = 'QUANT';
+  maxpts := cfg.base_points + round(cfg.speed_mult * floor(cfg.cap_ms::numeric / cfg.grace_block_ms))::int;
+
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (ug, uh, 'active', false, qids, 1000, 1000, 0, now())
+  returning id into mid3;
+
+  -- (a) no options, qtype flagged
+  perform set_config('request.jwt.claims', json_build_object('sub', ug, 'role', 'authenticated')::text, true);
+  select options, qtype into opts, v_qtype from get_match_question(mid3, 0::smallint);
+  if v_qtype <> 'tita' then raise exception '13a: qtype % <> tita', v_qtype; end if;
+  if jsonb_array_length(opts) <> 0 then
+    raise exception '13a: tita served % options (want 0)', jsonb_array_length(opts);
+  end if;
+
+  -- (b) correct typed answer -> base + max bonus, stored as text, no option index
+  perform submit_answer(mid3, 0::smallint, null::smallint, '50');
+  select * into r from match_answers where match_id = mid3 and user_id = ug and question_index = 0;
+  if not r.is_correct then raise exception '13b: correct tita answer scored WRONG'; end if;
+  if r.points_awarded <> maxpts then
+    raise exception '13b: correct tita scored % (want % = base + max bonus)', r.points_awarded, maxpts;
+  end if;
+  if r.answer_text is distinct from '50' then raise exception '13b: answer_text % not persisted', r.answer_text; end if;
+  if r.selected_index is not null then raise exception '13b: tita stored a selected_index'; end if;
+
+  -- (c) wrong typed answer -> exactly 0. NEVER negative, never positive.
+  perform set_config('request.jwt.claims', json_build_object('sub', uh, 'role', 'authenticated')::text, true);
+  perform submit_answer(mid3, 0::smallint, null::smallint, '51');
+  select * into r from match_answers where match_id = mid3 and user_id = uh and question_index = 0;
+  if r.is_correct then raise exception '13c: wrong tita answer scored CORRECT'; end if;
+  if r.points_awarded <> 0 then
+    raise exception '13c: wrong tita scored % (want 0 — TITA has no negative marking)', r.points_awarded;
+  end if;
+
+  -- (d) blank entry is a skip, not a wrong answer
+  perform set_config('request.jwt.claims', json_build_object('sub', ug, 'role', 'authenticated')::text, true);
+  perform submit_answer(mid3, 1::smallint, null::smallint, '   ');
+  select * into r from match_answers where match_id = mid3 and user_id = ug and question_index = 1;
+  if r.answer_text is not null then raise exception '13d: blank entry stored answer_text %', r.answer_text; end if;
+  if r.is_correct or r.points_awarded <> 0 then raise exception '13d: blank entry not treated as a skip'; end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', uh, 'role', 'authenticated')::text, true);
+  perform submit_answer(mid3, 1::smallint, null::smallint, null);
+
+  -- (e) numeric tolerance
+  perform set_config('request.jwt.claims', json_build_object('sub', ug, 'role', 'authenticated')::text, true);
+  perform submit_answer(mid3, 2::smallint, null::smallint, ' 50.0 ');
+  select * into r from match_answers where match_id = mid3 and user_id = ug and question_index = 2;
+  if not r.is_correct then raise exception '13e: 50.0 did not match answer_value 50'; end if;
+
+  -- (f) reveal: answer_value + my typed answer, no display index
+  select * into rev from get_answer_reveal(mid3, 0::smallint);
+  if rev.correct_index is not null then raise exception '13f: tita reveal returned a correct_index'; end if;
+  if rev.qtype <> 'tita' then raise exception '13f: reveal qtype % <> tita', rev.qtype; end if;
+  if rev.answer_value <> '50' then raise exception '13f: reveal answer_value % <> 50', rev.answer_value; end if;
+  if rev.my_answer_text <> '50' then raise exception '13f: reveal my_answer_text % <> 50', rev.my_answer_text; end if;
+
+  perform set_config('request.jwt.claims', null, true);
+  raise notice 'PASS 13: TITA — no options, correct=base+bonus, wrong=0 (no negative marking), blank=skip, numeric tolerance, reveal';
+end $$;
+
+-- ── 13g. finalize_match margin factor for TITA ──────────────────────────────
+-- The per-question max margin is (base+bonus)*(1 + 1/(n_opts-1)) for MCQ. TITA
+-- has options=[] -> n_opts=0 -> 1 + 1/greatest(-1,1) = 2, which WRONGLY assumes
+-- a symmetric penalty TITA doesn't have and inflates FULL, shrinking every ELO
+-- delta. Correct multiplier is 1.0 (span is base+bonus down to 0).
+--
+-- Constructed so the margin ratio stays BELOW the clamp, making the multiplier
+-- observable: A correct on 1 of 9 TITA, everything else a skip.
+--   margin = 140; FULL = 0.2 * 9 * 140 * mult
+--   mult=1.0 (correct): ratio=0.5556 -> factor=0.3+0.7*0.5556=0.6889 -> +14
+--   mult=2.0 (bug):     ratio=0.2778 -> factor=0.3+0.7*0.2778=0.4944 -> +10
+do $$
+declare
+  ui uuid := gen_random_uuid();
+  uj uuid := gen_random_uuid();
+  qids uuid[]; mid4 uuid;
+  elo_i_before int; elo_i_after int; elo_j_after int; delta int;
+begin
+  insert into auth.users (id, aud, role, email)
+  values (ui, 'authenticated', 'authenticated', 'stress-i@test.local'),
+         (uj, 'authenticated', 'authenticated', 'stress-j@test.local');
+  insert into profiles (id, username, display_name)
+  values (ui, 'stress_i', 'I'), (uj, 'stress_j', 'J')
+  on conflict (id) do nothing;
+
+  select array_agg(id order by body) into qids from questions where body like 'stress tita%';
+  select elo into elo_i_before from profiles where id = ui;
+
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (ui, uj, 'active', true, qids, elo_i_before, elo_i_before, 0, now())
+  returning id into mid4;
+
+  for qi in 0..8 loop
+    perform set_config('request.jwt.claims', json_build_object('sub', ui, 'role', 'authenticated')::text, true);
+    if qi = 0 then
+      perform submit_answer(mid4, qi::smallint, null::smallint, '50');   -- the only correct answer
+    else
+      perform submit_answer(mid4, qi::smallint, null::smallint, null);   -- skip
+    end if;
+    perform set_config('request.jwt.claims', json_build_object('sub', uj, 'role', 'authenticated')::text, true);
+    perform submit_answer(mid4, qi::smallint, null::smallint, null);     -- skip
+  end loop;
+  perform set_config('request.jwt.claims', null, true);
+
+  if (select status from matches where id = mid4) <> 'completed' then
+    raise exception '13g: match did not finalize (status %)', (select status from matches where id = mid4);
+  end if;
+
+  select elo into elo_i_after from profiles where id = ui;
+  select elo into elo_j_after from profiles where id = uj;
+  delta := elo_i_after - elo_i_before;
+
+  if delta <> 14 then
+    raise exception '13g: winner delta % (want 14). A delta of 10 means finalize_match used the MCQ (1 + 1/(n-1)) = 2 multiplier for a TITA question', delta;
+  end if;
+  if (elo_i_after - elo_i_before) <> (elo_i_before - elo_j_after) then
+    raise exception '13g: rating not zero-sum (+% / -%)', delta, elo_i_before - elo_j_after;
+  end if;
+
+  raise notice 'PASS 13g: finalize_match margin uses the TITA (no-penalty) span — winner +14, zero-sum';
+end $$;
+
+-- ── 14. answer privacy + bot calibration + bot skip (20260716160000) ─────────
+-- Guards:
+--   a. answers_read RLS is OWN-ROWS. Before the fix the policy was match-scoped,
+--      so a participant could read the opponent's row while the question was
+--      still open — and TITA's answer_text is PLAINTEXT, i.e. whoever answered
+--      first handed the other player the answer, on rated matches.
+--   b. an unrated BOT match DOES nudge question elo. The bot is the cold-start
+--      tool and derives its own difficulty from q.elo — gating the nudge on
+--      is_rated left the bank permanently at its hand-seeded values.
+--      (Section 3 still guards that an unrated PLAYER match never nudges.)
+--   c. the bot NEVER skips a TITA: no negative marking means attempting is
+--      strictly better. A regression that skips TITA throws away free points.
+--   d. every bot row — skip included — carries a NON-NULL time_taken_ms. Null
+--      time is the cron's absence marker that forfeit_match reads as proof.
+--   e. the bot DOES skip some of its wrong MCQ answers. Never-skip made it
+--      farmable by any human with skip discipline (EV ~+8/question vs ~+35).
+do $$
+declare
+  bot_id  uuid := '00000000-0000-0000-0000-00000000b071';
+  ua      uuid := (select v::uuid from _t where k = 'ua');
+  ub      uuid := (select v::uuid from _t where k = 'ub');
+  mid     uuid := (select v::uuid from _t where k = 'mid');
+  uk      uuid := gen_random_uuid();
+  qids    uuid[]; tqids uuid[];
+  mid5    uuid; mid6 uuid;
+  q       questions%rowtype;
+  r       match_answers%rowtype;
+  opts    jsonb; wrong_disp int;
+  elo_before int; elo_after int;
+  visible int; skips int; wrongs int;
+begin
+  -- (a) RLS: own rows only. Runs under the real `authenticated` role — the rest
+  -- of the harness runs as owner and bypasses RLS entirely.
+  set local role authenticated;
+  perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+  select count(*) into visible from match_answers where match_id = mid;
+  if visible <> 9 then
+    raise exception '14a: participant sees % match_answers rows (want 9 = own only; 18 = the opponent leak)', visible;
+  end if;
+  if exists (select 1 from match_answers where match_id = mid and user_id = ub) then
+    raise exception '14a: opponent answer rows are readable — TITA answer_text leaks the answer live';
+  end if;
+  reset role;
+  perform set_config('request.jwt.claims', null, true);
+
+  insert into auth.users (id, aud, role, email)
+  values (uk, 'authenticated', 'authenticated', 'stress-k@test.local');
+  insert into profiles (id, username, display_name)
+  values (uk, 'stress_k', 'K')
+  on conflict (id) do nothing;
+  -- handle_new_user may already have created the profile with its own
+  -- slugified username, so the on-conflict above is a no-op and 'stress_k' is
+  -- NOT necessarily this profile's username. Hand the id to section 15 rather
+  -- than letting it look one up by name.
+  insert into _t values ('uk', uk::text);
+
+  insert into questions (section, difficulty, body, options, correct_index, explanation, elo)
+  select 'QUANT', 3, 'stress bot q' || g, '["w","x","y","z"]'::jsonb, 0, 'because', 1200
+  from generate_series(1, 9) g;
+  select array_agg(id order by body) into qids from questions where body like 'stress bot q%';
+
+  -- (b) a real (30s) wrong answer by the HUMAN in an unrated BOT match nudges up.
+  select elo into elo_before from questions where id = qids[1];
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uk, bot_id, 'active', false, qids, 1000, 1000, 0, now() - interval '30 seconds')
+  returning id into mid5;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', uk, 'role', 'authenticated')::text, true);
+  select * into q from questions where id = qids[1];
+  select options into opts from get_match_question(mid5, 0::smallint);
+  select ord - 1 into wrong_disp
+  from jsonb_array_elements(opts) with ordinality e(val, ord)
+  where val <> q.options -> q.correct_index limit 1;
+  perform submit_answer(mid5, 0::smallint, wrong_disp::smallint);
+
+  select elo into elo_after from questions where id = qids[1];
+  if elo_after <= elo_before then
+    raise exception '14b: bot match did not nudge question elo (% -> %). The bank never calibrates if the nudge stays gated on is_rated', elo_before, elo_after;
+  end if;
+
+  -- (c)+(d) bot on TITA: always attempts, stamps a time, and writes a PLAUSIBLE
+  -- wrong answer — a real value from the bank, never a function of the correct
+  -- one. Distinct answer_values (41..48) so there is something to borrow.
+  -- 8 seeds: P(all 8 correct) at 1000 vs elo 1200 is ~3e-5, so the wrong branch
+  -- is effectively guaranteed to be exercised.
+  insert into questions (section, difficulty, body, options, correct_index, explanation, elo, qtype, answer_value)
+  select 'QUANT', 3, 'stress bot tita' || g, '[]'::jsonb, 0, 'because', 1200, 'tita', (40 + g)::text
+  from generate_series(1, 8) g;
+  select array_agg(id order by body) into tqids from questions where body like 'stress bot tita%';
+
+  wrongs := 0;
+  for i in 1..8 loop
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (uk, bot_id, 'active', false, tqids, 1000, 1000, 0, now() - interval '200 seconds')
+    returning id into mid6;
+    perform bot_act(mid6);
+
+    select * into r from match_answers
+    where match_id = mid6 and user_id = bot_id and question_index = 0;
+    if not found then raise exception '14c: bot did not act on a TITA'; end if;
+    if r.answer_text is null then
+      raise exception '14c: bot SKIPPED a TITA — no negative marking means attempting is strictly better';
+    end if;
+    if r.time_taken_ms is null then
+      raise exception '14d: bot TITA row has null time_taken_ms — that is the cron absence marker forfeit_match reads';
+    end if;
+
+    if not r.is_correct then
+      wrongs := wrongs + 1;
+      if tita_matches(r.answer_text, (select answer_value from questions where id = tqids[1])) then
+        raise exception '14c: bot wrote the CORRECT answer on a row flagged wrong (%)', r.answer_text;
+      end if;
+      -- The whole point: a wrong answer must be a real number from the bank,
+      -- not `answer_value || '.5'` (implausible, and invertible to the answer).
+      if not exists (
+        select 1 from questions t
+        where t.qtype = 'tita' and t.is_active and t.answer_value = r.answer_text
+      ) then
+        raise exception '14c: bot wrong TITA answer % is not a plausible bank value', r.answer_text;
+      end if;
+    end if;
+  end loop;
+  if wrongs = 0 then
+    raise exception '14c: bot got all 8 TITAs right at 1000 vs elo 1200 — the wrong branch went untested';
+  end if;
+
+  -- (e) across 16 independent (match, question) seeds the bot must skip some of
+  -- its wrong MCQ answers. Skip odds are 0.7 per wrong answer and P(wrong) ~
+  -- 0.76 at 1000 vs a 1200 question, so ~53% skip: skips=0 has probability
+  -- ~1e-6 and means the never-skip regression is back.
+  -- bot_act is rate-limited 30/10s and now() is frozen in this txn, so the two
+  -- loops must stay under 30 calls total (8 + 16 = 24).
+  skips := 0; wrongs := 0;
+  for i in 1..16 loop
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (uk, bot_id, 'active', false, qids, 1000, 1000, 0, now() - interval '200 seconds')
+    returning id into mid6;
+    perform bot_act(mid6);
+    select * into r from match_answers
+    where match_id = mid6 and user_id = bot_id and question_index = 0;
+    if not r.is_correct then
+      wrongs := wrongs + 1;
+      if r.selected_index is null then
+        skips := skips + 1;
+        if r.points_awarded <> 0 then
+          raise exception '14e: bot skip scored % points (want 0)', r.points_awarded;
+        end if;
+        if r.time_taken_ms is null then
+          raise exception '14e: bot skip row has null time_taken_ms';
+        end if;
+      end if;
+    end if;
+  end loop;
+  perform set_config('request.jwt.claims', null, true);
+
+  if wrongs = 0 then raise exception '14e: bot got all 16 right at 1000 vs elo 1200 — check bot_hash_unit'; end if;
+  if skips = 0 then
+    raise exception '14e: bot skipped 0 of % wrong MCQ answers — a never-skip bot is farmable by skip discipline alone', wrongs;
+  end if;
+  if skips = 16 then
+    raise exception '14e: bot skipped every question — it should still guess sometimes';
+  end if;
+
+  raise notice 'PASS 14: answers are own-rows only, bot matches calibrate the bank, bot skips % of % wrong MCQs, and writes plausible bank answers on TITA (never skips it)', skips, wrongs;
+end $$;
+
+-- ── 15. the bot never appears in a list of real users ───────────────────────
+-- (20260716140000 ladders, 20260716170000 search + spectate.) Three definer
+-- readers enumerate profiles; all three are exactly the kind of function that
+-- has been silently reverted by a CREATE OR REPLACE from a stale base (see
+-- CLAUDE.md migration discipline #1). Each assert is paired with a sanity check
+-- that the reader returns real rows, so a filter that accidentally matches
+-- EVERYTHING fails here instead of passing vacuously.
+do $$
+declare
+  ua     uuid := (select v::uuid from _t where k = 'ua');
+  ub     uuid := (select v::uuid from _t where k = 'ub');
+  uk     uuid := (select v::uuid from _t where k = 'uk');
+  bot_id uuid := '00000000-0000-0000-0000-00000000b071';
+  qids   uuid[]; mid7 uuid; mid8 uuid;
+  v_uname text;
+begin
+  -- (a) leaderboard
+  if exists (select 1 from get_leaderboard(100, 0) g where g.username = 'ninja_bot') then
+    raise exception '15a: ninja_bot is ranked on the leaderboard';
+  end if;
+  if not exists (select 1 from get_leaderboard(100, 0)) then
+    raise exception '15a: get_leaderboard returned nothing — the assert above is vacuous';
+  end if;
+
+  -- (b) friend search. search_profiles filters on auth.uid(), so claims must be
+  -- set or `id <> auth.uid()` is NULL and everything drops out.
+  -- Search for B's REAL username (handle_new_user may have named the profile,
+  -- not the fixture) from A's session — searching your own name returns nothing
+  -- by design.
+  select username into v_uname from profiles where id = ub;
+  perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+  if exists (select 1 from search_profiles('ninja', 50) s where s.username = 'ninja_bot') then
+    raise exception '15b: ninja_bot is friend-searchable — a request to it pends forever';
+  end if;
+  if not exists (select 1 from search_profiles(v_uname, 50) s where s.username = v_uname) then
+    raise exception '15b: search_profiles could not find real user % — the assert above is vacuous', v_uname;
+  end if;
+  perform set_config('request.jwt.claims', null, true);
+
+  -- (c) spectate browser: a live bot match must not be listed, a live
+  -- human-vs-human one must.
+  select array_agg(id order by body) into qids from questions where body like 'stress q%';
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (uk, bot_id, 'active', false, qids, 1000, 1000, 0, now())
+  returning id into mid7;
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at)
+  values (ua, ub, 'active', true, qids, 1000, 1000, 0, now())
+  returning id into mid8;
+
+  if exists (select 1 from get_active_matches(100) a where a.match_id = mid7) then
+    raise exception '15c: a bot match is listed in the public spectate browser';
+  end if;
+  if not exists (select 1 from get_active_matches(100) a where a.match_id = mid8) then
+    raise exception '15c: get_active_matches dropped a human-vs-human match — the filter is too wide';
+  end if;
+
+  raise notice 'PASS 15: ninja_bot absent from the leaderboard, friend search, and the spectate browser';
 end $$;
 
 rollback;

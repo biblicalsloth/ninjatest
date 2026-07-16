@@ -88,11 +88,11 @@ export async function POST(req: NextRequest) {
   for (const modelId of models) {
     try {
       const res = await generateText({
-        model: getModel(config.provider, modelId),
+        model: getModel(modelId),
         system: AUDIT_SYSTEM,
         prompt,
         // No temperature: reasoning models reject anything but their default, so
-        // pinning it here would break the whole provider/model switch in /admin.
+        // pinning it here would break the whole model switch in /admin.
         // Verdicts may vary slightly run to run; they are advisory and session-only.
         maxOutputTokens: Math.max(config.max_tokens, 4000),
       });

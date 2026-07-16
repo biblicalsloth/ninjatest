@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   for (const modelId of models) {
     try {
       const res = await generateText({
-        model: getModel(config.provider, modelId),
+        model: getModel(modelId),
         system: DEBRIEF_SYSTEM,
         prompt: JSON.stringify(story),
         temperature: config.temperature,

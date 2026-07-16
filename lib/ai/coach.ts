@@ -5,7 +5,7 @@
 // supplies no inputs to any tool — every tool is bound server-side to the
 // authenticated caller's username, so it can only ever read the caller's data.
 //
-// Reuses the ai_config model routing (provider/model/fallback/dials) but NOT its
+// Reuses the ai_config model routing (model/fallback/dials) but NOT its
 // system_prompt — that one is tuned to solve a single question ("Answer: <x>").
 // Coaching needs its own persona.
 
@@ -123,7 +123,7 @@ export async function runCoach(
   for (const modelId of models) {
     try {
       const res = await generateText({
-        model: getModel(config.provider, modelId),
+        model: getModel(modelId),
         system,
         messages: [...history, { role: "user", content: question }],
         tools,
