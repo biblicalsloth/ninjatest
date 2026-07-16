@@ -29,15 +29,35 @@ alter table questions
 
 -- pgvector defaults vector columns to EXTERNAL storage, so every 6148-byte
 -- embedding lands out-of-line in TOAST and an exact scan pays a detoast per row.
--- Measured on this bank (1247 active): EXTERNAL = 75ms / 15119 buffers,
--- PLAIN = 12ms / 7667 buffers — 6x, for one ALTER. PLAIN is safe here because
--- 6148 bytes still fits a single 8KB page.
+-- Measured on this bank (1247 active), top-5 cosine scan:
+--   TOASTed = 677ms / 7693 buffers, inline = 4.8ms / 1372 buffers — ~140x.
+-- PLAIN is safe here because the widest row is 8044 bytes, under the 8160-byte
+-- usable page limit (check `max(pg_column_size(q.*))` before trusting that on a
+-- bank with longer bodies; the ALTER succeeds regardless and you only find out
+-- at INSERT time).
 --
 -- This only governs rows written AFTER it, which is why it sits next to the ADD
--- COLUMN: on a fresh deploy the backfill then writes inline from the start. On a
--- database that already has embeddings, rewrite them once:
---   update questions set embedding = embedding where embedding is not null;
---   vacuum questions;
+-- COLUMN: on a fresh deploy the backfill then writes inline from the start.
+--
+-- On a database that already has TOASTed embeddings, the obvious repair is a
+-- SILENT NO-OP and does nothing — do not use it:
+--   update questions set embedding = embedding;   -- WRONG, no-op
+-- An UPDATE that assigns a column to itself hands the *same* toast pointer back.
+-- Postgres compares it against the old tuple's, sees an unchanged external datum,
+-- flags it TOASTCOL_IGNORE and never re-toasts — so PLAIN is never consulted and
+-- the value stays out-of-line. It reports rows updated and changes nothing.
+-- Bit us on the live bank 2026-07-17: heap went 1440kB -> 1456kB.
+--
+-- Force a fresh datum instead. The cast detoasts and builds a new value, so the
+-- PLAIN path actually runs. Verified lossless on all 1255 rows first
+-- (`where embedding = (embedding::text)::extensions.vector(1536)` matched every
+-- row — vector `=` is exact element-wise, and pgvector's text form round-trips):
+--   update questions set embedding = (embedding::text)::extensions.vector(1536)
+--     where embedding is not null;
+--   vacuum (analyze) questions;
+-- Row locks only, so it won't block a live match. `vacuum full` would also work
+-- (it rewrites with no old tuple to compare against) but takes ACCESS EXCLUSIVE.
+-- Neither trips questions_null_stale_embedding_trg — it is `update of body`.
 alter table questions
   alter column embedding set storage plain;
 
