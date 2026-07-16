@@ -91,7 +91,9 @@ export async function POST(req: NextRequest) {
         model: getModel(config.provider, modelId),
         system: AUDIT_SYSTEM,
         prompt,
-        temperature: 0, // auditing wants determinism, not the solve-tuned dial
+        // No temperature: reasoning models reject anything but their default, so
+        // pinning it here would break the whole provider/model switch in /admin.
+        // Verdicts may vary slightly run to run; they are advisory and session-only.
         maxOutputTokens: Math.max(config.max_tokens, 4000),
       });
       const parsed = JSON.parse(extractJsonArray(res.text));

@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
         model: getModel(config.provider, modelId),
         system: ANTICHEAT_SYSTEM,
         prompt: JSON.stringify(suspects),
-        temperature: 0,
+        // No temperature: reasoning models reject anything but their default, so
+        // pinning it here would break the provider/model switch in /admin.
+        // Verdicts are advisory — a human acts on them, nothing is auto-enforced.
         maxOutputTokens: Math.max(config.max_tokens, 1500),
       });
       const text = res.text.trim();
