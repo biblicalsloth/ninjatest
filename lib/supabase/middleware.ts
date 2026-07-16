@@ -105,11 +105,18 @@ export async function updateSession(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
+  // /leaderboard is public in production (anon-callable RPC + ISR, see the
+  // caching notes in CLAUDE.md) but auth-gated on preview deployments, so the
+  // staging board on test.ninjatest.app isn't publicly browsable. Keyed on
+  // VERCEL_ENV rather than the hostname because every preview also answers on
+  // its ninjatest-git-<branch>-*.vercel.app alias.
+  const isPreview = process.env.VERCEL_ENV === "preview";
+
   const isPublicRoute =
     pathname === "/" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/c/") ||
-    pathname.startsWith("/leaderboard") ||
+    (!isPreview && pathname.startsWith("/leaderboard")) ||
     pathname.startsWith("/profile");
 
   if (!isAuthed && !isPublicRoute) {
