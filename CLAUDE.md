@@ -181,13 +181,17 @@ The repo builds under **three separate Vercel projects**, each with its own env 
 **Both production projects build `main`.** Staging is not a branch — it is a second project off the same branch with different env vars. The `test` branch is vestigial: it only produces SSO-gated previews nobody looks at. Don't reach for branches to change what staging runs; reach for that project's env vars.
 
 ### Release flow (deliberately one-way)
-A push to `main` deploys **staging only**. `ninjatest` has its Ignored Build Step set to `exit 0`, so its Git builds are skipped — production is frozen until promoted by hand. Verify what you shipped on `test.ninjatest.app`, then go live **once**:
-1. Clear the Ignored Build Step on `ninjatest` (dashboard, or `PATCH /v9/projects/prj_ejXGHpLJk31Sysn7RxRuoIE0BBlq` with `commandForIgnoringBuildStep: null` — the CLI has no flag for it).
+A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard: it exits 0 (skip) for every project except staging, so `ninjatest` Git builds are cancelled and production is frozen until promoted by hand.
+
+It is written as an **allowlist for `ninjatest-flbe`**, not a blocklist for `ninjatest`, and that direction is load-bearing: `vercel.json` is shared by both projects, and if `VERCEL_PROJECT_ID` were ever unavailable a blocklist would fail *open* and auto-deploy production. This fails closed — nothing builds, which is loud and safe. Keep the guard here, not in project settings: the dashboard's Ignored Build Step is deliberately unset so there is exactly one source of truth.
+
+Verify what you shipped on `test.ninjatest.app`, then go live **once**:
+1. Add `ALLOW_PROD_DEPLOY=1` to `ninjatest` Production (the `ignoreCommand` escape hatch).
 2. Remove `NEXT_PUBLIC_APP_MODE` from `ninjatest` Production — this is the waitlist→app flip; the landing stops being the front door and `/` redirects authed users to `/lobby`.
 3. Redeploy `main`, confirm `www.ninjatest.app`.
-4. Re-set the Ignored Build Step to `exit 0` to refreeze production.
+4. Remove `ALLOW_PROD_DEPLOY` to refreeze production.
 
-Because both projects build the same branch, step 3 ships the exact commit staging validated.
+Because both projects build the same branch, step 3 ships the exact commit staging validated. `ALLOW_PROD_DEPLOY` is a no-op on staging (already allowlisted), so setting it on the wrong project cannot un-freeze anything.
 
 Traps, all learned the hard way:
 - **`test.ninjatest.app` is NOT a preview of `ninjatest`.** It is `ninjatest-flbe`'s *production*, so `VERCEL_ENV === "preview"` is false there. Gating staging behaviour on `VERCEL_ENV` is a silent no-op.
@@ -196,7 +200,8 @@ Traps, all learned the hard way:
 - Per-commit `*.vercel.app` preview URLs are Vercel-SSO-gated; the two hostnames above are not.
 - `vercel env pull` redacts every value to `""`. To find out what a deployment actually does, curl it.
 - **`main` is not "production" in the usual sense** — it is the staging trunk. Pushing it is safe and expected; it does not reach `ninjatest.app`.
-- Neither the project split nor the build guard is visible in this repo (no `vercel.json`). Everything above lives in Vercel project settings — this file is the only record.
+- The build guard is in `vercel.json`; the **project split, domains, and env vars are not** — they live in Vercel project settings, and this file is their only record.
+- `vercel.json` is shared by every project building this repo. Anything added there (headers, rewrites, crons) hits production *and* staging — scope it on `VERCEL_PROJECT_ID`, as `ignoreCommand` does.
 
 ## Environment
 | Var | Where | Notes |
@@ -207,6 +212,7 @@ Traps, all learned the hard way:
 | `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | `lib/ai/model.ts` | Ninja AI |
 | `ADMIN_ENABLED` | admin deployment + `.env.local` | `=1` makes middleware serve **only** the console: `/` → `/admin`, every other path 404s. Set locally, so `/` will NOT render the landing on your dev server — run `ADMIN_ENABLED= npm run dev` to see it. Elsewhere `/admin*` 404s. |
 | `PRIVATE_LEADERBOARD` | `ninjatest-flbe` only (Prod + Preview) | `=1` drops `/leaderboard` from `isPublicRoute` so the staging board isn't publicly browsable. **Never set it on `ninjatest`** — that would make the real leaderboard auth-only and forfeit its ISR caching. |
+| `ALLOW_PROD_DEPLOY` | `ninjatest` Production, **only while promoting** | `=1` bypasses `vercel.json`'s `ignoreCommand` so production actually builds. Read by the build guard, not by app code. Remove it after the deploy or production is auto-deploying again. |
 | `SUPABASE_SERVICE_ROLE_KEY` | local ingest scripts only | never in app code |
 
 `.env.local.example` is stale (omits most of the above; lists unused `NEXT_PUBLIC_APP_URL`); `DEV_BYPASS`/`NEXT_PUBLIC_DEV_BYPASS` in `.env.local` are referenced nowhere.
