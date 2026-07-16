@@ -20,11 +20,22 @@ interface Props {
 }
 
 interface RevealData {
-  correct_index: number;
+  correct_index: number | null;
+  qtype: "mcq" | "tita";
+  /** tita only: the expected answer */
+  answer_value: string | null;
+  /** tita only: what this player typed (null = skipped) */
+  my_answer_text: string | null;
   explanation: string | null;
   points_awarded: number;
   is_correct: boolean;
 }
+
+// TITA answers are numeric — the DB enforces it (questions_tita_answer_numeric),
+// so the box can refuse everything else. Permissive enough to type THROUGH:
+// "", "-", "1,", "1900." are all valid intermediate states. Rejects the inputs
+// that scored a right solve as wrong: "Rs.1900", "1900m", "1900 metres".
+const TITA_INPUT = /^-?[0-9]*(?:,[0-9]*)*(?:\.[0-9]*)?$/;
 
 export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, userId }: Props) {
   const router = useRouter();
@@ -34,10 +45,14 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const autoSubmitFiredRef = useRef(false);
   const currentMatchRef = useRef(match);
   const questionRef = useRef<MatchQuestion | null>(null);
+  // Mirrors typedAnswer so the deadline auto-submit (which runs on a stale
+  // closure) can send what the player actually typed instead of a skip.
+  const typedAnswerRef = useRef("");
 
   const [currentMatch, setCurrentMatch] = useState(match);
   const [question, setQuestion] = useState<MatchQuestion | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [oppAnswered, setOppAnswered] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -77,6 +92,8 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   /* Fetch question for given index */
   const fetchQuestion = useCallback(async (index: number) => {
     setSelected(null);
+    setTypedAnswer("");
+    typedAnswerRef.current = "";
     setSubmitted(false);
     setOppAnswered(false);
     setShowReveal(false);
@@ -146,11 +163,13 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     return () => clearInterval(id);
   }, [question, clockOffset]);
 
-  /* Auto-submit null when timer hits 0 */
+  /* Deadline reached: auto-submit. For TITA send whatever is in the box — a
+     typed-but-unsubmitted answer is an answer, not a skip. MCQ has no partial
+     state, so it stays a null skip. */
   useEffect(() => {
     if (timeRemaining === 0 && question && !submitted && !autoSubmitFiredRef.current) {
       autoSubmitFiredRef.current = true;
-      handleSubmit(null);
+      handleSubmit(null, question.qtype === "tita" ? typedAnswerRef.current || null : null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRemaining, question, submitted]);
@@ -344,8 +363,10 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     return () => { stopped = true; clearInterval(id); };
   }, [isBotMatch, currentMatch.status, currentMatch.id, supabase]);
 
-  /* Submit answer (null = skip) */
-  async function handleSubmit(optionIndex: number | null) {
+  /* Submit answer. MCQ: optionIndex (null = skip). TITA: answerText (null/blank
+     = skip). The server decides correctness either way — it re-reads the clock,
+     un-shuffles MCQ picks, and exact-matches TITA text against answer_value. */
+  async function handleSubmit(optionIndex: number | null, answerText: string | null = null) {
     if (submitted || !question) return;
     setSelected(optionIndex);
     setSubmitted(true);
@@ -355,6 +376,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       p_match_id: currentMatch.id,
       p_question_index: currentMatch.current_index,
       p_selected_index: optionIndex,
+      p_answer_text: answerText,
     });
 
     if (error) {
@@ -414,7 +436,43 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
             <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
           )}
 
-          {/* Options with correct/wrong highlighting */}
+          {/* TITA reveal: expected answer vs what the player typed */}
+          {revealData.qtype === "tita" ? (
+            <div className="space-y-2.5">
+              <div className="px-4 py-3.5 rounded-xl border border-[#06d6a0] bg-[#06d6a0]/10">
+                <div className="text-[#06d6a0] text-xs uppercase tracking-wider font-medium mb-1">
+                  Correct answer
+                </div>
+                <div className="text-white font-mono text-base">{revealData.answer_value}</div>
+              </div>
+              <div
+                className={cn(
+                  "px-4 py-3.5 rounded-xl border",
+                  revealData.is_correct
+                    ? "border-[#06d6a0]/40 bg-[#06d6a0]/5"
+                    : revealData.my_answer_text
+                    ? "border-[#ef476f]/60 bg-[#ef476f]/10"
+                    : "border-[#222222] bg-[#111111]/40"
+                )}
+              >
+                <div className="text-[#7ab5cc] text-xs uppercase tracking-wider font-medium mb-1">
+                  Your answer
+                </div>
+                <div
+                  className={cn(
+                    "font-mono text-base",
+                    revealData.is_correct ? "text-[#06d6a0]" : revealData.my_answer_text ? "text-[#ef476f]" : "text-[#7ab5cc]"
+                  )}
+                >
+                  {revealData.my_answer_text ?? "Skipped"}
+                  {revealData.my_answer_text && (
+                    <span className="ml-2 text-xs">{revealData.is_correct ? "✓" : "✗"}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+          /* Options with correct/wrong highlighting */
           <div className="space-y-2.5">
             {options.map((opt, i) => {
               const isCorrect = i === revealData.correct_index;
@@ -441,10 +499,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               );
             })}
           </div>
+          )}
 
           {/* Explanation */}
           {revealData.explanation && (
-            <div className="bg-[#111111] rounded-xl px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed">
+            <div className="bg-[#111111] rounded-xl px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-line">
               <span className="text-[#06d6a0] font-semibold mr-1">Why:</span>
               {revealData.explanation}
             </div>
@@ -564,29 +623,81 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
             <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
           )}
 
-          {/* Options */}
-          <div className="space-y-2.5">
-            {options.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => handleSubmit(i)}
-                disabled={submitted}
-                className={cn(
-                  "w-full text-left px-4 py-3.5 rounded-xl border text-sm transition-colors",
-                  submitted && selected === i
-                    ? "border-[#06d6a0]/60 bg-[#06d6a0]/10 text-white"
-                    : submitted
-                    ? "border-[#222222] bg-[#111111]/40 text-[#7ab5cc] cursor-not-allowed"
-                    : "border-[#222222] bg-[#111111] text-white hover:border-[#06d6a0]/40 hover:bg-[#06d6a0]/5 active:scale-[0.99]"
-                )}
-              >
-                <span className="text-[#7ab5cc] font-mono mr-2.5">
-                  {String.fromCharCode(65 + i)}.
-                </span>
-                {opt}
-              </button>
-            ))}
-          </div>
+          {/* Answer input — TITA types a value, MCQ picks an option */}
+          {question.qtype === "tita" ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (submitted || !typedAnswer.trim()) return;
+                handleSubmit(null, typedAnswer);
+              }}
+              className="space-y-2.5"
+            >
+              <label htmlFor="tita-answer" className="block text-[#7ab5cc] text-xs uppercase tracking-wider font-medium">
+                Type your answer
+              </label>
+              <div className="flex gap-2.5">
+                <input
+                  id="tita-answer"
+                  value={typedAnswer}
+                  onChange={(e) => {
+                    // Reject rather than sanitise. Stripping non-numerics would turn
+                    // "Rs.1900" into ".1900" (= 0.19) — inventing a wrong answer out
+                    // of a right one. Refusing the keystroke keeps what the player
+                    // sees identical to what gets scored.
+                    if (!TITA_INPUT.test(e.target.value)) return;
+                    setTypedAnswer(e.target.value);
+                    typedAnswerRef.current = e.target.value;
+                  }}
+                  disabled={submitted}
+                  autoComplete="off"
+                  inputMode="decimal"
+                  placeholder="e.g. 245"
+                  autoFocus
+                  className={cn(
+                    "flex-1 px-4 py-3.5 rounded-xl border bg-[#111111] text-white font-mono text-base",
+                    "placeholder:text-[#7ab5cc]/40 outline-none transition-colors",
+                    submitted
+                      ? "border-[#222222] text-[#7ab5cc] cursor-not-allowed"
+                      : "border-[#222222] focus:border-[#06d6a0]/60"
+                  )}
+                />
+                <Button
+                  type="submit"
+                  disabled={submitted || !typedAnswer.trim()}
+                  className="px-6 bg-[#06d6a0] text-[#04140f] hover:bg-[#06d6a0]/90 font-semibold disabled:opacity-40"
+                >
+                  Submit
+                </Button>
+              </div>
+              <p className="text-[#7ab5cc]/60 text-xs">
+                No negative marking on typed answers — a wrong answer costs nothing.
+              </p>
+            </form>
+          ) : (
+            <div className="space-y-2.5">
+              {options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSubmit(i)}
+                  disabled={submitted}
+                  className={cn(
+                    "w-full text-left px-4 py-3.5 rounded-xl border text-sm transition-colors",
+                    submitted && selected === i
+                      ? "border-[#06d6a0]/60 bg-[#06d6a0]/10 text-white"
+                      : submitted
+                      ? "border-[#222222] bg-[#111111]/40 text-[#7ab5cc] cursor-not-allowed"
+                      : "border-[#222222] bg-[#111111] text-white hover:border-[#06d6a0]/40 hover:bg-[#06d6a0]/5 active:scale-[0.99]"
+                  )}
+                >
+                  <span className="text-[#7ab5cc] font-mono mr-2.5">
+                    {String.fromCharCode(65 + i)}.
+                  </span>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Skip / waiting */}
           {!submitted ? (

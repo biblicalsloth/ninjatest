@@ -6,6 +6,11 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // scripts/*.mts run under Node's native type-stripping, which resolves the
+    // real on-disk path — so they must import "../lib/ai/model.ts" with the
+    // extension. Safe: this only relaxes the import specifier, and it requires
+    // noEmit, which Next already sets.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

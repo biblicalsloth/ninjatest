@@ -15,7 +15,17 @@ interface SavedResponse {
 
 // Floating Ninja pill: collapsed by default, its window opens only when a
 // question is asked (via the ninja:ask event). Auto-saves each answer server-side;
-// history is scoped to the (match, question) it was asked for.
+// history is scoped to the (match|practice session, question) it was asked for.
+//
+// The two sources differ only in which id rides along — same window, same
+// 3-attempt history list — so the ask detail is passed through verbatim rather
+// than unpacked into a match-shaped call.
+function askBody(d: NinjaAskDetail) {
+  return d.matchId
+    ? { match_id: d.matchId, question_index: d.questionIndex }
+    : { practice_session_id: d.practiceSessionId, question_index: d.questionIndex };
+}
+
 export function NinjaPill() {
   const [open, setOpen] = useState(false);
   const [ctx, setCtx] = useState<NinjaAskDetail | null>(null);
@@ -24,12 +34,13 @@ export function NinjaPill() {
   const [history, setHistory] = useState<SavedResponse[]>([]);
   const reqId = useRef(0);
 
-  const loadHistory = useCallback(async (matchId: string, questionIndex: number, forReq: number) => {
+  const loadHistory = useCallback(async (d: NinjaAskDetail, forReq: number) => {
     const supabase = createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any).rpc("get_ninja_responses", {
-      p_match_id: matchId, p_index: questionIndex,
-    });
+    const sb = supabase as any;
+    const { data } = d.matchId
+      ? await sb.rpc("get_ninja_responses", { p_match_id: d.matchId, p_index: d.questionIndex })
+      : await sb.rpc("get_ninja_practice_responses", { p_session: d.practiceSessionId, p_index: d.questionIndex });
     if (forReq !== reqId.current) return; // a newer ask superseded this load
     setHistory(Array.isArray(data) ? (data as SavedResponse[]) : []);
   }, []);
@@ -41,19 +52,19 @@ export function NinjaPill() {
     setError(null);
     setLoading(true);
     setHistory([]);
-    await loadHistory(detail.matchId, detail.questionIndex, id);
+    await loadHistory(detail, id);
     try {
       const res = await fetch("/api/ninja/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ match_id: detail.matchId, question_index: detail.questionIndex }),
+        body: JSON.stringify(askBody(detail)),
       });
       const json = await res.json().catch(() => ({}));
       if (id !== reqId.current) return; // superseded by a newer ask
       if (!res.ok) {
         setError(json.error ?? "Ninja could not answer");
       } else {
-        await loadHistory(detail.matchId, detail.questionIndex, id);
+        await loadHistory(detail, id);
       }
     } catch {
       if (id === reqId.current) setError("Network error");

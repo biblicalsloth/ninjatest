@@ -5,35 +5,53 @@
 --
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f scripts/ninja-guard-test.sql
 --
+-- Against the local Docker stack (no psql on the host):
+--   docker exec -i supabase_db_ninjatest psql -U postgres -d postgres \
+--     -v ON_ERROR_STOP=1 -f - < scripts/ninja-guard-test.sql
+--
 -- Asserts the security boundary of the Ninja layer:
 --   1. a participant can fetch a question and save a response
 --   2. a NON-participant is refused (get_question_for_ninja, save_ninja_response)
 --   3. get_ninja_responses returns only the caller's own rows
+--   4. unreached questions stay unreadable on a non-completed match
+--   5. the 3-attempt re-ask cap holds (the cost guard)
+--   6. every ask is refused while the match is still active
+--   7. both Ninja reads branch on qtype, so TITA isn't prompted with a blank key
+--   8. a caller can see their own live match row under RLS — the data source
+--      behind lib/ai/live-match.ts::inLiveMatch, which gates all five
+--      user-facing routes (ask, debrief, coach, solve, daily)
+--   9. the practice twin of the same boundary (20260717160000): owner-only, an
+--      UNANSWERED drill question is refused (practice's reveal gate — the
+--      analogue of #4), and the 3-attempt cap holds per (session, question)
 -- =========================================================
 begin;
 
 do $$
 declare
-  ua uuid := gen_random_uuid();   -- participant
+  ua uuid := gen_random_uuid();   -- participant (the caller under test)
+  ub uuid := gen_random_uuid();   -- opponent
   uc uuid := gen_random_uuid();   -- outsider
   qids uuid[]; mid uuid;
   qrow record; rid uuid; n int;
 begin
   insert into auth.users (id, aud, role, email) values
     (ua, 'authenticated', 'authenticated', 'ninja-a@test.local'),
+    (ub, 'authenticated', 'authenticated', 'ninja-b@test.local'),
     (uc, 'authenticated', 'authenticated', 'ninja-c@test.local');
   insert into profiles (id, username, display_name)
-  values (ua, 'ninja_a', 'A'), (uc, 'ninja_c', 'C') on conflict (id) do nothing;
+  values (ua, 'ninja_a', 'A'), (ub, 'ninja_b', 'B'), (uc, 'ninja_c', 'C')
+  on conflict (id) do nothing;
 
   insert into questions (section, difficulty, body, options, correct_index, explanation, elo)
   select 'QUANT'::cat_section, 3, 'ninja q' || g, '["w","x","y","z"]'::jsonb, 1, 'because', 1200
   from generate_series(1, 9) g;
   select array_agg(id order by body) into qids from questions where body like 'ninja q%';
 
-  -- completed match A vs A (self-pair keeps the fixture minimal; guard only reads player_a/player_b)
+  -- completed match A vs B (matches has `check (player_a <> player_b)`, so the
+  -- pair must be real; the guards only read player_a/player_b)
   insert into matches (player_a, player_b, status, is_rated, question_ids,
                        elo_a_before, elo_b_before, current_index, question_started_at)
-  values (ua, ua, 'completed', false, qids, 1200, 1200, 9, now())
+  values (ua, ub, 'completed', false, qids, 1200, 1200, 9, now())
   returning id into mid;
 
   -- 1. participant can read the question and save
@@ -76,7 +94,7 @@ begin
   begin
     insert into matches (player_a, player_b, status, is_rated, question_ids,
                          elo_a_before, elo_b_before, current_index, question_started_at)
-    values (ua, ua, 'abandoned', false, qids, 1200, 1200, 2, now())
+    values (ua, ub, 'abandoned', false, qids, 1200, 1200, 2, now())
     returning id into amid;
 
     -- reached (index 0 < current_index 2) is allowed
@@ -110,7 +128,7 @@ begin
   begin
     insert into matches (player_a, player_b, status, is_rated, question_ids,
                          elo_a_before, elo_b_before, current_index, question_started_at)
-    values (ua, ua, 'active', false, qids, 1200, 1200, 2, now())
+    values (ua, ub, 'active', false, qids, 1200, 1200, 2, now())
     returning id into lmid;
     begin
       perform * from get_question_for_ninja(lmid, 0);
@@ -119,6 +137,166 @@ begin
       if sqlerrm not like '%still active%' then raise; end if;
     end;
     raise notice 'PASS 5: all asks refused while match is active';
+  end;
+
+  -- 7. TITA awareness (20260716201821). A TITA row carries options='[]' and
+  -- correct_index=0, and the user's attempt lives in answer_text, not
+  -- selected_index. Both Ninja reads must branch on qtype — otherwise the ask
+  -- prompt gets a BLANK key and a wrong typed answer reports as a skip.
+  declare
+    tqid uuid; tmid uuid; tqids uuid[]; trow record; mistakes jsonb; mrow jsonb;
+  begin
+    insert into questions (section, difficulty, body, options, correct_index,
+                           explanation, elo, qtype, answer_value)
+    values ('QUANT'::cat_section, 3, 'ninja tita q', '[]'::jsonb, 0,
+            'because 42', 1200, 'tita', '42')
+    returning id into tqid;
+    -- 9 slots; only index 0 is the TITA question under test.
+    tqids := array_prepend(tqid, qids[1:8]);
+
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (ua, ub, 'completed', false, tqids, 1200, 1200, 9, now())
+    returning id into tmid;
+
+    -- The user TYPED a wrong answer: selected_index null, answer_text set.
+    insert into match_answers (match_id, user_id, question_id, question_index,
+                               selected_index, answer_text, is_correct,
+                               points_awarded, time_taken_ms)
+    values (tmid, ua, tqid, 0, null, '41', false, -30, 40000);
+
+    select * into trow from get_question_for_ninja(tmid, 0);
+    if trow.qtype <> 'tita' then
+      raise exception 'FAIL: get_question_for_ninja lost qtype (got %)', trow.qtype;
+    end if;
+    if trow.answer_value <> '42' then
+      raise exception 'FAIL: TITA key missing — ninja would be prompted with a blank correct answer (got %)', trow.answer_value;
+    end if;
+    if trow.my_answer_text <> '41' then
+      raise exception 'FAIL: TITA typed answer not returned — ninja reads it as a skip (got %)', trow.my_answer_text;
+    end if;
+    raise notice 'PASS 6: get_question_for_ninja returns qtype + key + typed answer for TITA';
+
+    mistakes := get_recent_mistakes(25);
+    select m into mrow from jsonb_array_elements(mistakes) m
+    where m ->> 'question' = 'ninja tita q';
+    if mrow is null then raise exception 'FAIL: TITA mistake absent from get_recent_mistakes'; end if;
+    if mrow ->> 'correct_answer' is distinct from '42' then
+      raise exception 'FAIL: coach fed null TITA correct_answer (got %)', mrow ->> 'correct_answer';
+    end if;
+    if mrow ->> 'your_answer' is distinct from '41' then
+      raise exception 'FAIL: coach fed null TITA your_answer (got %)', mrow ->> 'your_answer';
+    end if;
+    if (mrow ->> 'skipped')::boolean then
+      raise exception 'FAIL: typed wrong TITA answer reported to the coach as a skip';
+    end if;
+    raise notice 'PASS 7: get_recent_mistakes reports TITA answers, not nulls-and-skips';
+  end;
+
+  -- 8. lib/ai/live-match.ts::inLiveMatch reads `matches` through RLS to gate
+  -- /api/ninja/{ask,coach,solve,daily,debrief} — coach and solve are the
+  -- free-text routes a player could otherwise paste a live question into from a
+  -- second tab; ask and debrief are gated because their per-match RPC guards
+  -- (section 6's 'match still active', 'match not finished') only inspect the
+  -- match the REQUEST NAMES — mid-match, one aimed at an OLD completed match
+  -- passes them. daily rides the same rule for one definition.
+  -- It has no RPC to guard it, so assert its data source:
+  -- the caller must be able to SEE their own live match row through RLS. That is
+  -- the whole property — inLiveMatch filters by the caller's own id, so a leaked
+  -- row can't reach it, but a HIDDEN own row silently returns "not in a match"
+  -- and fails the gate OPEN, which is the cheat.
+  -- Runs under the real `authenticated` role — the rest of this harness is owner
+  -- and bypasses RLS entirely (same trick as elo-stress-test section 9).
+  declare lmid2 uuid; seen int;
+  begin
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (ua, ub, 'active', false, qids, 1200, 1200, 2, now())
+    returning id into lmid2;
+
+    set local role authenticated;
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+    select count(*) into seen from matches
+    where (player_a = ua or player_b = ua) and status in ('active', 'pending');
+    if seen = 0 then
+      raise exception 'FAIL: participant cannot see their own live match under RLS — inLiveMatch fails open';
+    end if;
+    reset role;
+    raise notice 'PASS 8: live-match visibility under RLS backs the ask/coach/solve/daily/debrief gate';
+  end;
+
+  -- 9. Practice asks (20260717160000). Same boundary as the match path, one
+  -- guard swapped: "reached" becomes "answered", because submit_practice_answer
+  -- is the moment the key is revealed anyway. Before it, sending a drill
+  -- question to Ninja would be an answer-key leak over the 45 questions/day a
+  -- user can pull — questions is RLS `using(false)` to stop exactly that.
+  declare psid uuid; prow record; pn int;
+  begin
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+    insert into practice_sessions (user_id, question_ids, current_index)
+    values (ua, qids, 1) returning id into psid;
+    -- ua answered q0 (wrong: picked 0, key is 1); q1..q8 remain unanswered.
+    insert into practice_answers (session_id, question_index, selected_index, is_correct)
+    values (psid, 0, 0, false);
+
+    -- answered → served, with the caller's own pick attached so the prompt can
+    -- name the distractor they fell for
+    select * into prow from get_practice_question_for_ninja(psid, 0);
+    if prow.body is null or prow.correct_index <> 1 then
+      raise exception 'FAIL: practice ninja read wrong question data: %', prow;
+    end if;
+    if prow.my_selected_index <> 0 or prow.my_is_correct is not false then
+      raise exception 'FAIL: practice ninja lost the caller''s own answer (got %, %)',
+        prow.my_selected_index, prow.my_is_correct;
+    end if;
+
+    -- UNANSWERED → refused. This is the bank-leak guard.
+    begin
+      perform * from get_practice_question_for_ninja(psid, 5);
+      raise exception 'FAIL: pulled an UNANSWERED practice question (answer-key leak)';
+    exception when others then
+      if sqlerrm not like '%not answered%' then raise; end if;
+    end;
+
+    -- outsider → refused on both the read and the save
+    perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+    begin
+      perform * from get_practice_question_for_ninja(psid, 0);
+      raise exception 'FAIL: outsider read another user''s practice question';
+    exception when others then
+      if sqlerrm not like '%forbidden%' then raise; end if;
+    end;
+    begin
+      perform save_ninja_practice_response(psid, 0, 'm', 'x');
+      raise exception 'FAIL: outsider saved into another user''s practice session';
+    exception when others then
+      if sqlerrm not like '%forbidden%' then raise; end if;
+    end;
+
+    -- 3-attempt cap per (session, question, user) — the cost guard, pre-spend
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+    perform save_ninja_practice_response(psid, 0, 'm', 'p1');
+    perform save_ninja_practice_response(psid, 0, 'm', 'p2');
+    perform save_ninja_practice_response(psid, 0, 'm', 'p3');
+    begin
+      perform * from get_practice_question_for_ninja(psid, 0);
+      raise exception 'FAIL: 4th practice ninja attempt allowed (cost cap broken)';
+    exception when others then
+      if sqlerrm not like '%attempt limit%' then raise; end if;
+    end;
+
+    select count(*) into pn from get_ninja_practice_responses(psid, 0);
+    if pn <> 3 then raise exception 'FAIL: expected 3 practice responses, got %', pn; end if;
+
+    -- XOR: a practice row must not also claim a match, and vice versa
+    begin
+      insert into ninja_responses (user_id, match_id, practice_session_id, question_index, model_id, content)
+      values (ua, mid, psid, 0, 'm', 'both');
+      raise exception 'FAIL: a ninja_response claimed BOTH a match and a practice session';
+    exception when check_violation then null;
+    end;
+
+    raise notice 'PASS 9: practice asks are owner-only, answered-only, and capped at 3';
   end;
 end $$;
 

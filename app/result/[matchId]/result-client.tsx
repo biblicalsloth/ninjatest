@@ -195,7 +195,13 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                     const ans = myAnswers.find((a) => a.question_index === i);
                     if (!ans) return <AnswerDot key={i} status="unanswered" points={0} qNum={i + 1} onAsk={onAsk} />;
                     if (ans.is_correct) return <AnswerDot key={i} status="correct" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
-                    if (ans.selected_index === null) return <AnswerDot key={i} status="skipped" points={0} qNum={i + 1} onAsk={onAsk} />;
+                    // A skip is BOTH nulls. TITA answers are typed into
+                    // answer_text and leave selected_index null, so checking
+                    // selected_index alone rendered every wrong TITA as
+                    // "skipped" — with the wrong answer's negative points.
+                    if (ans.selected_index === null && ans.answer_text === null) {
+                      return <AnswerDot key={i} status="skipped" points={0} qNum={i + 1} onAsk={onAsk} />;
+                    }
                     return <AnswerDot key={i} status="wrong" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
                   })}
                 </div>

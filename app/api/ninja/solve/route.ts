@@ -3,31 +3,36 @@ import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
 import { extractQuestions } from "@/lib/ai/extract";
+import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 export const runtime = "nodejs";   // pdf-lib needs Node
 export const maxDuration = 300;    // many chunks × LLM calls
 
 const MAX_BYTES = 20 * 1024 * 1024; // 20MB upload ceiling
 
-// Admin-only PDF → question extractor. Returns groups shaped for
-// admin_upsert_questions; the admin reviews/edits in the console and submits
-// there. This route never writes to the question bank.
+// User-facing PDF solver. Any signed-in player uploads a test/sample paper;
+// Ninja extracts every question and solves it (answer + explanation). Ephemeral:
+// nothing is saved and nothing touches the question bank — that's the admin-only
+// /api/ninja/extract flow. Same pipeline (extractQuestions), no admin gate,
+// tighter rate limit since callers are untrusted.
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  if (await inLiveMatch(supabase, user.id)) {
+    return NextResponse.json({ error: LIVE_MATCH_ERROR }, { status: 403 });
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
 
-  const { data: prof } = await sb.from("profiles").select("is_admin").eq("id", user.id).single();
-  if (!prof?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  // Metered LLM: fail-closed so a limiter blip can't become an unmetered-spend hole.
-  const rl = await rateLimitDb(supabase, user.id, "ninja-extract-user", { limit: 20, windowSeconds: 3600, failClosed: true });
-  const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-extract-ip", { limit: 40, windowSeconds: 3600, failClosed: true });
+  // Metered LLM: fail-closed so a limiter blip can't become an unmetered-spend
+  // hole. Tighter than the admin extractor — a 60-page PDF is real spend.
+  const rl = await rateLimitDb(supabase, user.id, "ninja-solve-user", { limit: 5, windowSeconds: 3600, failClosed: true });
+  const rlIp = await rateLimitDb(supabase, clientIp(req), "ninja-solve-ip", { limit: 10, windowSeconds: 3600, failClosed: true });
   if (!rl.ok || !rlIp.ok) {
-    return NextResponse.json({ error: "Extraction limit reached. Try again later." },
+    return NextResponse.json({ error: "Solve limit reached. Try again in a bit." },
       { status: 429, headers: { "Retry-After": String(Math.max(rl.retryAfter, rlIp.retryAfter)) } });
   }
 
@@ -50,8 +55,8 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     // splitPdf throws user-actionable messages (empty / too many pages).
     const msg = e instanceof Error ? e.message : "Extraction failed";
-    console.error("Ninja extract failed:", e);
+    console.error("Ninja solve failed:", e);
     const bad = /no pages|pages;/.test(msg);
-    return NextResponse.json({ error: bad ? msg : "Could not extract questions from that PDF" }, { status: bad ? 400 : 502 });
+    return NextResponse.json({ error: bad ? msg : "Could not read questions from that PDF" }, { status: bad ? 400 : 502 });
   }
 }

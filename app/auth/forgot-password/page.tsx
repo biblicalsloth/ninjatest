@@ -34,7 +34,9 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#073b4c] px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <NinjatestLogo className="mb-2" />
+          <Link href="/" aria-label="Ninjatest home">
+            <NinjatestLogo className="mb-2" />
+          </Link>
           <p className="text-[#7ab5cc] text-sm">Reset your password</p>
         </div>
 

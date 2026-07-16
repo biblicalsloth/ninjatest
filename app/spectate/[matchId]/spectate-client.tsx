@@ -201,19 +201,27 @@ export default function SpectateClient({ initialMatch }: Props) {
             <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
           )}
 
-          <div className="space-y-2.5">
-            {options.map((opt, i) => (
-              <div
-                key={i}
-                className="w-full text-left px-4 py-3.5 rounded-xl border text-sm border-[#222222] bg-[#111111] text-white"
-              >
-                <span className="text-[#7ab5cc] font-mono mr-2.5">
-                  {String.fromCharCode(65 + i)}.
-                </span>
-                {opt}
-              </div>
-            ))}
-          </div>
+          {question.qtype === "tita" ? (
+            // TITA has no options — players type the answer. Spectators never
+            // see the expected value (the server doesn't send it).
+            <div className="px-4 py-3.5 rounded-xl border border-dashed border-[#222222] bg-[#111111]/40 text-[#7ab5cc] text-sm">
+              Type-in answer — no options. Players enter a value.
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {options.map((opt, i) => (
+                <div
+                  key={i}
+                  className="w-full text-left px-4 py-3.5 rounded-xl border text-sm border-[#222222] bg-[#111111] text-white"
+                >
+                  <span className="text-[#7ab5cc] font-mono mr-2.5">
+                    {String.fromCharCode(65 + i)}.
+                  </span>
+                  {opt}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

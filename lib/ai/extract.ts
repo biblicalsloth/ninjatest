@@ -11,8 +11,17 @@ import { chunkRanges } from "@/lib/ai/pdf-chunk.mjs";
 // question bank (wrong scoring → wrong ELO for everyone who sees it).
 //
 // ponytail: sends the real PDF, not extracted text — text extraction mangles
-// Quant math, DILR tables, and drops diagrams entirely. Requires a PDF-capable
-// model (route your ai_config to Gemini/Claude via OpenRouter, or GPT-4o).
+// Quant math, DILR tables, and drops diagrams entirely.
+//
+// The configured model (z-ai/glm-5.2) is TEXT-ONLY, so OpenRouter transparently
+// runs its default mistral-ocr shim over the file part and passes the OCR'd text
+// through. Verified working — and it is the most expensive thing in this repo:
+// $2/1000 pages ON TOP of tokens, ~38% of a solve's cost. Two ways out if that
+// ever matters: pin a free engine with
+//   plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }]
+// (worse on scanned/math pages), or point ai_config at a natively-multimodal
+// model — google/gemini-2.5-flash-lite read the same 2 pages for $0.000071 vs
+// glm-5.2's $0.006442, ~90x cheaper, no OCR fee.
 
 export const MAX_PAGES = 60;        // spend/latency ceiling; bigger → split the file
 export const PAGES_PER_CHUNK = 4;   // keeps each call bounded on dense mock papers
@@ -117,7 +126,7 @@ export async function extractQuestions(
     for (const modelId of models) {
       try {
         const { object } = await generateObject({
-          model: getModel(config.provider, modelId),
+          model: getModel(modelId),
           schema: SCHEMA,
           system: EXTRACT_SYSTEM,
           temperature: config.temperature,

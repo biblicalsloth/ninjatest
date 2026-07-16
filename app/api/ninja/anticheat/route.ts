@@ -50,11 +50,11 @@ export async function POST(req: NextRequest) {
   for (const modelId of models) {
     try {
       const res = await generateText({
-        model: getModel(config.provider, modelId),
+        model: getModel(modelId),
         system: ANTICHEAT_SYSTEM,
         prompt: JSON.stringify(suspects),
         // No temperature: reasoning models reject anything but their default, so
-        // pinning it here would break the provider/model switch in /admin.
+        // pinning it here would break the model switch in /admin.
         // Verdicts are advisory — a human acts on them, nothing is auto-enforced.
         maxOutputTokens: Math.max(config.max_tokens, 1500),
       });

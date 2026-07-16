@@ -68,7 +68,9 @@ export function AuthPanel({
     <div className="min-h-screen flex items-center justify-center bg-[#06d6a0] px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <NinjatestLogo onMint className="mb-2" />
+          <Link href="/" aria-label="Ninjatest home">
+            <NinjatestLogo onMint className="mb-2" />
+          </Link>
           <p className="text-[#120F17]/60 text-sm">{authMode === "signin" ? "Welcome back." : "Join the arena."}</p>
         </div>
 

@@ -8,21 +8,44 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { NinjaPill } from "@/components/ninja-pill";
+import { askNinja } from "@/lib/ninja";
+import { NinjaLogo } from "@/components/ninja-logo";
 
 // Solo practice drill. All keys stay server-side: get_practice_question serves
 // body/options only; submit_practice_answer locks the answer and returns the
 // reveal. State machine: idle → question → feedback → … → summary.
+//
+// Ninja is reachable only from the feedback phase — the server enforces the
+// same rule (get_practice_question_for_ninja raises 'question not answered'),
+// so the button's placement is convenience, not the guard.
 
 type Question = {
   section: string;
   body: string;
+  /** empty for tita — the answer is typed, not picked */
   options: string[];
+  qtype: "mcq" | "tita";
   image_url: string | null;
   passage_body: string | null;
   passage_image_url: string | null;
 };
 
-type Reveal = { is_correct: boolean; correct_index: number; explanation: string | null; done: boolean };
+type Reveal = {
+  is_correct: boolean;
+  qtype: "mcq" | "tita";
+  /** null for tita */
+  correct_index: number | null;
+  /** tita only: the key, revealed once the answer is locked */
+  answer_value: string | null;
+  explanation: string | null;
+  done: boolean;
+};
+
+// Mirrors TITA_INPUT in app/match/[matchId]/match-client.tsx — keys are numeric
+// (questions_tita_answer_numeric), so the box refuses units rather than
+// sanitising them into a different number.
+const TITA_INPUT = /^-?[0-9]*(?:,[0-9]*)*(?:\.[0-9]*)?$/;
 
 type PracticeState = {
   current_index: number;
@@ -50,6 +73,7 @@ export default function PracticeClient() {
   const [index, setIndex] = useState(0);
   const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [summary, setSummary] = useState<PracticeState | null>(null);
 
@@ -58,8 +82,13 @@ export default function PracticeClient() {
     if (error) throw new Error(error.message);
     const q = Array.isArray(data) ? data[0] : data;
     if (!q) throw new Error("question missing");
-    setQuestion({ ...q, options: Array.isArray(q.options) ? q.options : [] });
+    setQuestion({
+      ...q,
+      qtype: q.qtype === "tita" ? "tita" : "mcq",
+      options: Array.isArray(q.options) ? q.options : [],
+    });
     setSelected(null);
+    setTypedAnswer("");
     setReveal(null);
     setIndex(i);
     setPhase("question");
@@ -89,12 +118,12 @@ export default function PracticeClient() {
     }
   }
 
-  async function submit(sel: number | null) {
+  async function submit(sel: number | null, text: string | null = null) {
     if (!sessionId) return;
     setBusy(true);
     try {
       const { data, error } = await supabase.rpc("submit_practice_answer", {
-        p_session: sessionId, p_index: index, p_selected: sel,
+        p_session: sessionId, p_index: index, p_selected: sel, p_answer_text: text,
       });
       if (error) throw new Error(error.message);
       setSelected(sel);
@@ -188,33 +217,67 @@ export default function PracticeClient() {
                   className="rounded-lg max-w-full h-auto" unoptimized />
               )}
 
-              <div className="space-y-2">
-                {question.options.map((opt, i) => {
-                  const isPicked = selected === i;
-                  const isCorrect = reveal != null && i === reveal.correct_index;
-                  const isWrongPick = reveal != null && isPicked && !isCorrect;
-                  return (
-                    <button
-                      key={i}
-                      disabled={phase === "feedback" || busy}
-                      onClick={() => setSelected(i)}
-                      className={cn(
-                        "w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors",
-                        isCorrect ? "border-[#06d6a0] bg-[#06d6a0]/10 text-[#06d6a0]"
-                          : isWrongPick ? "border-[#ef476f] bg-[#ef476f]/10 text-[#ef476f]"
-                          : isPicked ? "border-[#06d6a0]/60 bg-[#06d6a0]/5 text-white"
-                          : "border-[#333333] text-[#c5e8f0] hover:border-[#4a8fa8]"
-                      )}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
-              </div>
+              {question.qtype === "tita" ? (
+                <div className="space-y-2.5">
+                  <label htmlFor="practice-tita" className="block text-[#7ab5cc] text-xs uppercase tracking-wider font-medium">
+                    Type your answer
+                  </label>
+                  <input
+                    id="practice-tita"
+                    value={typedAnswer}
+                    onChange={(e) => {
+                      // Reject, don't sanitise: stripping non-numerics turns
+                      // "Rs.1900" into ".1900" (= 0.19), scoring a right solve wrong.
+                      if (!TITA_INPUT.test(e.target.value)) return;
+                      setTypedAnswer(e.target.value);
+                    }}
+                    disabled={phase === "feedback" || busy}
+                    autoComplete="off"
+                    inputMode="decimal"
+                    placeholder="e.g. 245"
+                    className={cn(
+                      "w-full px-4 py-3.5 rounded-xl border bg-[#111111] text-white font-mono text-base",
+                      "placeholder:text-[#7ab5cc]/40 outline-none transition-colors border-[#333333]",
+                      phase === "feedback" ? "text-[#7ab5cc] cursor-not-allowed" : "focus:border-[#06d6a0]/60"
+                    )}
+                  />
+                  <p className="text-[#7ab5cc]/60 text-xs">
+                    No negative marking on typed answers — a wrong answer costs nothing.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {question.options.map((opt, i) => {
+                    const isPicked = selected === i;
+                    const isCorrect = reveal != null && i === reveal.correct_index;
+                    const isWrongPick = reveal != null && isPicked && !isCorrect;
+                    return (
+                      <button
+                        key={i}
+                        disabled={phase === "feedback" || busy}
+                        onClick={() => setSelected(i)}
+                        className={cn(
+                          "w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors",
+                          isCorrect ? "border-[#06d6a0] bg-[#06d6a0]/10 text-[#06d6a0]"
+                            : isWrongPick ? "border-[#ef476f] bg-[#ef476f]/10 text-[#ef476f]"
+                            : isPicked ? "border-[#06d6a0]/60 bg-[#06d6a0]/5 text-white"
+                            : "border-[#333333] text-[#c5e8f0] hover:border-[#4a8fa8]"
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {phase === "question" && (
                 <div className="flex gap-2">
-                  <Button onClick={() => submit(selected)} disabled={busy || selected === null}
+                  <Button
+                    onClick={() =>
+                      question.qtype === "tita" ? submit(null, typedAnswer) : submit(selected)
+                    }
+                    disabled={busy || (question.qtype === "tita" ? !typedAnswer.trim() : selected === null)}
                     className="flex-1 h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088]">
                     {busy ? <Loader2 className="animate-spin" size={16} /> : "Submit"}
                   </Button>
@@ -227,27 +290,54 @@ export default function PracticeClient() {
 
               {phase === "feedback" && reveal && (
                 <div className="space-y-3">
-                  <div className={cn(
-                    "rounded-lg px-4 py-3 text-sm font-semibold",
-                    reveal.is_correct ? "bg-[#06d6a0]/10 text-[#06d6a0]" :
-                    selected === null ? "bg-[#7ab5cc]/10 text-[#7ab5cc]" : "bg-[#ef476f]/10 text-[#ef476f]"
-                  )}>
-                    {reveal.is_correct ? "Correct!" : selected === null ? "Skipped" : "Wrong"}
-                    {!reveal.is_correct && (
-                      <span className="font-normal text-[#c5e8f0]">
-                        {" — answer: "}{question.options[reveal.correct_index]}
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    // TITA never sets selected_index, so the MCQ skip test
+                    // (selected === null) would call every typed answer a skip.
+                    const skipped = reveal.qtype === "tita" ? !typedAnswer.trim() : selected === null;
+                    return (
+                      <div className={cn(
+                        "rounded-lg px-4 py-3 text-sm font-semibold",
+                        reveal.is_correct ? "bg-[#06d6a0]/10 text-[#06d6a0]" :
+                        skipped ? "bg-[#7ab5cc]/10 text-[#7ab5cc]" : "bg-[#ef476f]/10 text-[#ef476f]"
+                      )}>
+                        {reveal.is_correct ? "Correct!" : skipped ? "Skipped" : "Wrong"}
+                        {!reveal.is_correct && (
+                          <span className="font-normal text-[#c5e8f0]">
+                            {" — answer: "}
+                            {reveal.qtype === "tita"
+                              ? reveal.answer_value
+                              : reveal.correct_index != null
+                                ? question.options[reveal.correct_index]
+                                : "—"}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {reveal.explanation && (
                     <p className="text-[#c5e8f0] text-sm whitespace-pre-line leading-relaxed bg-[#120F17] rounded-lg px-4 py-3">
                       {reveal.explanation}
                     </p>
                   )}
-                  <Button onClick={next} disabled={busy}
-                    className="w-full h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088]">
-                    {busy ? <Loader2 className="animate-spin" size={16} /> : reveal.done ? "See summary" : "Next question"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={next} disabled={busy}
+                      className="flex-1 h-11 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full hover:bg-[#05b088]">
+                      {busy ? <Loader2 className="animate-spin" size={16} /> : reveal.done ? "See summary" : "Next question"}
+                    </Button>
+                    <Button
+                      onClick={() => sessionId && askNinja({
+                        practiceSessionId: sessionId,
+                        questionIndex: index,
+                        label: `Q${index + 1} · ${question.section}`,
+                      })}
+                      disabled={busy || !sessionId}
+                      variant="outline"
+                      title="Ask Ninja to explain this question"
+                      className="h-11 border-[#333333] text-[#7ab5cc] rounded-full hover:bg-[#120F17] flex items-center gap-1.5"
+                    >
+                      <NinjaLogo color="#06d6a0" className="w-4 h-4" /> Ask Ninja
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -292,6 +382,9 @@ export default function PracticeClient() {
           </div>
         )}
       </div>
+
+      {/* Listens for the ninja:ask event fired from the feedback panel. */}
+      <NinjaPill />
     </div>
   );
 }

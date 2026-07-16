@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Loader2, MessageSquare } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
-import { openNinjaCoach } from "@/lib/ninja";
 
 interface Item {
   kind: "coach" | "debrief" | "response";
@@ -16,6 +15,7 @@ interface Item {
 }
 interface Session {
   match_id: string | null;
+  practice_session_id: string | null;
   opponent: string | null;
   result: "win" | "loss" | "draw" | null;
   played_at: string | null;
@@ -25,20 +25,26 @@ interface Session {
 
 const RESULT_COLOR = { win: "#06d6a0", loss: "#ef476f", draw: "#ffd166" } as const;
 
-function kindLabel(it: Item): string {
+// A session is keyed by whichever id it has; both null = the general coach bucket.
+const sessionKey = (s: Session) => s.match_id ?? s.practice_session_id ?? "general";
+
+function kindLabel(it: Item, isPractice: boolean): string {
   if (it.kind === "coach") return "Coach chat";
   if (it.kind === "debrief") return "Match debrief";
-  return `In-match hint · Q${(it.question_index ?? 0) + 1}`;
+  const q = `Q${(it.question_index ?? 0) + 1}`;
+  return isPractice ? `Practice hint · ${q}` : `In-match hint · ${q}`;
 }
 
 function sessionTitle(s: Session): string {
+  if (s.practice_session_id) return "Practice drill";
   if (!s.match_id) return "General chat";
   return s.opponent ? `vs ${s.opponent}` : "Match session";
 }
 
 // /ninja — browsable history of every Ninja AI output (coach chat, match
-// debriefs, in-match hints), grouped into per-match sessions. Reuses the
-// coach's dark card idiom; empty state fires the floating coach.
+// debriefs, in-match hints, practice-drill hints), grouped into per-match and
+// per-drill sessions. Reuses the coach's dark card idiom; empty state fires the
+// floating coach.
 export default function NinjaHistoryClient() {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [selected, setSelected] = useState(0);
@@ -65,14 +71,22 @@ export default function NinjaHistoryClient() {
         <NinjaLogo color="#06d6a0" className="w-12 h-12" />
         <p className="text-white text-lg font-semibold">No Ninja history yet</p>
         <p className="text-[#7ab5cc] text-sm max-w-sm">
-          Ask Ninja about your stats, or generate a debrief after a match — everything shows up here.
+          Ask Ninja about your stats, solve a paper, or generate a debrief after a match — everything shows up here.
         </p>
-        <button
-          onClick={openNinjaCoach}
-          className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
-        >
-          Ask Ninja
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/ninja/chat"
+            className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
+          >
+            Start a chat
+          </Link>
+          <Link
+            href="/ninja/solve"
+            className="rounded-full border border-[#06d6a0]/50 px-5 py-2.5 text-[#06d6a0] font-semibold hover:bg-[#06d6a0]/10 transition"
+          >
+            Solve a paper
+          </Link>
+        </div>
       </div>
     );
   }
@@ -84,6 +98,18 @@ export default function NinjaHistoryClient() {
       <div className="flex items-center gap-2 mb-6">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
         <h1 className="text-white text-xl font-semibold">Ninja AI</h1>
+        <Link
+          href="/ninja/chat"
+          className="ml-auto rounded-full bg-[#06d6a0] px-4 py-1.5 text-[#073b4c] text-sm font-semibold hover:brightness-105 transition"
+        >
+          New chat
+        </Link>
+        <Link
+          href="/ninja/solve"
+          className="rounded-full border border-[#06d6a0]/50 px-4 py-1.5 text-[#06d6a0] text-sm font-semibold hover:bg-[#06d6a0]/10 transition"
+        >
+          Solve a paper
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4">
@@ -93,7 +119,7 @@ export default function NinjaHistoryClient() {
             const on = i === selected;
             return (
               <button
-                key={s.match_id ?? "general"}
+                key={sessionKey(s)}
                 onClick={() => setSelected(i)}
                 className={`text-left rounded-lg px-3 py-2.5 border transition ${
                   on ? "bg-[#111111] border-[#06d6a0]/50" : "bg-[#111111]/60 border-[#222222] hover:border-[#333333]"
@@ -131,7 +157,7 @@ export default function NinjaHistoryClient() {
             {active.items.map((it, i) => (
               <div key={i} className="space-y-1.5">
                 <p className="text-[#7ab5cc] text-[11px] font-medium uppercase tracking-wider">
-                  {kindLabel(it)}
+                  {kindLabel(it, active.practice_session_id !== null)}
                   <span className="text-[#4a8fa8] normal-case tracking-normal ml-2">
                     {new Date(it.created_at).toLocaleString()}
                   </span>
