@@ -126,7 +126,7 @@ Calibration report: `scripts/elo-calibration.sql` (read-only; buckets rated matc
 R values are each player's **current** rating read under ordered row locks at finalization (not the match-creation snapshot) — overlapping rated matches chain correctly. Callers pass only the margin factor; all rating math lives in `apply_rated_result`. Draws: one shared delta at `K = least(K_a, K_b)` — strictly zero-sum, clamped to the 100 floor (per-player Ks used to mint ~+11/draw on K-mismatched pairs), reset both streaks. Wins +1 streak / update best; losses/draws zero it; unrated matches touch nothing.
 
 ### Question ELO (adaptive difficulty)
-Nudged on every real answer in a **rated** match inside `submit_answer` (unrated matches never nudge — uncapped unrated challenges were a collusion channel into the bank) — one atomic UPDATE, clamp [400, 2800], K=32 while `times_seen < 20` else 16, result `0.35 × (taken_ms/cap)` for correct / `1.0` for wrong; any implausibly-fast (<2s) answer is excluded, correct or wrong (`fast_answer` telemetry stays correct-only). Selection biases toward the players' average ELO with `random()×300` jitter; VARC/DILR prefer one active passage group (≥3 active sub-questions, nearest mean-ELO) with standalone fallback; QUANT picks 3 standalone. Constants backed by `scripts/simulate-question-elo.mjs`; invariants tested by `scripts/elo-stress-test.sql`.
+Nudged on every real answer in a **rated or bot** match inside `submit_answer` (unrated *player-vs-player* matches never nudge — uncapped unrated challenges were a collusion channel into the bank; you can't collude with the bot, and it's the cold-start tool whose own difficulty reads `q.elo`, so gating it on `is_rated` left the bank frozen at its seeds — `20260716160000`). Only the human's submission nudges in a bot match; `bot_act` deliberately never does, since the bot's answer derives *from* `q.elo`. One atomic UPDATE, clamp [400, 2800], K=32 while `times_seen < 20` else 16, result `0.35 × (taken_ms/cap)` for correct / `1.0` for wrong; any implausibly-fast (<2s) answer is excluded, correct or wrong (`fast_answer` telemetry stays correct-only). Selection biases toward the players' average ELO with `random()×300` jitter; VARC/DILR prefer one active passage group (≥3 active sub-questions, nearest mean-ELO) with standalone fallback; QUANT picks 3 standalone. Constants backed by `scripts/simulate-question-elo.mjs`; invariants tested by `scripts/elo-stress-test.sql`.
 
 ### Option-shuffle invariant (critical)
 `option_perm(match_id, user_id, q_index, n)` — IMMUTABLE md5-based deterministic permutation. Three functions must share it: `get_match_question` (serves shuffled), `submit_answer` (maps display → canonical), `get_answer_reveal` (maps canonical correct → display). **Never change one without the other two.** Migration `20260713030000` recreated the readers from a pre-shuffle base and silently desynced scoring (fixed `20260713040000`); section 2 of `elo-stress-test.sql` guards this.
@@ -150,7 +150,7 @@ Public pages (leaderboard, profile) use `createPublicClient()` (cookieless, `per
 ## RLS rules
 - `questions` / `passages`: `using (false)` — served only via definer RPCs.
 - `profiles`: world-readable; self-update with server-owned columns frozen via WITH CHECK.
-- `matches` / `match_answers`: participants only. `rating_history`: own rows. `seasons`/`season_results`/`section_config`: public read.
+- `matches`: participants only. `match_answers`: **own rows only** (`20260716160000`) — the old participants-scoped policy let you read the *opponent's* row while the question was still open, and TITA's `answer_text` is plaintext, so whoever answered first handed the other the answer. Never widen it back: every opponent-facing read (`get_answer_reveal`, `get_debrief_data`, the spectator RPCs) is definer and bypasses RLS. `rating_history`: own rows. `seasons`/`season_results`/`section_config`: public read.
 - `matchmaking_queue` / `challenges`: own rows (challenges also readable when open+unexpired for accept flow).
 - `friendships`, `match_events`, `rpc_rate_limit`, `ip_rate_limit`: RLS on, zero policies — definer-only.
 - `waitlist`: validated anon INSERT only (INSERT-not-UPDATE means resubmits can't overwrite rows).
@@ -184,15 +184,15 @@ The repo builds under **three separate Vercel projects**, each with its own env 
 
 | Push to | `ninjatest` | `ninjatest-flbe` |
 |---|---|---|
-| `main` | cancelled by the guard | **production** → `test.ninjatest.app` |
-| `test` | cancelled by the guard | preview → `ninjatest-flbe-git-test-*.vercel.app` (Vercel-SSO-gated) |
+| `main` | **cancelled** by the guard — production stays frozen | **production** → `test.ninjatest.app` |
+| `test` (or any branch) | preview → `ninjatest-git-*.vercel.app` (Vercel-SSO-gated) | preview → `ninjatest-flbe-git-test-*.vercel.app` (Vercel-SSO-gated) |
 
 So the only place `test`-branch code is viewable is that SSO-gated preview URL, behind your Vercel login. The branch is kept for short-lived work; to put something in front of `test.ninjatest.app`, it has to land on `main`.
 
 ### Release flow (deliberately one-way)
-A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard: it exits 0 (skip) for every project except staging, so `ninjatest` Git builds are cancelled and production is frozen until promoted by hand.
+A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard — it exits 0 (skip) / 1 (build), and skips exactly one thing: a **production** build of **`ninjatest`** without the escape hatch. Everything else builds, previews included.
 
-It is written as an **allowlist for `ninjatest-flbe`**, not a blocklist for `ninjatest`, and that direction is load-bearing: `vercel.json` is shared by both projects, and if `VERCEL_PROJECT_ID` were ever unavailable a blocklist would fail *open* and auto-deploy production. This fails closed — nothing builds, which is loud and safe. Keep the guard here, not in project settings: the dashboard's Ignored Build Step is deliberately unset so there is exactly one source of truth.
+Both allowlist tests (`= preview`, and staging by project id) are written that way rather than as blocklists (`!= production`, `!= ninjatest`), and the direction is load-bearing: `vercel.json` is shared by both projects, so if `VERCEL_PROJECT_ID` or `VERCEL_ENV` were ever unavailable, a blocklist would fail *open* and auto-deploy production. This fails closed — the production path skips, which is loud and safe. Keep the guard here, not in project settings: the dashboard's Ignored Build Step is deliberately unset so there is exactly one source of truth.
 
 Verify what you shipped on `test.ninjatest.app`, then go live **once**:
 1. Add `ALLOW_PROD_DEPLOY=1` to `ninjatest` Production (the `ignoreCommand` escape hatch).
