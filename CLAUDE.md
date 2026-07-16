@@ -172,11 +172,22 @@ See `DESIGN.md` — now the accurate shipped system. Essentials: dark-only, page
 ## Deployments (three Vercel projects, one repo — check this before debugging any "it works on X but not Y")
 The repo builds under **three separate Vercel projects**, each with its own env vars. Behaviour differs by *project*, not by branch or `VERCEL_ENV`, and nothing in the code names them — this has burned real debugging time.
 
-| Project | Branch | Serves | Mode |
-|---|---|---|---|
-| `ninjatest` | `main` | `ninjatest.app` → 308 → `www.ninjatest.app` | **waitlist** (`NEXT_PUBLIC_APP_MODE=waitlist` on Production) |
-| `ninjatest-flbe` | `test` | `test.ninjatest.app` **and** `ninjatest-test.vercel.app` | **full app**, deployed as its own *production* |
-| admin console | — | `admin.<domain>`, behind Vercel Authentication | `ADMIN_ENABLED=1` |
+| Project | Prod branch | Serves | Mode | Auto-deploys? |
+|---|---|---|---|---|
+| `ninjatest` | `main` | `ninjatest.app` → 308 → `www.ninjatest.app` | **waitlist** (`NEXT_PUBLIC_APP_MODE=waitlist` on Production) | **no — build skipped, see below** |
+| `ninjatest-flbe` | `main` | `test.ninjatest.app` **and** `ninjatest-test.vercel.app` | **full app**, deployed as its own *production* | yes |
+| admin console | — | `admin.<domain>`, behind Vercel Authentication | `ADMIN_ENABLED=1` | — |
+
+**Both production projects build `main`.** Staging is not a branch — it is a second project off the same branch with different env vars. The `test` branch is vestigial: it only produces SSO-gated previews nobody looks at. Don't reach for branches to change what staging runs; reach for that project's env vars.
+
+### Release flow (deliberately one-way)
+A push to `main` deploys **staging only**. `ninjatest` has its Ignored Build Step set to `exit 0`, so its Git builds are skipped — production is frozen until promoted by hand. Verify what you shipped on `test.ninjatest.app`, then go live **once**:
+1. Clear the Ignored Build Step on `ninjatest` (dashboard, or `PATCH /v9/projects/prj_ejXGHpLJk31Sysn7RxRuoIE0BBlq` with `commandForIgnoringBuildStep: null` — the CLI has no flag for it).
+2. Remove `NEXT_PUBLIC_APP_MODE` from `ninjatest` Production — this is the waitlist→app flip; the landing stops being the front door and `/` redirects authed users to `/lobby`.
+3. Redeploy `main`, confirm `www.ninjatest.app`.
+4. Re-set the Ignored Build Step to `exit 0` to refreeze production.
+
+Because both projects build the same branch, step 3 ships the exact commit staging validated.
 
 Traps, all learned the hard way:
 - **`test.ninjatest.app` is NOT a preview of `ninjatest`.** It is `ninjatest-flbe`'s *production*, so `VERCEL_ENV === "preview"` is false there. Gating staging behaviour on `VERCEL_ENV` is a silent no-op.
@@ -184,6 +195,8 @@ Traps, all learned the hard way:
 - `ninjatest-flbe` has no `NEXT_PUBLIC_APP_MODE` — undefined `!== "waitlist"`, which is *why* it runs the full app.
 - Per-commit `*.vercel.app` preview URLs are Vercel-SSO-gated; the two hostnames above are not.
 - `vercel env pull` redacts every value to `""`. To find out what a deployment actually does, curl it.
+- **`main` is not "production" in the usual sense** — it is the staging trunk. Pushing it is safe and expected; it does not reach `ninjatest.app`.
+- Neither the project split nor the build guard is visible in this repo (no `vercel.json`). Everything above lives in Vercel project settings — this file is the only record.
 
 ## Environment
 | Var | Where | Notes |
