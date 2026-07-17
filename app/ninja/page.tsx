@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import NinjaHistoryClient from "./ninja-history-client";
+import ChatClient from "./chat-client";
 
 export default function NinjaPage() {
-  return <NinjaHistoryClient />;
+  return <ChatClient />;
 }

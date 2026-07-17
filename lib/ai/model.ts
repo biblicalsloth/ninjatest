@@ -28,6 +28,27 @@ export function getModel(modelId: string): LanguageModel {
   return createOpenAI({ baseURL: OPENROUTER_BASE_URL, apiKey: key }).chat(modelId);
 }
 
+// get_profile's `curve` is every rating_history row ever, with no LIMIT in the
+// RPC (the profile graph wants the whole thing). The coach must NOT hand that
+// to the model: generateText replays every prior tool result at each of
+// stepCountIs(6) steps, so the curve's token cost is quadratic in turns and
+// linear in career length — on the priciest route in the app. Trend and recent
+// form only need the tail. Lives here, not in coach.ts, because this file is
+// alias-free and therefore node-loadable by the self-tests (see model.check.mts).
+export const CURVE_POINTS = 30;
+
+// `curve` is ascending by created_at, so slice(-N) is the most recent N.
+export function trimCurve(data: unknown): unknown {
+  const d = data as { curve?: unknown[] } | null;
+  if (!d || !Array.isArray(d.curve) || d.curve.length <= CURVE_POINTS) return data;
+  return {
+    ...d,
+    curve: d.curve.slice(-CURVE_POINTS),
+    // Tell the model it's a tail, so it can't claim this is the full career.
+    curve_note: `showing the ${CURVE_POINTS} most recent of ${d.curve.length} rating points`,
+  };
+}
+
 // Build the user prompt from the (server-fetched) question. Correct answer +
 // explanation are included so Ninja can grade itself; they never reach the client.
 // The caller's own answer (canonical index for MCQ, typed text for TITA) makes

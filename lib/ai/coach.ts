@@ -10,7 +10,7 @@
 // Coaching needs its own persona.
 
 import { generateText, tool, jsonSchema, stepCountIs, type ToolSet } from "ai";
-import { getModel, type AiConfig } from "@/lib/ai/model";
+import { getModel, trimCurve, CURVE_POINTS, type AiConfig } from "@/lib/ai/model";
 
 export const COACH_SYSTEM = `You are Ninja, a sharp, encouraging CAT (Common Admission Test) prep coach.
 The user is a player on a 1v1 ELO-rated CAT battle app (9 questions/match: VARC, DILR, Quant).
@@ -64,14 +64,19 @@ type Sb = any;
 function buildCoachTools(sb: Sb, username: string): ToolSet {
   const call = async (fn: string, args: Record<string, unknown>) => {
     const { data, error } = await sb.rpc(fn, args);
-    if (error) return { error: error.message };
+    // Never forward error.message: it's raw Postgres text going into model
+    // context and possibly into the user-visible answer. Log it, don't ship it.
+    if (error) {
+      console.error(`coach tool ${fn} failed:`, error.message);
+      return { error: "That data is unavailable right now." };
+    }
     return data ?? null;
   };
   return {
     get_my_profile: tool({
-      description: "The user's profile: current & peak ELO, global rank, wins/losses/draws, current & best streak, plus their full rating curve over time.",
+      description: `The user's profile: current & peak ELO, global rank, wins/losses/draws, current & best streak, plus their ${CURVE_POINTS} most recent rating points.`,
       inputSchema: NO_INPUT,
-      execute: () => call("get_profile", { p_username: username }),
+      execute: async () => trimCurve(await call("get_profile", { p_username: username })),
     }),
     get_my_section_stats: tool({
       description: "Per-section (VARC/DILR/Quant) accuracy and timing — the primary source for identifying the user's weakest section.",

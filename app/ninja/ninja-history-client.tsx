@@ -75,7 +75,7 @@ export default function NinjaHistoryClient() {
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/ninja/chat"
+            href="/ninja"
             className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
           >
             Start a chat
@@ -97,9 +97,9 @@ export default function NinjaHistoryClient() {
     <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
-        <h1 className="text-white text-xl font-semibold">Ninja AI</h1>
+        <h1 className="text-white text-xl font-semibold">Ninja AI — History</h1>
         <Link
-          href="/ninja/chat"
+          href="/ninja"
           className="ml-auto rounded-full bg-[#06d6a0] px-4 py-1.5 text-[#073b4c] text-sm font-semibold hover:brightness-105 transition"
         >
           New chat

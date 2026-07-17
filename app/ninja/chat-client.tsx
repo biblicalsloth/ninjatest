@@ -43,7 +43,8 @@ const MODE_HINT: Record<Mode, string> = {
 const PLAN_QUESTION = "Build my weekly study plan.";
 const REQ_MODE: Record<Mode, string | undefined> = { coach: undefined, buddy: "socratic", plan: "plan" };
 
-// /ninja/chat — modern-LLM chat over the user's own stats. Left rail = saved
+// /ninja — modern-LLM chat over the user's own stats (the dock's Ninja AI entry
+// point; the read-only archive lives at /ninja/history). Left rail = saved
 // conversations (searchable); main = the active thread + a chatbox. Each chat is
 // a conversation_id (minted client-side); the coach route persists every turn
 // under it, so history survives reloads and devices.
@@ -207,7 +208,7 @@ export default function ChatClient() {
         )}
       </div>
       <div className="border-t border-[#222222] px-3 py-2 flex gap-3 text-xs">
-        <Link href="/ninja" className="text-[#7ab5cc] hover:text-[#06d6a0]">History</Link>
+        <Link href="/ninja/history" className="text-[#7ab5cc] hover:text-[#06d6a0]">History</Link>
         <Link href="/ninja/solve" className="text-[#7ab5cc] hover:text-[#06d6a0]">Solve a paper</Link>
       </div>
     </div>
