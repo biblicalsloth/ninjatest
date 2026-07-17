@@ -263,23 +263,22 @@ The repo builds under **three separate Vercel projects**, each with its own env 
 
 | Push to | `ninjatest` | `ninjatest-flbe` |
 |---|---|---|
-| `main` | **cancelled** by the guard — production stays frozen | **production** → `test.ninjatest.app` |
+| `main` | **production** → `www.ninjatest.app` | **production** → `test.ninjatest.app` |
 | `test` (or any branch) | preview → `ninjatest-git-*.vercel.app` (Vercel-SSO-gated) | preview → `ninjatest-flbe-git-test-*.vercel.app` (Vercel-SSO-gated) |
 
-So the only place `test`-branch code is viewable is that SSO-gated preview URL, behind your Vercel login. The branch is kept for short-lived work; to put something in front of `test.ninjatest.app`, it has to land on `main`.
+So the only place `test`-branch code is viewable is that SSO-gated preview URL, behind your Vercel login. The branch is kept for short-lived work; to put something in front of either domain, it has to land on `main`.
 
-### Release flow (deliberately one-way)
-A push to `main` deploys **staging only**. `vercel.json`'s `ignoreCommand` is the guard — it exits 0 (skip) / 1 (build), and skips exactly one thing: a **production** build of **`ninjatest`** without the escape hatch. Everything else builds, previews included.
+### Release flow: one push, both domains
+**A push to `main` deploys BOTH production projects.** They run the identical commit by construction — that is the intent, deliberately chosen 2026-07-17. There is no promote step and no staging buffer: whatever lands on `main` is on `www.ninjatest.app` within ~2 minutes. Test on a branch preview or locally *before* merging, not after.
 
-Both allowlist tests (`= preview`, and staging by project id) are written that way rather than as blocklists (`!= production`, `!= ninjatest`), and the direction is load-bearing: `vercel.json` is shared by both projects, so if `VERCEL_PROJECT_ID` or `VERCEL_ENV` were ever unavailable, a blocklist would fail *open* and auto-deploy production. This fails closed — the production path skips, which is loud and safe. Keep the guard here, not in project settings: the dashboard's Ignored Build Step is deliberately unset so there is exactly one source of truth.
+**The two domains differ only by env var, never by code:**
+- `www.ninjatest.app` has `NEXT_PUBLIC_APP_MODE=waitlist` → the landing is the front door, every app route bounces to `/`.
+- `test.ninjatest.app` has no `NEXT_PUBLIC_APP_MODE` → the full battle app.
+So "same code, different front door" is the steady state. **The waitlist→app flip is one env var**: remove `NEXT_PUBLIC_APP_MODE` from `ninjatest` Production and the public site becomes the app. That is the launch, and it needs no deploy and no code change — which also means an accidental deletion of that var launches the product.
 
-Verify what you shipped on `test.ninjatest.app`, then go live **once**:
-1. Add `ALLOW_PROD_DEPLOY=1` to `ninjatest` Production (the `ignoreCommand` escape hatch).
-2. Remove `NEXT_PUBLIC_APP_MODE` from `ninjatest` Production — this is the waitlist→app flip; the landing stops being the front door and `/` redirects authed users to `/lobby`.
-3. Redeploy `main`, confirm `www.ninjatest.app`.
-4. Remove `ALLOW_PROD_DEPLOY` to refreeze production.
+**`vercel.json` and its `ignoreCommand` guard are gone** (deleted 2026-07-17). It existed to freeze `www.ninjatest.app` while `main` moved, and skipped exactly one thing: a production build of `ninjatest` without `ALLOW_PROD_DEPLOY=1`. Once both domains are meant to track `main`, the guard had no remaining job, and a guard that is permanently defeated by an env var is worse than none — invisible in the repo, which is the exact failure it was written to prevent. `ALLOW_PROD_DEPLOY` is now read by nothing; delete it from `ninjatest` Production if it is ever set. To re-freeze production, restore `vercel.json` with an `ignoreCommand` rather than reaching for the dashboard's Ignored Build Step (deliberately unset, so there is one source of truth).
 
-Because both projects build the same branch, step 3 ships the exact commit staging validated. `ALLOW_PROD_DEPLOY` is a no-op on staging (already allowlisted), so setting it on the wrong project cannot un-freeze anything.
+Note `/api/*` is outside `proxy.ts`'s matcher, so **waitlist mode does not gate the API** — `/api/ninja/*` is reachable on `www.ninjatest.app` by anyone who signs up (signup/signin work in waitlist mode). Each handler does its own auth + per-user + per-IP rate limiting; that is the only thing standing between the public domain and `/api/ninja/solve` at $0.06–0.31 per PDF.
 
 Traps, all learned the hard way:
 - **`test.ninjatest.app` is NOT a preview of `ninjatest`.** It is `ninjatest-flbe`'s *production*, so `VERCEL_ENV === "preview"` is false there. Gating staging behaviour on `VERCEL_ENV` is a silent no-op.
@@ -287,9 +286,9 @@ Traps, all learned the hard way:
 - `ninjatest-flbe` has no `NEXT_PUBLIC_APP_MODE` — undefined `!== "waitlist"`, which is *why* it runs the full app.
 - Per-commit `*.vercel.app` preview URLs are Vercel-SSO-gated; the two hostnames above are not.
 - `vercel env pull` redacts every value to `""`. To find out what a deployment actually does, curl it.
-- **`main` is not "production" in the usual sense** — it is the staging trunk. Pushing it is safe and expected; it does not reach `ninjatest.app`.
-- The build guard is in `vercel.json`; the **project split, domains, and env vars are not** — they live in Vercel project settings, and this file is their only record.
-- `vercel.json` is shared by every project building this repo. Anything added there (headers, rewrites, crons) hits production *and* staging — scope it on `VERCEL_PROJECT_ID`, as `ignoreCommand` does.
+- **`main` IS production now.** It was the staging trunk until 2026-07-17, when the guard was removed so both domains track it. A push reaches `www.ninjatest.app` in ~2 minutes. Any doc or habit that says "pushing main is safe, it only hits staging" predates that and is wrong.
+- The **project split, domains, and env vars live in Vercel project settings**, not the repo — this file is their only record. Nothing in the codebase names the two projects or says which domain is the public one.
+- **There is no `vercel.json`** (deleted 2026-07-17 with the guard). If one is re-added it is shared by every project building this repo, so anything in it (headers, rewrites, crons) hits production *and* staging — scope on `VERCEL_PROJECT_ID`.
 
 ## Environment
 | Var | Where | Notes |
@@ -300,7 +299,7 @@ Traps, all learned the hard way:
 | `OPENROUTER_API_KEY` | `lib/ai/model.ts`, both backfill scripts | **The only LLM key.** Every Ninja call — chat *and* embeddings — routes through OpenRouter. There is no OpenAI-direct path; switching upstream = changing the model id prefix in `/admin` (`z-ai/…`, `google/…`, `openai/…`). |
 | `ADMIN_ENABLED` | admin deployment + `.env.local` | `=1` makes middleware serve **only** the console: `/` → `/admin`, every other path 404s. Set locally, so `/` will NOT render the landing on your dev server — run `ADMIN_ENABLED= npm run dev` to see it. Elsewhere `/admin*` 404s. |
 | `PRIVATE_LEADERBOARD` | `ninjatest-flbe` only (Prod + Preview) | `=1` drops `/leaderboard` from `isPublicRoute` so the staging board isn't publicly browsable. **Never set it on `ninjatest`** — that would make the real leaderboard auth-only and forfeit its ISR caching. |
-| `ALLOW_PROD_DEPLOY` | `ninjatest` Production, **only while promoting** | `=1` bypasses `vercel.json`'s `ignoreCommand` so production actually builds. Read by the build guard, not by app code. Remove it after the deploy or production is auto-deploying again. |
+| `ALLOW_PROD_DEPLOY` | **nothing reads it** | Dead since 2026-07-17: it was the `vercel.json` `ignoreCommand` escape hatch, and both file and guard are gone. Remove it from `ninjatest` Production if present — it has no effect and reads like a live control. |
 | `SUPABASE_SERVICE_ROLE_KEY` | local ingest scripts only | never in app code |
 | `SUPABASE_DB_PASSWORD` | **your shell, only while running `supabase db push`** | The CLI needs it to connect; it is deliberately **not** in `.env.local` and nothing reads it at runtime. Reset it in Dashboard → Settings → Database. Pass it per-command (`SUPABASE_DB_PASSWORD=… supabase db push`) — **never export it in `~/.zshrc`**, same reason as the OpenRouter key below. |
 | `SUPABASE_ACCESS_TOKEN` | optional, per-command | Overrides the CLI's global login for one command, so pushing ninjatest doesn't require signing out of the other orgs (see Migration discipline #4). Create at Dashboard → Account → Tokens **as the account that owns the project**. |
