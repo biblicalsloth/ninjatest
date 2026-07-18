@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { NinjaLogo } from "@/components/ninja-logo";
 
 // One AI-personalized challenge line per day, under the lobby dailies.
 // Cached server-side per (user, day): the RPC read is free; the generate call
@@ -36,12 +36,12 @@ export function NinjaDailyFocus() {
   if (!content) return null;
 
   return (
-    <div className="flex items-start gap-2.5 pt-2.5 mt-2.5 border-t border-[#222222]">
-      <Sparkles size={16} className="text-[#06d6a0] shrink-0 mt-0.5" />
-      <span className="text-sm text-[#c5e8f0]">
-        {content}
-        <span className="block text-[#4a8fa8] text-[11px] mt-0.5">Ninja&apos;s focus for today</span>
-      </span>
+    <div className="pt-2.5 mt-2.5 border-t border-[#222222]">
+      <div className="flex items-center gap-2">
+        <NinjaLogo color="#06d6a0" className="w-4 h-4 shrink-0" />
+        <span className="font-pixel text-[#06d6a0] text-xs">Ninja drill · today</span>
+      </div>
+      <p className="text-sm text-[#c5e8f0] mt-1.5">{content}</p>
     </div>
   );
 }

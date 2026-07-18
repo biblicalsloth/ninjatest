@@ -18,11 +18,16 @@
 --   6. every ask is refused while the match is still active
 --   7. both Ninja reads branch on qtype, so TITA isn't prompted with a blank key
 --   8. a caller can see their own live match row under RLS — the data source
---      behind lib/ai/live-match.ts::inLiveMatch, which gates all five
---      user-facing routes (ask, debrief, coach, solve, daily)
+--      behind lib/ai/live-match.ts::inLiveMatch, which gates all six
+--      user-facing routes (ask, debrief, coach, solve, daily, plan)
 --   9. the practice twin of the same boundary (20260717160000): owner-only, an
 --      UNANSWERED drill question is refused (practice's reveal gate — the
 --      analogue of #4), and the 3-attempt cap holds per (session, question)
+--  10. get_learner_profile counts what it claims (20260717190000): a cron
+--      timeout is not a skip, rates are own-rows/rated-only, and the ELO slope
+--      reads forward in time
+--  11. ninja_study_plans is a cost cache: first-write-wins never re-bills, and
+--      regenerate is bounded to one rewrite per week IN the RPC
 -- =========================================================
 begin;
 
@@ -194,12 +199,13 @@ begin
   end;
 
   -- 8. lib/ai/live-match.ts::inLiveMatch reads `matches` through RLS to gate
-  -- /api/ninja/{ask,coach,solve,daily,debrief} — coach and solve are the
+  -- /api/ninja/{ask,coach,solve,daily,debrief,plan} — coach and solve are the
   -- free-text routes a player could otherwise paste a live question into from a
   -- second tab; ask and debrief are gated because their per-match RPC guards
   -- (section 6's 'match still active', 'match not finished') only inspect the
   -- match the REQUEST NAMES — mid-match, one aimed at an OLD completed match
-  -- passes them. daily rides the same rule for one definition.
+  -- passes them. daily and plan take no question input and ride the same rule
+  -- for one definition.
   -- It has no RPC to guard it, so assert its data source:
   -- the caller must be able to SEE their own live match row through RLS. That is
   -- the whole property — inLiveMatch filters by the caller's own id, so a leaked
@@ -222,7 +228,7 @@ begin
       raise exception 'FAIL: participant cannot see their own live match under RLS — inLiveMatch fails open';
     end if;
     reset role;
-    raise notice 'PASS 8: live-match visibility under RLS backs the ask/coach/solve/daily/debrief gate';
+    raise notice 'PASS 8: live-match visibility under RLS backs the ask/coach/solve/daily/debrief/plan gate';
   end;
 
   -- 9. Practice asks (20260717160000). Same boundary as the match path, one
@@ -297,6 +303,106 @@ begin
     end;
 
     raise notice 'PASS 9: practice asks are owner-only, answered-only, and capped at 3';
+  end;
+
+  -- 10. get_learner_profile (20260717190000). The signal is match_answers x
+  -- questions x rating_history rolled up — no LLM. The one thing that reads as a
+  -- bug if wrong is the timeout: advance_timed_out writes null skip-rows with
+  -- time_taken_ms = NULL, and counting those as skips tells a player who ran out
+  -- of clock they keep choosing to skip.
+  declare
+    lp jsonb; lmid uuid; lqids uuid[]; sec jsonb;
+  begin
+    perform set_config('request.jwt.claims', json_build_object('sub', uc, 'role', 'authenticated')::text, true);
+    lqids := qids; -- reuse the 9 QUANT MCQ rows (elo 1200 → band '1200_1400')
+
+    -- One RATED completed match for uc. q0 correct, q1 a real skip (both indices
+    -- null, but a client time IS recorded), q2 a cron TIMEOUT (time_taken_ms NULL).
+    insert into matches (player_a, player_b, status, is_rated, question_ids,
+                         elo_a_before, elo_b_before, current_index, question_started_at)
+    values (uc, ua, 'completed', true, lqids, 1300, 1200, 9, now())
+    returning id into lmid;
+    insert into match_answers (match_id, user_id, question_id, question_index,
+                               selected_index, is_correct, points_awarded, time_taken_ms) values
+      (lmid, uc, lqids[1], 0, 1,    true,  100, 30000),   -- correct
+      (lmid, uc, lqids[2], 1, null, false, 0,   88000),   -- real skip: null pick, but timed
+      (lmid, uc, lqids[3], 2, null, false, 0,   null);    -- cron timeout: time is NULL
+
+    -- Give uc a rating point so the trend window is non-empty, and set the live
+    -- ELO to match so deviation (current - window mean) is a clean 0.
+    insert into rating_history (user_id, match_id, elo_before, elo_after, delta)
+    values (uc, lmid, 1200, 1300, 100);
+    update profiles set elo = 1300 where id = uc;
+
+    lp := get_learner_profile(50);
+    if (lp ->> 'matches_analyzed')::int <> 1 then
+      raise exception 'FAIL: expected 1 rated match analyzed, got %', lp ->> 'matches_analyzed';
+    end if;
+    -- 3 rows faced, but only 2 graded (the timeout is held out of every rate).
+    if (lp ->> 'questions_answered')::int <> 2 then
+      raise exception 'FAIL: timeout row leaked into graded set (got % graded)', lp ->> 'questions_answered';
+    end if;
+    if (lp ->> 'timeouts')::int <> 1 then
+      raise exception 'FAIL: timeout not counted as a timeout (got %)', lp ->> 'timeouts';
+    end if;
+
+    sec := lp -> 'by_section' -> 'QUANT';
+    -- 2 graded (correct + real skip). Skip rate is 1/2, NOT 1/3 or 2/3 — the
+    -- cron timeout is neither in the denominator nor counted as a skip.
+    if (sec ->> 'answered')::int <> 2 then
+      raise exception 'FAIL: section denominator includes the timeout (got %)', sec ->> 'answered';
+    end if;
+    if (sec ->> 'skip_rate')::numeric <> 0.5 then
+      raise exception 'FAIL: skip_rate miscounts timeout-vs-skip (got %, expected 0.5)', sec ->> 'skip_rate';
+    end if;
+    if (sec ->> 'accuracy')::numeric <> 0.5 then
+      raise exception 'FAIL: accuracy over wrong denominator (got %, expected 0.5)', sec ->> 'accuracy';
+    end if;
+    if (sec ->> 'timeouts')::int <> 1 then
+      raise exception 'FAIL: per-section timeout miscount (got %)', sec ->> 'timeouts';
+    end if;
+    -- ELO band split lands on the bank's own difficulty (1200 → '1200_1400').
+    if lp -> 'by_question_elo_band' -> '1200_1400' ->> 'answered' is null then
+      raise exception 'FAIL: elo band bucket missing for 1200-elo questions';
+    end if;
+    -- Trend deviation is current elo (1300) minus the window mean (1300 here).
+    if (lp -> 'elo_trend' ->> 'current_elo')::int <> 1300 then
+      raise exception 'FAIL: trend current_elo wrong (got %)', lp -> 'elo_trend' ->> 'current_elo';
+    end if;
+    raise notice 'PASS 10: learner profile counts timeouts as timeouts, not skips, over the rated set';
+  end;
+
+  -- 11. ninja_study_plans cost-cache contract (20260717190000).
+  declare
+    p1 jsonb := '{"diagnosis":"d","target":"t","days":{"Mon":[]}}'::jsonb;
+    p2 jsonb := '{"diagnosis":"d2","target":"t2","days":{"Tue":[]}}'::jsonb;
+    got jsonb; rc int;
+  begin
+    perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+
+    -- First write stores it; a second non-replace write is a no-op (never re-bills).
+    perform save_ninja_study_plan(p1, 'm1', null, false);
+    perform save_ninja_study_plan(p2, 'm2', null, false);
+    select plan into got from get_ninja_study_plan(null);
+    if got ->> 'diagnosis' <> 'd' then
+      raise exception 'FAIL: first-write-wins broken — second save overwrote (got %)', got ->> 'diagnosis';
+    end if;
+
+    -- Explicit replace is allowed exactly once.
+    perform save_ninja_study_plan(p2, 'm2', null, true);
+    select plan, regens into got, rc from get_ninja_study_plan(null);
+    if got ->> 'diagnosis' <> 'd2' or rc <> 1 then
+      raise exception 'FAIL: first regenerate did not apply (diag %, regens %)', got ->> 'diagnosis', rc;
+    end if;
+
+    -- A second replace is refused IN the RPC — the bound doesn't live only in the route.
+    begin
+      perform save_ninja_study_plan(p1, 'm1', null, true);
+      raise exception 'FAIL: second regenerate allowed — weekly bound not enforced in the RPC';
+    exception when others then
+      if sqlerrm not like '%regenerate limit%' then raise; end if;
+    end;
+    raise notice 'PASS 11: study plan is first-write-wins with a one-per-week regenerate bound';
   end;
 end $$;
 

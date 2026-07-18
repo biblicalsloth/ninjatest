@@ -17,6 +17,7 @@ import {
   Bot,
 } from "lucide-react";
 import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
+import { NinjatestLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -90,18 +91,27 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress }: P
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      {/* Dashboard grid: main matchmaking hub + side rail */}
-      <main className="max-w-5xl mx-auto px-4 pt-6 pb-32 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Header row — greeting left, brand mark right. Shares the grid's
+          container so both align to the same gutters. The greeting lives here,
+          not in the left column: keeping it inside <section> pushed the first
+          card ~90px below the rail card and desynced the two column tops. */}
+      <header className="max-w-5xl mx-auto px-4 pt-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-pixel text-2xl break-words">
+            Welcome, <span className="text-[#06d6a0]">{displayName}</span>
+          </h1>
+          <p className="font-pixel text-[#7ab5cc] text-sm mt-2">Play</p>
+          <p className="text-[#4a8fa8] text-sm">Pick a mode to enter a battle.</p>
+        </div>
+        <NinjatestLogo className="shrink-0" />
+      </header>
+
+      {/* Dashboard grid: main matchmaking hub + side rail. Default align-items
+          (stretch) is load-bearing — items-start would collapse the aside to
+          content height and kill its lg:sticky track. */}
+      <main className="max-w-5xl mx-auto px-4 pt-8 pb-32 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left / center — matchmaking is the home state */}
         <section className="lg:col-span-2 space-y-6">
-          <div>
-            <h1 className="font-pixel text-2xl">
-              Welcome, <span className="text-[#06d6a0]">{displayName}</span>
-            </h1>
-            <p className="font-pixel text-[#7ab5cc] text-sm mt-2">Play</p>
-            <p className="text-[#4a8fa8] text-sm">Pick a mode to enter a battle.</p>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ranked 1v1 — primary */}
             <button

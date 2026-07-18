@@ -23,20 +23,9 @@ export async function updateSession(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
-  // Waitlist mode: block all app routes (never on the admin deployment)
-  if (!isAdminDeployment && process.env.NEXT_PUBLIC_APP_MODE === "waitlist") {
-    const allowed = WAITLIST_ALLOWED.some(
-      (p) => pathname === p || pathname.startsWith(p + "/")
-    );
-    if (!allowed) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
-    return NextResponse.next({ request });
-  }
-
-  // Live mode: full auth middleware
+  // Session client + auth run FIRST, even in waitlist mode, so signed-in users
+  // can be let through to the app (soft launch) while anon visitors are held to
+  // the landing page. The waitlist gate is applied after isAuthed is known.
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
@@ -79,6 +68,26 @@ export async function updateSession(request: NextRequest) {
   }
 
   const url = request.nextUrl.clone();
+
+  // Waitlist mode: the landing page is the public front door — anonymous
+  // visitors get ONLY "/", "/api/waitlist", "/auth". SIGNED-IN users fall
+  // through to the full app (soft launch): they can play while the public still
+  // sees the waitlist. Never on the admin deployment. Removing the env var (the
+  // launch) makes this branch dead and the whole site the app for everyone.
+  if (
+    !isAdminDeployment &&
+    process.env.NEXT_PUBLIC_APP_MODE === "waitlist" &&
+    !isAuthed
+  ) {
+    const allowed = WAITLIST_ALLOWED.some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+    if (!allowed) {
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
 
   // Admin deployment: serve ONLY the console. Root → /admin, /auth signs the
   // developer in, /admin* passes to the is_admin page gate; every other path

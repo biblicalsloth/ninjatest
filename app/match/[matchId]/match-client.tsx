@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownRing } from "@/components/countdown-ring";
+import { QuestionBody } from "@/components/question-body";
+import { QuestionDiagram } from "@/components/question-diagram";
 import { SpeedMeter } from "@/components/speed-meter";
 import { Button } from "@/components/ui/button";
 import type { Match, Profile, MatchQuestion, CatSection } from "@/lib/supabase/types";
@@ -50,6 +52,12 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const typedAnswerRef = useRef("");
 
   const [currentMatch, setCurrentMatch] = useState(match);
+  // My OWN position through the 9 questions. Self-paced (human) matches advance
+  // this per-player, independent of the opponent; it is NOT matches.current_index
+  // (which the server keeps at the lagging player's index for spectators). Bot
+  // matches stay shared, so there qIndex tracks current_index.
+  const [qIndex, setQIndex] = useState(match.current_index);
+  const qIndexRef = useRef(match.current_index);
   const [question, setQuestion] = useState<MatchQuestion | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [typedAnswer, setTypedAnswer] = useState("");
@@ -62,7 +70,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const [showReveal, setShowReveal] = useState(false);
   const [revealData, setRevealData] = useState<RevealData | null>(null);
   const [revealCountdown, setRevealCountdown] = useState(3);
-  const pendingAdvanceRef = useRef<{ newIndex: number; matchState: Match } | null>(null);
+  const pendingAdvanceRef = useRef<{ newIndex: number; matchState?: Match } | null>(null);
   const matchStartedRef = useRef(match.status !== "pending");
 
   const myScore = isPlayerA ? currentMatch.score_a : currentMatch.score_b;
@@ -112,6 +120,8 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
         const q = data[0] as unknown as MatchQuestion;
         questionRef.current = q;
         setQuestion(q);
+        setQIndex(index);
+        qIndexRef.current = index;
         return;
       }
       if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
@@ -119,7 +129,21 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     toast.error("Failed to load question — retrying on next update");
   }, [currentMatch.id, supabase]);
 
-  /* Rehydrate match state from DB — called on reconnect or channel error */
+  /* My own progress: derived from my answer count (self-paced) — the server
+     keeps no per-player index column. Bot matches stay on the shared index. */
+  const resolveMyIndex = useCallback(async (m: Match): Promise<number> => {
+    if (isBotMatch) return m.current_index;
+    const { count } = await supabase
+      .from("match_answers")
+      .select("*", { count: "exact", head: true })
+      .eq("match_id", m.id)
+      .eq("user_id", userId);
+    return count ?? 0;
+  }, [isBotMatch, supabase, userId]);
+
+  /* Rehydrate match state from DB — called on reconnect or channel error.
+     Resumes at MY current question against the server clock; never bounces to
+     the lobby while my match is still live. */
   const rehydrate = useCallback(async () => {
     const { data } = await supabase.from("matches").select("*").eq("id", match.id).single();
     if (!data) { router.push(`/result/${match.id}`); return; }
@@ -131,14 +155,21 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     currentMatchRef.current = m;
     setCurrentMatch(m);
     if (m.status === "active") {
-      await fetchQuestion(m.current_index);
+      const idx = await resolveMyIndex(m);
+      if (idx >= 9) { router.push(`/result/${match.id}`); return; } // I finished
+      await fetchQuestion(idx);
     }
-  }, [match.id, supabase, router, fetchQuestion]);
+  }, [match.id, supabase, router, fetchQuestion, resolveMyIndex]);
 
-  /* Load Q0 if match already active (pending waits for presence to fire start_match) */
+  /* Load my current question if the match is already active (pending waits for
+     presence to fire start_match) */
   useEffect(() => {
     if (match.status !== "pending") {
-      fetchQuestion(match.current_index);
+      void (async () => {
+        const idx = await resolveMyIndex(match);
+        if (idx >= 9) { router.push(`/result/${match.id}`); return; }
+        await fetchQuestion(idx);
+      })();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -182,7 +213,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       (supabase as any)
         .rpc("log_match_event", {
           p_match_id: currentMatch.id,
-          p_question_index: currentMatchRef.current.current_index,
+          p_question_index: qIndexRef.current,
           p_event_type: eventType,
         })
         .then(() => {}, () => {});
@@ -208,9 +239,17 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           const pending = pendingAdvanceRef.current;
           if (pending) {
             pendingAdvanceRef.current = null;
-            currentMatchRef.current = pending.matchState;
-            setCurrentMatch(pending.matchState);
-            fetchQuestion(pending.newIndex);
+            if (pending.matchState) {
+              currentMatchRef.current = pending.matchState;
+              setCurrentMatch(pending.matchState);
+            }
+            // Self-paced: past my 9th question I'm done — go to my result
+            // (which shows "opponent still answering" until they finish).
+            if (pending.newIndex >= 9) {
+              router.push(`/result/${match.id}`);
+            } else {
+              fetchQuestion(pending.newIndex);
+            }
           }
           return 0;
         }
@@ -255,15 +294,17 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
         filter: `id=eq.${currentMatch.id}`,
       }, async (payload) => {
         const updated = payload.new as Match;
-        const prevIndex = currentMatchRef.current.current_index;
+        const prevBotIndex = currentMatchRef.current.current_index;
 
         if (updated.status === "completed" || updated.status === "abandoned") {
           clearForfeit();
-          if (questionRef.current) {
+          if (questionRef.current && !submitted) {
+            // Only reveal if I was still mid-question (e.g. opponent forfeited
+            // me). If I already finished I'm being routed to my result anyway.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any).rpc("get_answer_reveal", {
               p_match_id: match.id,
-              p_index: prevIndex,
+              p_index: qIndexRef.current,
             });
             if (data?.[0]) {
               setRevealData(data[0] as RevealData);
@@ -277,19 +318,23 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           return;
         }
 
-        if (updated.current_index !== prevIndex) {
+        // Keep the opponent's score/liveness fresh (matches row carries both
+        // scores). My OWN progress is self-paced and never driven from here.
+        currentMatchRef.current = updated;
+        setCurrentMatch(updated);
+
+        // Bot matches only: the shared current_index drives advancement.
+        if (isBotMatch && updated.current_index !== prevBotIndex) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data } = await (supabase as any).rpc("get_answer_reveal", {
             p_match_id: match.id,
-            p_index: prevIndex,
+            p_index: prevBotIndex,
           });
           if (data?.[0]) {
             setRevealData(data[0] as RevealData);
             setShowReveal(true);
             pendingAdvanceRef.current = { newIndex: updated.current_index, matchState: updated };
           } else {
-            currentMatchRef.current = updated;
-            setCurrentMatch(updated);
             await fetchQuestion(updated.current_index);
           }
         }
@@ -371,10 +416,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     setSelected(optionIndex);
     setSubmitted(true);
 
+    const answeredIndex = qIndex;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc("submit_answer", {
       p_match_id: currentMatch.id,
-      p_question_index: currentMatch.current_index,
+      p_question_index: answeredIndex,
       p_selected_index: optionIndex,
       p_answer_text: answerText,
     });
@@ -384,12 +430,30 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       setSubmitted(false);
       setSelected(null);
       autoSubmitFiredRef.current = false;
-    } else {
-      channelRef.current?.send({
-        type: "broadcast",
-        event: "opponent_answered",
-        payload: {},
+      return;
+    }
+
+    // Liveness ping — carries no score/correctness.
+    channelRef.current?.send({ type: "broadcast", event: "opponent_answered", payload: {} });
+
+    // Self-paced (human): I advance on MY clock — show the reveal for my answer,
+    // then move to my next question (or my result at 9). Bot matches wait for the
+    // shared current_index to bump via postgres_changes instead.
+    if (!isBotMatch) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).rpc("get_answer_reveal", {
+        p_match_id: currentMatch.id,
+        p_index: answeredIndex,
       });
+      if (data?.[0]) {
+        setRevealData(data[0] as RevealData);
+        setShowReveal(true);
+        pendingAdvanceRef.current = { newIndex: answeredIndex + 1 };
+      } else if (answeredIndex + 1 >= 9) {
+        router.push(`/result/${match.id}`);
+      } else {
+        await fetchQuestion(answeredIndex + 1);
+      }
     }
   }
 
@@ -428,13 +492,8 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           )}
 
           {/* Question body */}
-          <p className="text-white text-base leading-relaxed whitespace-pre-wrap">
-            {question.body}
-          </p>
-          {question.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
-          )}
+          <QuestionBody body={question.body} className="text-white text-base leading-relaxed" />
+          {question.image_url && <QuestionDiagram url={question.image_url} />}
 
           {/* TITA reveal: expected answer vs what the player typed */}
           {revealData.qtype === "tita" ? (
@@ -501,13 +560,9 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           </div>
           )}
 
-          {/* Explanation */}
-          {revealData.explanation && (
-            <div className="bg-[#111111] rounded-xl px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-line">
-              <span className="text-[#06d6a0] font-semibold mr-1">Why:</span>
-              {revealData.explanation}
-            </div>
-          )}
+          {/* No stored explanation in the reveal — correctness only. The
+              worked solution comes from Ask Ninja on the result screen, not
+              the PDF-parsed `explanation` column. */}
         </div>
       </div>
     );
@@ -556,9 +611,9 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
                 key={i}
                 className={cn(
                   "w-2 h-2 rounded-full transition-colors",
-                  i < currentMatch.current_index
+                  i < qIndex
                     ? "bg-[#06d6a0]/60"
-                    : i === currentMatch.current_index
+                    : i === qIndex
                     ? "bg-[#06d6a0] w-3 h-3"
                     : "bg-[#1a6080]"
                 )}
@@ -591,7 +646,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               {section}
             </span>
             <span className="text-[#7ab5cc] text-sm">
-              Q{currentMatch.current_index + 1} of 9
+              Q{qIndex + 1} of 9
             </span>
           </div>
 
@@ -615,13 +670,8 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           )}
 
           {/* Question body */}
-          <div className="text-white text-base leading-relaxed whitespace-pre-wrap">
-            {question.body}
-          </div>
-          {question.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
-          )}
+          <QuestionBody body={question.body} className="text-white text-base leading-relaxed" />
+          {question.image_url && <QuestionDiagram url={question.image_url} />}
 
           {/* Answer input — TITA types a value, MCQ picks an option */}
           {question.qtype === "tita" ? (
@@ -714,11 +764,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           ) : (
             <div className="text-center py-2">
               <p className="text-[#c5e8f0] text-sm">
-                {oppAnswered
-                  ? "Both answered — waiting for next question…"
-                  : selected === null
-                  ? "Skipped — waiting for opponent…"
-                  : "Answer submitted — waiting for opponent…"}
+                {isBotMatch ? "Answer locked in — waiting for opponent…" : "Answer locked in…"}
               </p>
             </div>
           )}

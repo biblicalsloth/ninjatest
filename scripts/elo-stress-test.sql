@@ -90,9 +90,12 @@ begin
   from generate_series(1, 9) g;
   select array_agg(id order by body) into qids from questions where body like 'stress q%';
 
+  -- q_started_a/b feed the self-paced per-player clock (20260718010000); with
+  -- now() frozen in-txn they give taken_ms = 0, exactly like the shared clock did.
   insert into matches (player_a, player_b, status, is_rated, question_ids,
-                       elo_a_before, elo_b_before, current_index, question_started_at)
-  select ua, ub, 'active', true, qids, pa.elo, pb.elo, 0, now()
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       q_started_a, q_started_b)
+  select ua, ub, 'active', true, qids, pa.elo, pb.elo, 0, now(), now(), now()
   from profiles pa, profiles pb where pa.id = ua and pb.id = ub
   returning id into mid;
 
@@ -452,24 +455,27 @@ begin
   end;
   if not raised then raise exception '7a: forfeit within deadline was ALLOWED'; end if;
 
-  -- 7b: past deadline but opponent HAS answered current question -> rejected
+  -- 7b: self-paced — opponent answered Q0 and is legitimately working through
+  -- Q1 WITHIN its deadline (their own clock q_started_b is fresh). Presence is
+  -- judged by that deadline, so the forfeit is 'too early', not granted.
   insert into matches (player_a, player_b, status, is_rated, question_ids,
-                       elo_a_before, elo_b_before, current_index, question_started_at)
-  values (uc, ud, 'active', true, qids, 1000, 1000, 0, now() - interval '200 seconds')
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       q_started_b)
+  values (uc, ud, 'active', true, qids, 1000, 1000, 1, now(), now())
   returning id into mid;
   insert into match_answers (match_id, user_id, question_id, question_index,
                              selected_index, is_correct, points_awarded, time_taken_ms)
-  values (mid, ud, qids[1], 0, null, false, 0, 90000);  -- ud present (auto-skip row)
+  values (mid, ud, qids[1], 0, 0, true, 100, 40000);  -- ud answered Q0, now on Q1
   raised := false;
   begin
     perform forfeit_match(mid);
   exception when others then
     raised := true;
-    if position('opponent answered' in sqlerrm) = 0 then
+    if position('too early' in sqlerrm) = 0 then
       raise exception '7b: wrong error: %', sqlerrm;
     end if;
   end;
-  if not raised then raise exception '7b: forfeit vs a present (answered) opponent was ALLOWED'; end if;
+  if not raised then raise exception '7b: forfeit vs a present (within-deadline) opponent was ALLOWED'; end if;
 
   -- 7c: past deadline AND opponent has no row -> forfeit succeeds, caller wins.
   -- (score/correct set so the no-skill guard doesn't kick in — a genuinely
@@ -1162,6 +1168,142 @@ begin
   end if;
 
   raise notice 'PASS 15: ninja_bot absent from the leaderboard, friend search, and the spectate browser';
+end $$;
+
+-- ── 16. a match must hold 9 questions — no silent truncation on a content gap ─
+-- try_match_internal assembles VARC(3)||DILR(3)||QUANT(3). A section with no
+-- active content contributes 0 slots, so the array truncates to <9 and the
+-- match corrupts mid-play. The guard (20260718000000) must refuse to pair
+-- rather than create a short match; on a content gap both players stay waiting.
+do $$
+declare
+  ul uuid := gen_random_uuid();
+  um uuid := gen_random_uuid();
+  deactivated uuid[];
+  mid uuid;
+  qids uuid[];
+begin
+  insert into auth.users (id, aud, role, email)
+  values (ul, 'authenticated', 'authenticated', 'stress-l@test.local'),
+         (um, 'authenticated', 'authenticated', 'stress-m@test.local');
+  insert into profiles (id, username, display_name, elo)
+  values (ul, 'stress_l', 'L', 1200), (um, 'stress_m', 'M', 1200)
+  on conflict (id) do nothing;
+
+  -- equal ELO, gap 0 → the base band of 100 pairs them with no back-dating.
+  insert into matchmaking_queue (user_id, elo, status)
+  values (ul, 1200, 'waiting'), (um, 1200, 'waiting');
+
+  -- 16a: no active content at all → adaptive fill can't reach 9 → guard refuses.
+  select array_agg(id) into deactivated from questions where is_active;
+  update questions set is_active = false where id = any(deactivated);
+
+  if try_match_internal(ul) is not null then
+    raise exception '16a: created a match with zero active content (truncated to <9)';
+  end if;
+  if exists (select 1 from matches where player_a = ul and player_b = um) then
+    raise exception '16a: a truncated match row was inserted';
+  end if;
+  if (select count(*) from matchmaking_queue where user_id in (ul, um) and status = 'waiting') <> 2 then
+    raise exception '16a: queue rows were consumed despite no match being created';
+  end if;
+
+  -- 16b: QUANT-only content → adaptive fill rolls all 9 slots into QUANT and
+  -- pairs cleanly (VARC/DILR still empty, exactly the current live-test setup).
+  update questions set is_active = true where id = any(deactivated) and section = 'QUANT';
+  select try_match_internal(ul) into mid;
+  if mid is null then raise exception '16b: QUANT-only bank failed to pair'; end if;
+  select question_ids into qids from matches where id = mid;
+  if coalesce(array_length(qids, 1), 0) <> 9 then
+    raise exception '16b: paired match has % questions, expected 9', coalesce(array_length(qids, 1), 0);
+  end if;
+  if exists (select 1 from unnest(qids) qid join questions q on q.id = qid where q.section <> 'QUANT') then
+    raise exception '16b: QUANT-only match pulled a non-QUANT question';
+  end if;
+  if (select count(*) from matchmaking_queue where user_id in (ul, um) and status = 'matched') <> 2 then
+    raise exception '16b: both queue rows were not marked matched';
+  end if;
+
+  raise notice 'PASS 16: match refuses <9 on empty content; QUANT-only fills 9 and pairs';
+end $$;
+
+-- ── 17. self-paced: each player traverses their own 9; finalize only when both
+--       are done (20260718010000) ─────────────────────────────────────────────
+do $$
+declare
+  un uuid := gen_random_uuid();
+  uo uuid := gen_random_uuid();
+  qids uuid[]; mid uuid; m matches%rowtype;
+  q questions%rowtype; opts jsonb; disp int; qi int;
+  b_raised boolean;
+begin
+  insert into auth.users (id, aud, role, email)
+  values (un, 'authenticated', 'authenticated', 'stress-n@test.local'),
+         (uo, 'authenticated', 'authenticated', 'stress-o@test.local');
+  insert into profiles (id, username, display_name, elo)
+  values (un, 'stress_n', 'N', 1200), (uo, 'stress_o', 'O', 1200)
+  on conflict (id) do nothing;
+
+  select array_agg(id) into qids from (
+    select id from questions where section = 'QUANT' and qtype = 'mcq' and is_active limit 9
+  ) s;
+  insert into matches (player_a, player_b, status, is_rated, question_ids,
+                       elo_a_before, elo_b_before, current_index, question_started_at,
+                       q_started_a, q_started_b)
+  values (un, uo, 'active', true, qids, 1200, 1200, 0, now(), now(), now())
+  returning id into mid;
+
+  -- N races ahead: answers all 9 correctly while O has answered nothing.
+  perform set_config('request.jwt.claims', json_build_object('sub', un, 'role', 'authenticated')::text, true);
+  for qi in 0..8 loop
+    select * into q from questions where id = qids[qi + 1];
+    select options into opts from get_match_question(mid, qi::smallint);
+    select ord - 1 into disp from jsonb_array_elements(opts) with ordinality e(val, ord)
+    where val = q.options -> q.correct_index;
+    perform submit_answer(mid, qi::smallint, disp::smallint);
+  end loop;
+
+  -- N is finished; O has never moved. Match must NOT be finalized yet.
+  select * into m from matches where id = mid;
+  if m.status <> 'active' then
+    raise exception '17: match finalized while O still had 9 questions to answer (status %)', m.status;
+  end if;
+
+  -- O is independently still on Q0 — their own clock never advanced with N's.
+  perform set_config('request.jwt.claims', json_build_object('sub', uo, 'role', 'authenticated')::text, true);
+  perform get_match_question(mid, 0::smallint);  -- O's current question is Q0
+  b_raised := false;
+  begin
+    perform get_match_question(mid, 1::smallint); -- Q1 is not O's current question
+  exception when others then b_raised := true;
+  end;
+  if not b_raised then raise exception '17: O could read Q1 while still on Q0 (shared advance leaked)'; end if;
+
+  -- N cannot answer past their own 9.
+  perform set_config('request.jwt.claims', json_build_object('sub', un, 'role', 'authenticated')::text, true);
+  b_raised := false;
+  begin
+    perform submit_answer(mid, 9::smallint, null); -- N has no 10th question
+  exception when others then b_raised := true;
+  end;
+  if not b_raised then raise exception '17: N answered a 10th question'; end if;
+
+  -- O now finishes (all skips). Only now does the match finalize.
+  perform set_config('request.jwt.claims', json_build_object('sub', uo, 'role', 'authenticated')::text, true);
+  for qi in 0..8 loop
+    perform submit_answer(mid, qi::smallint, null);
+  end loop;
+
+  perform set_config('request.jwt.claims', null, true);
+  select * into m from matches where id = mid;
+  if m.status <> 'completed' then
+    raise exception '17: match not finalized after BOTH finished (status %)', m.status;
+  end if;
+  if m.winner_id <> un then
+    raise exception '17: N swept 9-0 but winner is %', m.winner_id;
+  end if;
+
+  raise notice 'PASS 17: self-paced — players advance independently; finalize waits for both';
 end $$;
 
 rollback;

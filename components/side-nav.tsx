@@ -8,6 +8,7 @@ import {
   Users,
   Eye,
   Trophy,
+  CalendarDays,
   Settings,
   Shield,
   LogOut,
@@ -36,6 +37,7 @@ const SHOW = [
   /^\/settings/,
   /^\/friends/,
   /^\/practice/,
+  /^\/plan/,
   /^\/c\//,
   /^\/result\//,
   /^\/ninja/,
@@ -88,6 +90,7 @@ export function SideNav() {
       <DockItem href="/spectate" label="Spectate" icon={<Eye size={20} />} pathname={pathname} />
       <DockItem href="/leaderboard" label="Leaderboard" icon={<Trophy size={20} />} pathname={pathname} />
       <DockItem href="/ninja" label="Ninja AI" icon={<NinjaLogo color="#073b4c" className="w-5 h-5" />} pathname={pathname} />
+      <DockItem href="/plan" label="Study plan" icon={<CalendarDays size={20} />} pathname={pathname} />
       <DockItem href="/settings" label="Settings" icon={<Settings size={20} />} pathname={pathname} />
       {me?.is_admin && <DockItem href="/admin" label="Admin" icon={<Shield size={20} />} pathname={pathname} />}
 

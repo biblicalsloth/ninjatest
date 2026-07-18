@@ -22,13 +22,6 @@ interface Props {
   myAnswers: MatchAnswer[];
 }
 
-const Q_SECTION = ["VARC", "VARC", "VARC", "DILR", "DILR", "DILR", "QUANT", "QUANT", "QUANT"] as const;
-const SECTION_COLORS: Record<string, string> = {
-  VARC: "text-[#118ab2]",
-  DILR: "text-[#ffd166]",
-  QUANT: "text-[#06d6a0]",
-};
-
 export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, myAnswers }: Props) {
   const router = useRouter();
   const [showElo, setShowElo] = useState(false);
@@ -53,13 +46,33 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   const isAbandoned = match.status === "abandoned";
   const iWon = match.winner_id === myProfile.id;
   const isDraw = match.winner_id === null && match.status === "completed";
+  // Self-paced: I can reach my result before my opponent finishes. Until the
+  // match finalizes there is no winner and the opponent's score is still moving,
+  // so hold that state instead of showing a bogus outcome.
+  const pending = match.status !== "completed" && match.status !== "abandoned";
 
   useEffect(() => {
     const timer = setTimeout(() => setShowElo(true), 800);
     return () => clearTimeout(timer);
   }, []);
 
-  void router;
+  // While pending, watch for finalization and pull the decided result in.
+  useEffect(() => {
+    if (!pending) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`result:${match.id}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${match.id}`,
+      }, (payload) => {
+        const s = (payload.new as Match).status;
+        if (s === "completed" || s === "abandoned") router.refresh();
+      })
+      .subscribe();
+    // Fallback poll in case the socket misses the update.
+    const poll = setInterval(() => router.refresh(), 15_000);
+    return () => { clearInterval(poll); channel.unsubscribe(); };
+  }, [pending, match.id, router]);
 
   async function handleEmailResult() {
     setSendingEmail(true);
@@ -108,13 +121,19 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
         {/* Result banner */}
         <div className={cn(
           "rounded-2xl p-6 text-center border",
-          isAbandoned
+          pending
+            ? "bg-[#ffd166]/10 border-[#ffd166]/30"
+            : isAbandoned
             ? "bg-[#7ab5cc]/10 border-[#7ab5cc]/30"
             : iWon ? "bg-[#06d6a0]/10 border-[#06d6a0]/30"
             : isDraw ? "bg-[#7ab5cc]/10 border-[#7ab5cc]/30"
             : "bg-[#ef476f]/10 border-[#ef476f]/30"
         )}>
-          {isAbandoned ? (
+          {pending ? (
+            <><div className="text-4xl mb-2">🏁</div>
+              <h1 className="text-[#ffd166] text-3xl font-bold text-balance">You finished!</h1>
+              <p className="text-[#c5e8f0] text-sm mt-1">Opponent still answering — the winner is decided once they finish. You can leave; the result will be here (and on your profile) when it&apos;s ready.</p></>
+          ) : isAbandoned ? (
             <><div className="text-4xl mb-2">🏃</div>
               <h1 className="text-[#c5e8f0] text-3xl font-bold text-balance">{iWon ? "Won by forfeit" : "Match abandoned"}</h1>
               <p className="text-[#7ab5cc] text-sm mt-1">Opponent disconnected</p></>
@@ -161,14 +180,19 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                 </AvatarFallback>
               </Avatar>
               <p className="text-white text-sm font-semibold truncate">{oppProfile.display_name ?? oppProfile.username}</p>
-              <p className="text-white text-2xl font-bold">{oppScore}</p>
-              <p className="text-[#7ab5cc] text-xs">{oppCorrect}/9 correct</p>
+              {pending ? (
+                <><p className="text-[#7ab5cc] text-2xl font-bold">·&thinsp;·&thinsp;·</p>
+                  <p className="text-[#7ab5cc] text-xs">still answering</p></>
+              ) : (
+                <><p className="text-white text-2xl font-bold">{oppScore}</p>
+                  <p className="text-[#7ab5cc] text-xs">{oppCorrect}/9 correct</p></>
+              )}
             </div>
           </div>
         </div>
 
-        {/* ELO changes */}
-        {match.is_rated && (
+        {/* ELO changes — only once the match is finalized (no rating until then) */}
+        {match.is_rated && !pending && (
           <div className={cn(
             "bg-[#111111] rounded-xl p-5 motion-safe:transition-[opacity,transform] motion-safe:duration-500",
             showElo ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
@@ -181,47 +205,41 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
           </div>
         )}
 
-        {/* Per-question breakdown by section */}
+        {/* Per-question breakdown. Flat 9-grid — the section mix is content-driven
+            now (quant-only today), so no fixed 3-3-3 grouping. */}
         <div className="bg-[#111111] rounded-xl p-5">
           <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Your answers</h3>
-          {(["VARC", "DILR", "QUANT"] as const).map((sec) => {
-            const indices = Q_SECTION.map((s, i) => (s === sec ? i : -1)).filter((i) => i >= 0);
-            return (
-              <div key={sec} className="mb-4 last:mb-0">
-                <p className={cn("text-xs font-semibold mb-2", SECTION_COLORS[sec])}>{sec}</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {indices.map((i) => {
-                    const onAsk = () => askNinja({ matchId: match.id, questionIndex: i, label: `Q${i + 1} · ${sec}` });
-                    const ans = myAnswers.find((a) => a.question_index === i);
-                    if (!ans) return <AnswerDot key={i} status="unanswered" points={0} qNum={i + 1} onAsk={onAsk} />;
-                    if (ans.is_correct) return <AnswerDot key={i} status="correct" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
-                    // A skip is BOTH nulls. TITA answers are typed into
-                    // answer_text and leave selected_index null, so checking
-                    // selected_index alone rendered every wrong TITA as
-                    // "skipped" — with the wrong answer's negative points.
-                    if (ans.selected_index === null && ans.answer_text === null) {
-                      return <AnswerDot key={i} status="skipped" points={0} qNum={i + 1} onAsk={onAsk} />;
-                    }
-                    return <AnswerDot key={i} status="wrong" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: 9 }).map((_, i) => {
+              const onAsk = () => askNinja({ matchId: match.id, questionIndex: i, label: `Q${i + 1}` });
+              const ans = myAnswers.find((a) => a.question_index === i);
+              if (!ans) return <AnswerDot key={i} status="unanswered" points={0} qNum={i + 1} onAsk={onAsk} />;
+              if (ans.is_correct) return <AnswerDot key={i} status="correct" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
+              // A skip is BOTH nulls. TITA answers are typed into answer_text and
+              // leave selected_index null, so checking selected_index alone
+              // rendered every wrong TITA as "skipped" — with negative points.
+              if (ans.selected_index === null && ans.answer_text === null) {
+                return <AnswerDot key={i} status="skipped" points={0} qNum={i + 1} onAsk={onAsk} />;
+              }
+              return <AnswerDot key={i} status="wrong" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
+            })}
+          </div>
         </div>
 
-        {/* Ninja debrief */}
-        <NinjaDebrief matchId={match.id} />
+        {/* Ninja debrief + email — only once the match is finalized (the debrief
+            RPC needs a finished match, and the email would send a partial result). */}
+        {!pending && <NinjaDebrief matchId={match.id} />}
 
-        {/* Email results */}
-        <button
-          onClick={handleEmailResult}
-          disabled={sendingEmail || emailSent}
-          className="w-full flex items-center justify-center gap-2 text-[#7ab5cc] hover:text-white text-sm py-2 transition-colors disabled:opacity-50"
-        >
-          {emailSent ? <Check size={14} className="text-[#06d6a0]" /> : <Mail size={14} />}
-          {emailSent ? "Result emailed!" : sendingEmail ? "Sending…" : "Email me these results"}
-        </button>
+        {!pending && (
+          <button
+            onClick={handleEmailResult}
+            disabled={sendingEmail || emailSent}
+            className="w-full flex items-center justify-center gap-2 text-[#7ab5cc] hover:text-white text-sm py-2 transition-colors disabled:opacity-50"
+          >
+            {emailSent ? <Check size={14} className="text-[#06d6a0]" /> : <Mail size={14} />}
+            {emailSent ? "Result emailed!" : sendingEmail ? "Sending…" : "Email me these results"}
+          </button>
+        )}
 
         {/* Rematch */}
         {!rematchCode ? (

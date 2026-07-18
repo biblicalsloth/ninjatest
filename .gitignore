@@ -45,3 +45,6 @@ supabase/.temp/
 
 # Source exam papers for the ingest scripts — large binaries, not code.
 *.pdf
+
+# session ingest temp (PDF crops, OCR output)
+scratchpad/

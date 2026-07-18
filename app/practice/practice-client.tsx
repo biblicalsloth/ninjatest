@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NinjaPill } from "@/components/ninja-pill";
+import { QuestionBody } from "@/components/question-body";
+import { QuestionDiagram } from "@/components/question-diagram";
 import { askNinja } from "@/lib/ninja";
 import { NinjaLogo } from "@/components/ninja-logo";
 
@@ -211,11 +213,8 @@ export default function PracticeClient() {
             )}
 
             <div className="bg-[#111111] rounded-xl p-5 space-y-4">
-              <p className="text-white text-base whitespace-pre-line">{question.body}</p>
-              {question.image_url && (
-                <Image src={question.image_url} alt="Question diagram" width={640} height={360}
-                  className="rounded-lg max-w-full h-auto" unoptimized />
-              )}
+              <QuestionBody body={question.body} className="text-white text-base" />
+              {question.image_url && <QuestionDiagram url={question.image_url} />}
 
               {question.qtype === "tita" ? (
                 <div className="space-y-2.5">

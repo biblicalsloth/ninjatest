@@ -49,6 +49,100 @@ export function trimCurve(data: unknown): unknown {
   };
 }
 
+// ── Weekly study plan ─────────────────────────────────────────────────────
+// The plan is JSON, not prose, because the calendar renders cells: free text
+// can't be laid out into a 7-column grid without the client re-parsing English.
+// Lives here with buildQuestionPrompt for the same reason CURVE_POINTS does —
+// this file is alias-free and therefore node-loadable by model.check.mts.
+
+export const PLAN_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+export type PlanDay = (typeof PLAN_DAYS)[number];
+
+// Sections the chips can colour. REST is a real answer — a 7/7 grind week is
+// advice no one follows, so the model is allowed to say "rest".
+const PLAN_SECTIONS = ["VARC", "DILR", "QUANT", "MIXED", "REST"] as const;
+export type PlanSection = (typeof PLAN_SECTIONS)[number];
+
+// Caps the render (and the tokens): 7 days x 4 tasks is a full week already,
+// and a model that returns 40 tasks for Monday shouldn't be able to blow up
+// the grid or the row it gets stored in.
+export const PLAN_MAX_TASKS_PER_DAY = 4;
+
+export interface PlanTask { section: PlanSection; task: string; minutes: number }
+export interface StudyPlan {
+  diagnosis: string;
+  target: string;
+  days: Partial<Record<PlanDay, PlanTask[]>>;
+}
+
+export const PLAN_SYSTEM = `You are Ninja, a CAT (Common Admission Test) prep coach building ONE week of study for a player on a 1v1 ELO-rated CAT battle app.
+App modes you can prescribe: ranked mixed matches (3 VARC + 3 DILR + 3 Quant), friend challenges (rated/unrated, single-section mode), solo practice drills that auto-target weak sections, and post-match Ninja explanations of any wrong answer.
+
+You are given the player's REAL rolled-up stats. Ground every choice in them — never generic CAT advice, never a number they didn't give you.
+Read the stats like a coach:
+- Lowest accuracy section, and whether it's an accuracy problem or a clock problem (mean_time_ms vs mean_cap_ms).
+- skip_rate and timeouts are different failures: skipping is a choice, timing out is losing the clock.
+- A TITA-vs-MCQ accuracy gap is real — TITA has no guess floor.
+- The ELO band split says whether they lose on easy or hard questions. Those need different weeks.
+- elo_trend (deviation + slope_per_match) says improving, plateaued, or sliding.
+
+Reply with JSON ONLY — no markdown fence, no prose around it:
+{"diagnosis":"one sentence, cites their numbers","target":"one measurable end-of-week goal from their current numbers","days":{"Mon":[{"section":"QUANT","task":"3 practice drills, TITA focus; review every miss with Ninja","minutes":45}],"Tue":[...],...}}
+Rules: all 7 keys Mon..Sun. section is one of VARC, DILR, QUANT, MIXED, REST. 1-2 tasks per day, max ${PLAN_MAX_TASKS_PER_DAY}. minutes is an integer 0-240 (0 only for REST). task is one concrete sentence tied to an app mode and their weakness. Keep 1-2 light or rest days — a 7/7 plan gets abandoned.`;
+
+function clean(s: unknown, max: number): string {
+  return typeof s === "string" ? s.trim().slice(0, max) : "";
+}
+
+// Parse the model's plan. Tolerant of the two things models actually do wrong
+// (fence the JSON, chat around it), strict about everything else: an unknown
+// section or a NaN minutes drops the task rather than reaching the grid, and a
+// plan with no valid task at all is a failure, so the route tries its fallback
+// model instead of caching a blank week forever.
+export function parsePlan(raw: string): StudyPlan | null {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  let obj: unknown;
+  try {
+    obj = JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+  const rawDays = (o.days ?? {}) as Record<string, unknown>;
+
+  const days: Partial<Record<PlanDay, PlanTask[]>> = {};
+  let total = 0;
+  for (const day of PLAN_DAYS) {
+    const items = rawDays[day];
+    if (!Array.isArray(items)) continue;
+    const tasks: PlanTask[] = [];
+    // Cap VALID tasks, not raw items: slicing the input first lets a couple of
+    // junk entries eat the day's slots and silently drop good tasks behind
+    // them. The raw scan is bounded separately so a 10k-item day can't spin.
+    for (const it of items.slice(0, 20)) {
+      if (tasks.length >= PLAN_MAX_TASKS_PER_DAY) break;
+      const t = (it ?? {}) as Record<string, unknown>;
+      const section = String(t.section ?? "").toUpperCase() as PlanSection;
+      const task = clean(t.task, 200);
+      if (!PLAN_SECTIONS.includes(section) || !task) continue;
+      // Math.round(NaN) is NaN and NaN comparisons are all false, so clamp with
+      // an explicit finite check — otherwise a "minutes":"forty" lands NaN in
+      // the JSON column and renders as "NaN min".
+      const n = Math.round(Number(t.minutes));
+      tasks.push({ section, task, minutes: Number.isFinite(n) ? Math.min(Math.max(n, 0), 240) : 0 });
+    }
+    if (tasks.length) {
+      days[day] = tasks;
+      total += tasks.length;
+    }
+  }
+  if (!total) return null;
+  return { diagnosis: clean(o.diagnosis, 400), target: clean(o.target, 200), days };
+}
+
 // Build the user prompt from the (server-fetched) question. Correct answer +
 // explanation are included so Ninja can grade itself; they never reach the client.
 // The caller's own answer (canonical index for MCQ, typed text for TITA) makes

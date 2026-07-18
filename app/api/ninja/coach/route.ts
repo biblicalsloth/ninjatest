@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
-import { runCoach, PLAN_SYSTEM, SOCRATIC_SYSTEM } from "@/lib/ai/coach";
+import { runCoach, SOCRATIC_SYSTEM } from "@/lib/ai/coach";
 import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 
 // Ninja Coach: freeform "how am I doing / what should I work on" Q&A. The model
@@ -26,17 +26,16 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const isPlan = body?.mode === "plan";
+  // mode 'plan' is gone: the weekly plan is /api/ninja/plan, which caches per
+  // week and returns JSON the calendar can render. Nothing here special-cases it.
   const isSocratic = body?.mode === "socratic";
-  const system = isPlan ? PLAN_SYSTEM : isSocratic ? SOCRATIC_SYSTEM : undefined;
+  const system = isSocratic ? SOCRATIC_SYSTEM : undefined;
   const matchId = typeof body?.match_id === "string" ? body.match_id : null;
   // Chat page threads by conversation_id (UUID the client mints per chat).
   const conversationId = typeof body?.conversation_id === "string"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.conversation_id)
     ? body.conversation_id : null;
-  const question = isPlan
-    ? "Build my weekly study plan."
-    : typeof body?.question === "string" ? body.question.trim() : "";
+  const question = typeof body?.question === "string" ? body.question.trim() : "";
   if (!question || question.length > 2000) {
     return NextResponse.json({ error: "Ask a question (up to 2000 characters)." }, { status: 400 });
   }
@@ -56,19 +55,17 @@ export async function POST(req: NextRequest) {
   if (!username) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
   // Conversational memory: the last few turns of THIS thread (match bucket or
-  // general). One-shot plan mode skips it — history would fight its output contract.
+  // general).
   let priorTurns: { question: string; answer: string }[] = [];
-  if (!isPlan) {
-    if (conversationId) {
-      // Chat thread memory: last 8 turns of this conversation.
-      const { data } = await sb.rpc("get_coach_conversation", { p_conversation_id: conversationId });
-      priorTurns = ((data ?? []) as { question: string; answer: string }[])
-        .slice(-8).map((t) => ({ question: t.question, answer: t.answer }));
-    } else {
-      const { data: turns } = await sb.rpc("get_recent_coach_turns", { p_match_id: matchId, p_limit: 8 });
-      priorTurns = ((turns ?? []) as { question: string; answer: string }[])
-        .map((t) => ({ question: t.question, answer: t.answer }));
-    }
+  if (conversationId) {
+    // Chat thread memory: last 8 turns of this conversation.
+    const { data } = await sb.rpc("get_coach_conversation", { p_conversation_id: conversationId });
+    priorTurns = ((data ?? []) as { question: string; answer: string }[])
+      .slice(-8).map((t) => ({ question: t.question, answer: t.answer }));
+  } else {
+    const { data: turns } = await sb.rpc("get_recent_coach_turns", { p_match_id: matchId, p_limit: 8 });
+    priorTurns = ((turns ?? []) as { question: string; answer: string }[])
+      .map((t) => ({ question: t.question, answer: t.answer }));
   }
 
   try {

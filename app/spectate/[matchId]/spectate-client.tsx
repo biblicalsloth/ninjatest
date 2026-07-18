@@ -7,6 +7,8 @@ import { ArrowLeft, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CountdownRing } from "@/components/countdown-ring";
+import { QuestionBody } from "@/components/question-body";
+import { QuestionDiagram } from "@/components/question-diagram";
 import { SpeedMeter } from "@/components/speed-meter";
 import type { MatchQuestion, CatSection, MatchStatus } from "@/lib/supabase/types";
 import { getSectionBadgeClass, cn } from "@/lib/utils";
@@ -193,13 +195,8 @@ export default function SpectateClient({ initialMatch }: Props) {
             <img src={question.passage_image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
           )}
 
-          <div className="text-white text-base leading-relaxed whitespace-pre-wrap">
-            {question.body}
-          </div>
-          {question.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={question.image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
-          )}
+          <QuestionBody body={question.body} className="text-white text-base leading-relaxed" />
+          {question.image_url && <QuestionDiagram url={question.image_url} />}
 
           {question.qtype === "tita" ? (
             // TITA has no options — players type the answer. Spectators never

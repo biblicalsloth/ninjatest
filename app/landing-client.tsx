@@ -190,7 +190,7 @@ export default function LandingClient() {
       <div
         className="relative shrink-0 overflow-hidden text-white h-screen"
         style={{
-          width: isIdle ? "80vw" : "0vw",
+          width: isIdle ? "100vw" : "0vw",
           opacity: isIdle ? 1 : 0,
           transition: "width 500ms ease-in-out, opacity 200ms ease-in-out",
         }}
@@ -253,6 +253,12 @@ export default function LandingClient() {
                   className="spring-pulse inline-flex items-center gap-2 bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#05b088] transition-colors"
                 >
                   {IS_WAITLIST ? "Join the waitlist →" : "Enter the arena →"}
+                </button>
+                <button
+                  onClick={handleOpen}
+                  className="inline-flex items-center gap-2 border border-[#06d6a0]/40 text-[#06d6a0] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#06d6a0]/10 transition-colors"
+                >
+                  Join the Waitlist →
                 </button>
               </div>
             </div>
@@ -434,32 +440,11 @@ export default function LandingClient() {
       <div
         className="shrink-0 bg-[#06d6a0] h-screen relative overflow-hidden"
         style={{
-          width: isIdle ? "20vw" : "100vw",
-          minWidth: "80px",
+          width: isIdle ? "0vw" : "100vw",
+          minWidth: isIdle ? "0px" : "80px",
           transition: "width 500ms cubic-bezier(0.76, 0, 0.24, 1)",
         }}
       >
-        {/* Collapsed trigger */}
-        <button
-          onClick={handleOpen}
-          disabled={phase !== "idle"}
-          className="absolute inset-0 flex flex-col items-center justify-center group w-full"
-          style={{ opacity: isOpen ? 0 : 1, pointerEvents: phase === "idle" ? "auto" : "none", transition: "opacity 200ms ease-in-out" }}
-        >
-          <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200" />
-          <div className="relative z-10 flex flex-col items-center gap-6">
-            <svg viewBox="0 0 100 120" className="w-[clamp(32px,5vw,72px)] drop-shadow-lg group-hover:scale-110 transition-transform duration-200" aria-hidden>
-              <polygon points="10,0 100,60 10,120" fill="#120F17" />
-            </svg>
-            <p className="text-[#120F17] font-black text-xs uppercase" style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)", letterSpacing: "0.5em" }}>
-              {IS_WAITLIST ? "WAITLIST" : "PLAY"}
-            </p>
-          </div>
-          <p className="absolute bottom-6 text-[#120F17]/60 text-[10px] font-mono tracking-widest uppercase">
-            {IS_WAITLIST ? "Join early" : "Sign in / up"}
-          </p>
-        </button>
-
         {/* Expanded panel content */}
         <div
           className="absolute inset-0 flex flex-col items-center justify-center px-6"

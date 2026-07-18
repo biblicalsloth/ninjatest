@@ -19,7 +19,9 @@ Before making ANY claim about the user's performance, call the tools to fetch th
 Never invent a number — if you need a figure, get it from a tool. If a tool returns nothing, say so.
 
 When you answer:
+- Start from get_my_learner_profile — it's the rolled-up picture (per-section accuracy and pace, mcq vs tita, easy vs hard, ELO trend). The other tools add detail on top of it.
 - Lead with their WEAKEST section (lowest accuracy or slowest vs the time cap) — that's where advice pays off.
+- Say whether a weakness is accuracy or the clock (mean_time_ms vs mean_cap_ms), and treat skips and timeouts as different problems: a skip is a choice, a timeout is losing the clock.
 - Use score margins from recent matches (narrow losses vs blowouts) and their ELO trend to judge whether they're improving, plateaued, or sliding.
 - Reference opponent ELO relative to theirs to explain whether recent matchups were favorable or tough.
 - Be concise, specific, and actionable. No generic "practice more." Give a concrete next step tied to the data.`;
@@ -36,19 +38,11 @@ Guide the user to the answer with questions and ONE small hint at a time — nev
 - Ground yourself in real data when relevant: call the tools to reference their weak sections or their actual recent mistakes (get_my_recent_mistakes).
 - Never dump the whole explanation in one message. The point is to make them think.`;
 
-// Study-plan mode: same agentic loop and tools, different output contract.
-// The plan leans on the SAME grounded stats (rating curve, section stats,
-// recent form) — never generic advice.
-export const PLAN_SYSTEM = `You are Ninja, a CAT (Common Admission Test) prep coach building a personal 7-day study plan.
-The user plays on a 1v1 ELO-rated CAT battle app with: ranked mixed matches (3 VARC + 3 DILR + 3 Quant), friend challenges (rated/unrated, single-section mode available), solo practice drills that auto-target weak sections, and post-match Ninja explanations.
-
-FIRST call the tools to fetch their real stats (profile + rating curve, section stats, deep stats, recent matches). Never invent a number.
-
-Then output EXACTLY this shape (plain text, no markdown headers):
-1. One-sentence diagnosis: ELO trend (improving/plateaued/sliding, with numbers) + weakest section and why.
-2. Seven lines, "Mon:" through "Sun:", each ONE concrete task tied to an app mode and their weakness (e.g. "Wed: 2 practice drills — focus DILR sets; review every wrong answer with Ninja"). Keep rest/light days realistic (1-2 per week).
-3. Final line "Target: " — one measurable end-of-week goal from their current numbers (accuracy %, ELO, or streak).
-Be specific and terse. No filler, no motivational padding.`;
+// ponytail: no PLAN_SYSTEM here any more. The weekly plan is its own route
+// (/api/ninja/plan), its own cached table, and its own JSON contract — see
+// lib/ai/model.ts::PLAN_SYSTEM. It never needed the agentic loop: one
+// get_learner_profile read is the whole grounding, so the plan now costs a
+// single call instead of up to 6 transcript-replaying ones.
 
 // Tools take NO model-supplied input — bound to the caller's own username in the
 // closure. Empty input schema; the model just decides *whether* to call each.
@@ -97,6 +91,15 @@ function buildCoachTools(sb: Sb, username: string): ToolSet {
       description: "The user's progress on today's daily tasks (matches played today, wins today).",
       inputSchema: NO_INPUT,
       execute: () => call("get_daily_progress", {}),
+    }),
+    get_my_learner_profile: tool({
+      description:
+        "The user's learning profile, rolled up from their last 50 rated matches: per-section accuracy, mean answer time vs the question's time cap, skip rate and timeout count; per-question-type (mcq/tita) accuracy; accuracy split by question difficulty band (<1200 / 1200-1400 / 1400+); and their ELO trend (current vs window mean, plus slope per match). This is the best single source for 'what am I weak at and am I improving' — prefer it over piecing the answer together from the other tools.",
+      inputSchema: NO_INPUT,
+      // Aggregates only, fixed size: 3 sections x 2 qtypes x 3 bands + a trend
+      // object. Bounded in career length by construction, so no trimCurve-style
+      // cap is needed — see the migration header for why that's a cost rule.
+      execute: () => call("get_learner_profile", { p_limit: 50 }),
     }),
     get_my_recent_mistakes: tool({
       description: "The user's recent WRONG or SKIPPED questions across matches: section, question text, their answer vs the correct answer, and the explanation. Use this for concrete, question-specific coaching or to pick something to drill — not for stats (use the stats tools for numbers).",
