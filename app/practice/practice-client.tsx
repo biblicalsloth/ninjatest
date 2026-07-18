@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, Target, Home, RotateCcw, SkipForward } from "lucide-react";
@@ -58,6 +58,16 @@ type PracticeState = {
   answers: { index: number; skipped: boolean; is_correct: boolean }[];
 };
 
+type HistoryRow = {
+  session_id: string;
+  created_at: string;
+  completed: boolean;
+  total: number;
+  correct: number;
+  current_index: number;
+  sections: Record<string, { total: number; correct: number }>;
+};
+
 const SECTION_COLORS: Record<string, string> = {
   VARC: "text-[#118ab2]",
   DILR: "text-[#ffd166]",
@@ -78,6 +88,7 @@ export default function PracticeClient() {
   const [typedAnswer, setTypedAnswer] = useState("");
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [summary, setSummary] = useState<PracticeState | null>(null);
+  const [history, setHistory] = useState<HistoryRow[] | null>(null);
 
   async function loadQuestion(sid: string, i: number) {
     const { data, error } = await supabase.rpc("get_practice_question", { p_session: sid, p_index: i });
@@ -119,6 +130,49 @@ export default function PracticeClient() {
       setBusy(false);
     }
   }
+
+  // Resume a session by id — used by the ?session= handoff (e.g. the result
+  // page's "drill your misses" flow) and the Resume button on past drills.
+  async function resume(sid: string) {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("get_practice_state", { p_session: sid });
+      if (error) throw new Error(error.message);
+      const st = data as PracticeState;
+      setSessionId(sid);
+      setTotal(st.total);
+      if (st.completed) {
+        setSummary(st);
+        setPhase("summary");
+      } else {
+        await loadQuestion(sid, st.current_index);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ?session= handoff from the result page.
+  useEffect(() => {
+    const sid = new URLSearchParams(window.location.search).get("session");
+    if (sid) {
+      window.history.replaceState(null, "", "/practice");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      resume(sid);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Past drills, shown on the idle screen (refreshes on return to idle).
+  useEffect(() => {
+    if (phase !== "idle") return;
+    supabase.rpc("get_practice_history").then(({ data }: { data: HistoryRow[] | null }) => {
+      setHistory(Array.isArray(data) ? data : []);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   async function submit(sel: number | null, text: string | null = null) {
     if (!sessionId) return;
@@ -190,6 +244,41 @@ export default function PracticeClient() {
               {busy ? <Loader2 className="animate-spin" size={16} /> : "Start practice"}
             </Button>
             <p className="text-[#4a8fa8] text-xs">Up to 5 sessions per day</p>
+          </div>
+        )}
+
+        {phase === "idle" && history && history.length > 0 && (
+          <div className="bg-[#111111] rounded-2xl p-5">
+            <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-3">Previous drills</h3>
+            <div className="space-y-0">
+              {history.map((h) => (
+                <div key={h.session_id} className="flex items-center justify-between gap-3 py-2.5 border-b border-[#1a1a1a] last:border-0">
+                  <div className="min-w-0">
+                    <span className="text-white text-sm font-semibold">
+                      {h.completed ? `${h.correct}/${h.total} correct` : `${h.current_index}/${h.total} answered`}
+                    </span>
+                    <span className="text-[#7ab5cc] text-xs ml-2">{new Date(h.created_at).toLocaleDateString()}</span>
+                    <div className="flex gap-2.5 mt-0.5">
+                      {Object.entries(h.sections).map(([sec, s]) => (
+                        <span key={sec} className={cn("text-[10px] font-medium", SECTION_COLORS[sec] ?? "text-[#7ab5cc]")}>
+                          {sec} {s.correct}/{s.total}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {!h.completed && (
+                    <Button
+                      size="sm"
+                      onClick={() => resume(h.session_id)}
+                      disabled={busy}
+                      className="h-8 px-4 shrink-0 bg-[#06d6a0]/10 text-[#06d6a0] rounded-full hover:bg-[#06d6a0]/20 text-xs font-semibold"
+                    >
+                      Resume
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

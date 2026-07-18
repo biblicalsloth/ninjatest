@@ -473,13 +473,17 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
               <div className="bg-[#111111] rounded-xl p-5">
                 <h2 className="text-[#7ab5cc] text-sm font-medium mb-3">Recent rating changes</h2>
                 <div className="space-y-0">
-                  {[...curve].reverse().slice(0, 8).map((c: { elo: number; at: string; delta: number }, i: number) => (
+                  {[...curve].reverse().slice(0, 8).map((c: { elo: number; at: string; delta: number; reset?: boolean }, i: number) => (
                     <div key={i} className="flex items-center justify-between py-2 border-b border-[#1a1a1a] last:border-0">
                       <div>
                         <span className="text-white text-sm font-medium">{c.elo}</span>
                         <span className="text-[#7ab5cc] text-xs ml-2">{new Date(c.at).toLocaleDateString()}</span>
+                        {c.reset && (
+                          <span className="text-[#ffd166] text-[10px] font-semibold uppercase tracking-wider ml-2">Season reset</span>
+                        )}
                       </div>
-                      <span className={cn("text-sm font-semibold", c.delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]")}>
+                      <span className={cn("text-sm font-semibold",
+                        c.reset ? "text-[#ffd166]" : c.delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]")}>
                         {formatPoints(c.delta)}
                       </span>
                     </div>

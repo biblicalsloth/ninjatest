@@ -7,7 +7,7 @@ import { NinjaLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 
 interface Item {
-  kind: "coach" | "debrief" | "response";
+  kind: "coach" | "debrief" | "response" | "daily" | "plan";
   question_index: number | null;
   question: string | null;
   content: string;
@@ -31,6 +31,8 @@ const sessionKey = (s: Session) => s.match_id ?? s.practice_session_id ?? "gener
 function kindLabel(it: Item, isPractice: boolean): string {
   if (it.kind === "coach") return "Coach chat";
   if (it.kind === "debrief") return "Match debrief";
+  if (it.kind === "daily") return "Daily focus";
+  if (it.kind === "plan") return "Study plan";
   const q = `Q${(it.question_index ?? 0) + 1}`;
   return isPractice ? `Practice hint · ${q}` : `In-match hint · ${q}`;
 }
@@ -94,7 +96,7 @@ export default function NinjaHistoryClient() {
   const active = sessions[Math.min(selected, sessions.length - 1)];
 
   return (
-    <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-5xl mx-auto">
+    <div className="min-h-screen px-4 sm:pr-24 py-8 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
         <h1 className="text-white text-xl font-semibold">Ninja AI — History</h1>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, RotateCcw, Home, Copy, Check, Mail } from "lucide-react";
+import { Trophy, RotateCcw, Home, Copy, Check, Mail, Target, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,6 +30,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   const [copied, setCopied] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [drilling, setDrilling] = useState(false);
 
   const myScore = isPlayerA ? match.score_a : match.score_b;
   const oppScore = isPlayerA ? match.score_b : match.score_a;
@@ -89,6 +90,25 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
     } finally {
       setSendingEmail(false);
     }
+  }
+
+  // Build a practice drill from this match's misses (server picks similar
+  // bank questions via embeddings; falls back to same-section difficulty).
+  async function handleDrillSimilar() {
+    setDrilling(true);
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("start_practice_similar", { p_match_id: match.id });
+    if (error || !data?.session_id) {
+      toast.error(
+        error?.message?.includes("daily practice limit")
+          ? "Daily practice limit reached — come back tomorrow"
+          : "Could not build a drill right now"
+      );
+      setDrilling(false);
+      return;
+    }
+    router.push(`/practice?session=${data.session_id}`);
   }
 
   async function handleRematch() {
@@ -224,6 +244,17 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
               return <AnswerDot key={i} status="wrong" points={ans.points_awarded} qNum={i + 1} onAsk={onAsk} />;
             })}
           </div>
+          {!pending && myAnswers.some((a) => !a.is_correct) && (
+            <Button
+              onClick={handleDrillSimilar}
+              disabled={drilling}
+              variant="outline"
+              className="w-full h-10 mt-4 border-[#333333] text-[#7ab5cc] rounded-full hover:bg-[#120F17] hover:text-white flex items-center gap-1.5"
+            >
+              {drilling ? <Loader2 className="animate-spin" size={14} /> : <Target size={14} className="text-[#06d6a0]" />}
+              Drill questions like your misses
+            </Button>
+          )}
         </div>
 
         {/* Ninja debrief + email — only once the match is finalized (the debrief
