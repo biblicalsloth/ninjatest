@@ -72,6 +72,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const [revealCountdown, setRevealCountdown] = useState(3);
   const pendingAdvanceRef = useRef<{ newIndex: number; matchState?: Match } | null>(null);
   const matchStartedRef = useRef(match.status !== "pending");
+  const fetchRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const myScore = isPlayerA ? currentMatch.score_a : currentMatch.score_b;
   const oppScore = isPlayerA ? currentMatch.score_b : currentMatch.score_a;
@@ -127,7 +128,18 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
     }
     toast.error("Failed to load question — retrying on next update");
+    // Self-paced: an idle/finished opponent produces no further UPDATEs, so
+    // without a self-scheduled retry this player would sit on "Loading
+    // question…" while their server clock burns down to a NULL skip.
+    if (fetchRetryRef.current) clearTimeout(fetchRetryRef.current);
+    fetchRetryRef.current = setTimeout(() => {
+      if (qIndexRef.current !== index || !questionRef.current) fetchQuestion(index);
+    }, 4000);
   }, [currentMatch.id, supabase]);
+
+  useEffect(() => () => {
+    if (fetchRetryRef.current) clearTimeout(fetchRetryRef.current);
+  }, []);
 
   /* My own progress: derived from my answer count (self-paced) — the server
      keeps no per-player index column. Bot matches stay on the shared index. */
@@ -715,7 +727,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
                 <Button
                   type="submit"
                   disabled={submitted || !typedAnswer.trim()}
-                  className="px-6 bg-[#06d6a0] text-[#04140f] hover:bg-[#06d6a0]/90 font-semibold disabled:opacity-40"
+                  className="px-6 bg-[#06d6a0] text-[#073b4c] hover:bg-[#06d6a0]/90 font-semibold disabled:opacity-40"
                 >
                   Submit
                 </Button>

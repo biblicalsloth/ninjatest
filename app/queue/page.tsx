@@ -87,6 +87,19 @@ export default function QueuePage() {
       if (!queueRow || queueRow.status !== "waiting") {
         const { error } = await supabase.rpc("join_queue");
         if (error) {
+          // A transient queue-row read can land here while a live match
+          // already exists — join_queue then raises 'already in a live
+          // match'. Route into that match instead of stranding the player
+          // in the lobby while the opponent waits alone.
+          const { data: liveRaw } = await supabase
+            .from("matches")
+            .select("id")
+            .or(`player_a.eq.${user.id},player_b.eq.${user.id}`)
+            .in("status", ["pending", "active"])
+            .limit(1)
+            .maybeSingle();
+          const live = liveRaw as { id: string } | null;
+          if (live && (await handleMatched(live.id, supabase))) return;
           toast.error("Failed to join queue");
           router.push("/lobby");
           return;
