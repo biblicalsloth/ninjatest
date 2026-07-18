@@ -45,7 +45,7 @@ export default function SolveClient() {
   const total = groups?.reduce((n, g) => n + g.questions.length, 0) ?? 0;
 
   return (
-    <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-4xl mx-auto">
+    <div className="min-h-screen px-4 sm:pr-24 py-8 max-w-4xl mx-auto">
       <div className="flex items-center gap-2 mb-1">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
         <h1 className="text-white text-xl font-semibold">Solve a paper</h1>

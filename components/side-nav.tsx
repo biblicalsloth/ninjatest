@@ -80,7 +80,7 @@ export function SideNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed left-6 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1 sm:gap-2 rounded-full px-2 py-3
+      className="fixed right-6 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1 sm:gap-2 rounded-full px-2 py-3
         bg-gradient-to-b from-[#0be4ad] to-[#06d6a0] border border-[#3af0c8]/40
         shadow-[0_24px_60px_-12px_rgba(6,214,160,0.55),0_8px_20px_-6px_rgba(0,0,0,0.6)]
         backdrop-blur-sm"
@@ -104,7 +104,7 @@ export function SideNav() {
           <Link
             href={`/profile/${me.username}`}
             title="Profile"
-            className="group relative mt-0.5 transition-transform duration-150 hover:scale-125 hover:translate-x-1"
+            className="group relative mt-0.5 transition-transform duration-150 hover:scale-125 hover:-translate-x-1"
           >
             <Avatar className="w-9 h-9 ring-2 ring-[#073b4c]/30">
               <AvatarImage src={me.avatar_url ?? undefined} />
@@ -135,7 +135,7 @@ function DockItem({ href, label, icon, pathname }: { href: string; label: string
       href={href}
       title={label}
       className={cn(
-        "group relative flex items-center justify-center w-11 h-11 rounded-full text-[#073b4c] transition-transform duration-150 hover:scale-125 hover:translate-x-1",
+        "group relative flex items-center justify-center w-11 h-11 rounded-full text-[#073b4c] transition-transform duration-150 hover:scale-125 hover:-translate-x-1",
         active && "bg-[#073b4c]/15"
       )}
     >
@@ -150,7 +150,7 @@ function DockButton({ onClick, label, icon }: { onClick: () => void; label: stri
     <button
       onClick={onClick}
       title={label}
-      className="group relative flex items-center justify-center w-11 h-11 rounded-full text-[#073b4c] transition-transform duration-150 hover:scale-125 hover:translate-x-1"
+      className="group relative flex items-center justify-center w-11 h-11 rounded-full text-[#073b4c] transition-transform duration-150 hover:scale-125 hover:-translate-x-1"
     >
       {icon}
       <DockTip>{label}</DockTip>
@@ -160,7 +160,7 @@ function DockButton({ onClick, label, icon }: { onClick: () => void; label: stri
 
 function DockTip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap rounded-md bg-[#111111] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+    <span className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-2 whitespace-nowrap rounded-md bg-[#111111] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
       {children}
     </span>
   );

@@ -144,7 +144,7 @@ export default function ChatClient() {
   };
 
   const sidebar = (
-    <div className="flex h-full w-72 shrink-0 flex-col border-r border-[#222222] bg-[#0d0d0d]">
+    <div className="flex h-full w-72 shrink-0 flex-col border-r md:border-r-0 md:border-l border-[#222222] bg-[#0d0d0d]">
       <div className="flex items-center gap-2 px-3 py-3">
         <NinjaLogo color="#06d6a0" className="w-5 h-5" />
         <span className="text-white text-sm font-semibold">Ninja</span>
@@ -211,9 +211,7 @@ export default function ChatClient() {
   );
 
   return (
-    <div className="fixed inset-0 flex bg-[#120F17] md:pl-20">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex">{sidebar}</div>
+    <div className="fixed inset-0 flex bg-[#120F17] md:pr-20">
       {/* Mobile drawer */}
       {drawer && (
         <div className="fixed inset-0 z-40 flex md:hidden" onClick={() => setDrawer(false)}>
@@ -310,6 +308,9 @@ export default function ChatClient() {
           </p>
         </div>
       </div>
+
+      {/* Desktop sidebar (right) */}
+      <div className="hidden md:flex">{sidebar}</div>
     </div>
   );
 }

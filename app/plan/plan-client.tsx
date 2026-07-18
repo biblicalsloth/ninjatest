@@ -89,7 +89,7 @@ export default function PlanClient({
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#120F17] px-4 py-8 md:pl-28">
+    <div className="min-h-screen bg-[#120F17] px-4 py-8 md:pr-28">
       <div className="mx-auto max-w-7xl">
         <header className="mb-6 flex flex-wrap items-center gap-3">
           <NinjaLogo color="#06d6a0" className="h-6 w-6" />
