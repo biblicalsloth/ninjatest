@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { NinjatestLogo } from "@/components/ninja-logo";
 import { CountdownRing } from "@/components/countdown-ring";
 import { QuestionBody } from "@/components/question-body";
 import { QuestionDiagram } from "@/components/question-diagram";
@@ -107,6 +108,7 @@ export default function SpectateClient({ initialMatch }: Props) {
   if (match.status !== "active" || !question) {
     return (
       <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4 gap-4">
+        <NinjatestLogo />
         <p className="text-white text-lg font-semibold">
           {match.status === "completed" ? "Match ended" : "Loading…"}
         </p>
@@ -135,14 +137,17 @@ export default function SpectateClient({ initialMatch }: Props) {
       <div className="bg-[#120F17] border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <Link href="/spectate" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
-              <ArrowLeft size={14} />
-              Back
-            </Link>
-            <span className="text-[#7ab5cc] text-xs flex items-center gap-1.5">
-              <Eye size={12} />
-              Spectating
-            </span>
+            <NinjatestLogo />
+            <div className="flex items-center gap-4">
+              <Link href="/spectate" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
+                <ArrowLeft size={14} />
+                Back
+              </Link>
+              <span className="text-[#7ab5cc] text-xs flex items-center gap-1.5">
+                <Eye size={12} />
+                Spectating
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center justify-center gap-1.5 mb-3">

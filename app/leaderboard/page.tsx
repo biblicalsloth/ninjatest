@@ -1,5 +1,6 @@
 import { createPublicClient } from "@/lib/supabase/server";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { PageHeader } from "@/components/page-header";
 import { LeaderboardTable, type LeaderboardEntry } from "./leaderboard-table";
 
 // Fully public page. Cache + revalidate every 60s with a cookie-less anon
@@ -25,16 +26,12 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      <header className="border-b border-[#222222] px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-center">
-          <h1 className="text-white font-semibold">Leaderboard</h1>
-        </div>
-      </header>
+      <main className="max-w-2xl mx-auto px-4 pt-6 pb-24">
+        <PageHeader label="Leaderboard" sub="Top 100 players this season" />
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
         {/* Season banner */}
         {season && (
-          <div className="bg-[#111111] rounded-xl p-5 mb-6 flex items-center justify-between">
+          <div className="mt-6 bg-[#111111] border border-[#1c1a24] rounded-xl p-5 mb-6 flex items-center justify-between">
             <div>
               <p className="text-[#7ab5cc] text-sm font-medium">{season.name}</p>
               <p className="text-[#4a8fa8] text-xs mt-0.5">Rankings reset at season end</p>
@@ -47,7 +44,7 @@ export default async function LeaderboardPage() {
 
         {/* Top 3 podium */}
         {entries.length >= 3 && (
-          <div className="flex items-end justify-center gap-3 mb-8">
+          <div className="mt-6 flex items-end justify-center gap-3 mb-8">
             <PodiumCard entry={entries[1]} pos={2} />
             <PodiumCard entry={entries[0]} pos={1} />
             <PodiumCard entry={entries[2]} pos={3} />
@@ -55,10 +52,12 @@ export default async function LeaderboardPage() {
         )}
 
         {/* Table */}
-        <LeaderboardTable entries={entries} />
+        <div className="mt-6">
+          <LeaderboardTable entries={entries} />
+        </div>
 
         {entries.length === 0 && (
-          <div className="text-center py-16">
+          <div className="text-center py-16 bg-[#111111] border border-[#1c1a24] rounded-xl mt-6">
             <p className="text-[#4a8fa8]">No players yet. Be the first!</p>
           </div>
         )}

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Send, Trash2, PanelLeft, X, Loader2 } from "lucide-react";
-import { NinjaLogo } from "@/components/ninja-logo";
+import { useRouter } from "next/navigation";
+import { Plus, Search, Send, Trash2, PanelLeft, Paperclip, X, Loader2 } from "lucide-react";
+import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
 import { createClient } from "@/lib/supabase/client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,6 +58,19 @@ export default function ChatClient() {
   const [drawer, setDrawer] = useState(false); // mobile sidebar
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  // PDF from the composer rides the existing solve pipeline (/ninja/solve →
+  // /api/ninja/solve). ponytail: a File can't survive router serialization, so
+  // it's handed over via a window slot the solve page picks up on mount.
+  const onPdf = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    (window as unknown as { __ninjaSolveFile?: File }).__ninjaSolveFile = f;
+    router.push("/ninja/solve");
+  };
 
   const refreshList = useCallback(async () => {
     const { data } = await supabase.rpc("list_coach_conversations");
@@ -143,6 +157,43 @@ export default function ChatClient() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
   };
 
+  // One composer, two homes: centered mid-screen on the empty state, pinned
+  // bottom-center once a conversation exists. Paperclip feeds the solve pipeline.
+  const composerForm = (
+    <form
+      onSubmit={(e) => { e.preventDefault(); send(input); }}
+      className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-[#333333] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
+    >
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        aria-label="Upload a PDF for Ninja to solve"
+        title="Upload a PDF — Ninja solves the whole paper"
+        className="mb-0.5 rounded-lg p-1.5 text-[#7ab5cc] hover:text-[#06d6a0] transition"
+      >
+        <Paperclip size={16} />
+      </button>
+      <textarea
+        ref={taRef}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={onKeyDown}
+        rows={1}
+        placeholder={mode === "buddy" ? "Tell me what you're stuck on…" : "Ask Ninja about your stats, plan, or mistakes…"}
+        className="max-h-40 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-[#4a8fa8] outline-none"
+      />
+      <button
+        type="submit"
+        disabled={busy || !input.trim()}
+        aria-label="Send"
+        className="mb-0.5 rounded-lg bg-[#06d6a0] p-1.5 text-[#073b4c] disabled:opacity-30 hover:brightness-105 transition"
+      >
+        {busy ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+      </button>
+      <input ref={fileRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={onPdf} />
+    </form>
+  );
+
   const sidebar = (
     <div className="flex h-full w-72 shrink-0 flex-col border-r md:border-r-0 md:border-l border-[#222222] bg-[#0d0d0d]">
       <div className="flex items-center gap-2 px-3 py-3">
@@ -170,6 +221,26 @@ export default function ChatClient() {
             className="w-full bg-transparent text-sm text-white placeholder:text-[#4a8fa8] outline-none"
           />
         </div>
+      </div>
+      {/* Chat modes — right-rail per the ChatGPT-style layout; plan is its own
+          one-shot page (/plan), linked below, never a free-text mode here. */}
+      <div className="px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4a8fa8] mb-1.5">Mode</p>
+        <div className="flex rounded-full bg-[#111111] p-0.5 text-xs font-semibold">
+          {(["coach", "buddy"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className={`flex-1 rounded-full px-3 py-1 capitalize transition ${
+                mode === m ? "bg-[#06d6a0] text-[#073b4c]" : "text-[#7ab5cc] hover:text-white"
+              }`}
+            >
+              {MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[10px] text-[#4a8fa8]">{MODE_HINT[mode]}</p>
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
         {conversations === null ? (
@@ -206,12 +277,13 @@ export default function ChatClient() {
       <div className="border-t border-[#222222] px-3 py-2 flex gap-3 text-xs">
         <Link href="/ninja/history" className="text-[#7ab5cc] hover:text-[#06d6a0]">History</Link>
         <Link href="/ninja/solve" className="text-[#7ab5cc] hover:text-[#06d6a0]">Solve a paper</Link>
+        <Link href="/plan" className="text-[#7ab5cc] hover:text-[#06d6a0]">Study plan</Link>
       </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 flex bg-[#120F17] md:pr-20">
+    <div className="fixed inset-0 flex bg-[#120F17] md:pl-20">
       {/* Mobile drawer */}
       {drawer && (
         <div className="fixed inset-0 z-40 flex md:hidden" onClick={() => setDrawer(false)}>
@@ -222,91 +294,80 @@ export default function ChatClient() {
 
       {/* Main */}
       <div className="flex flex-1 flex-col min-w-0">
-        <div className="flex items-center gap-2 border-b border-[#222222] px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-[#222222] px-4 py-3">
           <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
             <PanelLeft size={18} />
           </button>
-          <div className="flex rounded-full bg-[#111111] p-0.5 text-xs font-semibold">
-            {(["coach", "buddy"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                aria-pressed={mode === m}
-                className={`rounded-full px-3 py-1 capitalize transition ${
-                  mode === m ? "bg-[#06d6a0] text-[#073b4c]" : "text-[#7ab5cc] hover:text-white"
-                }`}
-              >
-                {MODE_LABEL[m]}
-              </button>
-            ))}
-          </div>
-          <span className="ml-auto text-[11px] text-[#4a8fa8]">{MODE_HINT[mode]}</span>
+          <NinjatestLogo />
+          <h1 className="font-pixel text-lg text-white ml-3">Ninja AI</h1>
+          <span className="ml-auto hidden sm:block text-[11px] text-[#4a8fa8]">{MODE_HINT[mode]}</span>
         </div>
 
-        {/* Thread */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          {loadingThread ? (
-            <div className="flex h-full items-center justify-center text-[#06d6a0]"><Loader2 className="animate-spin" size={22} /></div>
-          ) : turns.length === 0 ? (
-            <Hero mode={mode} onPick={send} />
-          ) : (
-            <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
-              {turns.map((t, i) => (
-                <div key={i} className="space-y-3">
-                  <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[#06d6a0] px-4 py-2.5 text-[#073b4c] text-sm font-medium whitespace-pre-wrap">
-                      {t.q}
-                    </div>
-                  </div>
-                  <div className="flex gap-2.5">
-                    <NinjaLogo color="#06d6a0" className="mt-1 h-5 w-5 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      {t.a === null && !t.error && (
-                        <p className="text-[#06d6a0] text-sm animate-pulse">Ninja is analyzing your stats…</p>
-                      )}
-                      {t.error && (
-                        <div className="flex items-start gap-2 text-[#ef476f] text-sm">
-                          <X size={14} className="mt-0.5 shrink-0" /> <span>{t.error}</span>
-                        </div>
-                      )}
-                      {t.a && (
-                        <p className="text-[#c5e8f0] text-sm whitespace-pre-wrap leading-relaxed">{t.a}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        {loadingThread ? (
+          <div className="flex flex-1 items-center justify-center text-[#06d6a0]"><Loader2 className="animate-spin" size={22} /></div>
+        ) : turns.length === 0 ? (
+          /* Empty state — composer centered mid-screen, suggestion chips below it. */
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-10">
+            <div className="text-center">
+              <NinjaLogo color="#06d6a0" className="mx-auto h-12 w-12" />
+              <h2 className="mt-4 text-white text-xl font-semibold">{HERO_TITLE[mode]}</h2>
+              <p className="mx-auto mt-1 max-w-md text-[#7ab5cc] text-sm">{HERO_BLURB[mode]}</p>
+            </div>
+            {composerForm}
+            <div className="flex max-w-lg flex-wrap justify-center gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  className="rounded-full border border-[#333333] px-3.5 py-1.5 text-xs text-[#c5e8f0] hover:border-[#06d6a0] hover:text-[#06d6a0] transition"
+                >
+                  {s}
+                </button>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <>
+            {/* Thread */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto">
+              <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
+                {turns.map((t, i) => (
+                  <div key={i} className="space-y-3">
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[#06d6a0] px-4 py-2.5 text-[#073b4c] text-sm font-medium whitespace-pre-wrap">
+                        {t.q}
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <NinjaLogo color="#06d6a0" className="mt-1 h-5 w-5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        {t.a === null && !t.error && (
+                          <p className="text-[#06d6a0] text-sm animate-pulse">Ninja is analyzing your stats…</p>
+                        )}
+                        {t.error && (
+                          <div className="flex items-start gap-2 text-[#ef476f] text-sm">
+                            <X size={14} className="mt-0.5 shrink-0" /> <span>{t.error}</span>
+                          </div>
+                        )}
+                        {t.a && (
+                          <p className="text-[#c5e8f0] text-sm whitespace-pre-wrap leading-relaxed">{t.a}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-        <div className="border-t border-[#222222] px-4 py-3">
-          <form
-            onSubmit={(e) => { e.preventDefault(); send(input); }}
-            className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-[#333333] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
-          >
-            <textarea
-              ref={taRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              rows={1}
-              placeholder={mode === "buddy" ? "Tell me what you're stuck on…" : "Ask Ninja about your stats, plan, or mistakes…"}
-              className="max-h-40 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-[#4a8fa8] outline-none"
-            />
-            <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              aria-label="Send"
-              className="mb-0.5 rounded-lg bg-[#06d6a0] p-1.5 text-[#073b4c] disabled:opacity-30 hover:brightness-105 transition"
-            >
-              {busy ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-            </button>
-          </form>
-          <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-[#4a8fa8]">
-            Ninja can be wrong — verify anything important. Enter to send, Shift+Enter for a new line.
-          </p>
-        </div>
+            {/* Composer pinned bottom-center once a conversation exists */}
+            <div className="border-t border-[#222222] px-4 py-3">
+              {composerForm}
+              <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-[#4a8fa8]">
+                Ninja can be wrong — verify anything important. Enter to send, Shift+Enter for a new line.
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Desktop sidebar (right) */}
@@ -324,25 +385,3 @@ const HERO_BLURB: Record<Mode, string> = {
   buddy: "I'll guide you through your weak spots step by step.",
 };
 
-function Hero({ mode, onPick }: { mode: Mode; onPick: (q: string) => void }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-5 px-6 text-center">
-      <NinjaLogo color="#06d6a0" className="h-12 w-12" />
-      <div>
-        <h1 className="text-white text-xl font-semibold">{HERO_TITLE[mode]}</h1>
-        <p className="mt-1 text-[#7ab5cc] text-sm max-w-md">{HERO_BLURB[mode]}</p>
-      </div>
-      <div className="flex max-w-lg flex-wrap justify-center gap-2">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s}
-            onClick={() => onPick(s)}
-            className="rounded-full border border-[#333333] px-3.5 py-1.5 text-xs text-[#c5e8f0] hover:border-[#06d6a0] hover:text-[#06d6a0] transition"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}

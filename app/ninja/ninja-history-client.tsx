@@ -96,7 +96,7 @@ export default function NinjaHistoryClient() {
   const active = sessions[Math.min(selected, sessions.length - 1)];
 
   return (
-    <div className="min-h-screen px-4 sm:pr-24 py-8 max-w-5xl mx-auto">
+    <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
         <h1 className="text-white text-xl font-semibold">Ninja AI — History</h1>

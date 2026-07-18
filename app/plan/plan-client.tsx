@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CalendarDays, Loader2, RefreshCw, X } from "lucide-react";
-import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjatestLogo } from "@/components/ninja-logo";
 import { getSectionBadgeClass } from "@/lib/utils";
 import { PLAN_DAYS, type PlanDay, type PlanSection, type StudyPlan } from "@/lib/ai/model";
 import type { CatSection } from "@/lib/supabase/types";
@@ -89,10 +89,10 @@ export default function PlanClient({
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#120F17] px-4 py-8 md:pr-28">
+    <div className="min-h-screen bg-[#120F17] px-4 py-8 md:pl-28">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-wrap items-center gap-3">
-          <NinjaLogo color="#06d6a0" className="h-6 w-6" />
+        <NinjatestLogo />
+        <header className="mt-6 mb-6 flex flex-wrap items-center gap-3">
           <div className="mr-auto">
             <h1 className="font-pixel text-xl text-white">Study plan</h1>
             <p className="text-xs text-[#7ab5cc]">

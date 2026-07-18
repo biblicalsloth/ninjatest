@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2, Upload, Check } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
@@ -42,17 +42,29 @@ export default function SolveClient() {
     }
   }, []);
 
+  // A PDF picked in the /ninja chat composer is handed over via a window slot
+  // (Files can't ride the router) — consume it once and run the normal flow.
+  useEffect(() => {
+    const w = window as unknown as { __ninjaSolveFile?: File };
+    const f = w.__ninjaSolveFile;
+    if (f) {
+      delete w.__ninjaSolveFile;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      handleFile(f);
+    }
+  }, [handleFile]);
+
   const total = groups?.reduce((n, g) => n + g.questions.length, 0) ?? 0;
 
   return (
-    <div className="min-h-screen px-4 sm:pr-24 py-8 max-w-4xl mx-auto">
+    <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-4xl mx-auto">
       <div className="flex items-center gap-2 mb-1">
         <NinjaLogo color="#06d6a0" className="w-6 h-6" />
         <h1 className="text-white text-xl font-semibold">Solve a paper</h1>
       </div>
       <p className="text-[#7ab5cc] text-sm mb-6">
         Upload a test or sample paper (PDF). Ninja extracts every question and shows the answer with a worked explanation.
-        <Link href="/ninja" className="text-[#06d6a0] hover:underline ml-2">← Ninja history</Link>
+        <Link href="/ninja" className="text-[#06d6a0] hover:underline ml-2">← Ninja chat</Link>
       </p>
 
       {/* Dropzone */}

@@ -16,6 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -228,17 +229,19 @@ export default function FriendsClient({ myId }: Props) {
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      <div className="border-b border-[#1c1a24] px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <h1 className="font-semibold tracking-tight">Friends</h1>
-        </div>
+      <div className="max-w-5xl mx-auto px-4 pt-6">
+        <PageHeader
+          label="Friends"
+          sub="Add rivals, chat, and send battle invites"
+        />
       </div>
 
-      <main className="max-w-5xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6 pb-24">
+      <main className="max-w-5xl mx-auto px-4 pt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 pb-24">
         {/* Left: people */}
         <section className={cn("space-y-6", openWith && "hidden lg:block")}>
           {/* Add friend */}
-          <div className="bg-[#111111] rounded-xl p-4">
+          <div className="bg-[#111111] border border-[#1c1a24] rounded-xl p-4">
+            <h2 className="text-[#7ab5cc] text-sm font-medium mb-2.5">Add a friend</h2>
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4a8fa8]" />
               <Input
@@ -297,7 +300,13 @@ export default function FriendsClient({ myId }: Props) {
           {/* Friends */}
           <Group label={`Friends${accepted.length ? ` (${accepted.length})` : ""}`}>
             {accepted.length === 0 && (
-              <p className="text-[#4a8fa8] text-sm py-2">No friends yet. Search above to add some.</p>
+              <div className="bg-[#111111] border border-[#1c1a24] rounded-xl px-6 py-10 text-center">
+                <UserPlus size={24} className="mx-auto mb-2.5 text-[#4a8fa8]" />
+                <p className="text-white text-sm font-medium">No friends yet</p>
+                <p className="text-[#4a8fa8] text-xs mt-1">
+                  Search a username above — once they accept, you can chat and challenge them to a battle.
+                </p>
+              </div>
             )}
             {accepted.map((f) => (
               <Row key={f.other_id} username={f.username} display={f.display_name} avatar={f.avatar_url} elo={f.elo}
