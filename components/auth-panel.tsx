@@ -129,6 +129,15 @@ export function AuthPanel({
           <div className="flex-1 h-px bg-[#120F17]/20" />
         </div>
         <GoogleSignInButton next={next} />
+
+        {/* Post-logout lands here via location.replace, which drops the history
+            entry — the browser Back button can't reach the landing page, so an
+            explicit way home is required, not a nicety. */}
+        <div className="text-center mt-5">
+          <Link href="/" className="text-[#120F17]/60 text-sm font-medium hover:text-[#120F17] transition-colors">
+            ← Back to home
+          </Link>
+        </div>
       </div>
     </div>
   );
