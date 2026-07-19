@@ -2,9 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Send, Trash2, PanelLeft, Paperclip, X, Loader2 } from "lucide-react";
+import { ArrowRight, BarChart3, Check, ChevronDown, Lightbulb, Plus, Search, Trash2, PanelLeft, Paperclip, X, Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import AILoadingState from "@/components/kokonutui/ai-loading";
+import AITextLoading from "@/components/kokonutui/ai-text-loading";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { NinjaNav } from "@/components/ninja-nav";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAutoResizeTextarea } from "@/hooks/use-auto-resize-textarea";
 import { createClient } from "@/lib/supabase/client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +47,13 @@ type Mode = "coach" | "buddy";
 
 const REQ_MODE: Record<Mode, string | undefined> = { coach: undefined, buddy: "socratic" };
 
+// Composer mode selector (Kokonut AI-Prompt pattern) — same state the NinjaNav
+// toggle drives, surfaced where you type.
+const MODE_META: Record<Mode, { label: string; hint: string; icon: React.ReactNode }> = {
+  coach: { label: "Coach", hint: "Grounded in your stats", icon: <BarChart3 size={14} className="text-[#06d6a0]" /> },
+  buddy: { label: "Buddy", hint: "Hints, not answers", icon: <Lightbulb size={14} className="text-[#ffd166]" /> },
+};
+
 // /ninja — modern-LLM chat over the user's own stats (the dock's Ninja AI entry
 // point; the read-only archive lives at /ninja/history). Left rail = saved
 // conversations (searchable); main = the active thread + a chatbox. Each chat is
@@ -53,7 +71,7 @@ export default function ChatClient() {
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false); // mobile sidebar
   const scrollRef = useRef<HTMLDivElement>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
+  const { textareaRef, adjustHeight } = useAutoResizeTextarea({ minHeight: 48, maxHeight: 160 });
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -88,7 +106,7 @@ export default function ChatClient() {
     setActiveId(null);
     setTurns([]);
     setDrawer(false);
-    taRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   const openConversation = useCallback(async (id: string) => {
@@ -149,43 +167,88 @@ export default function ChatClient() {
     return q ? conversations.filter((c) => c.title?.toLowerCase().includes(q)) : conversations;
   }, [conversations, query]);
 
+  const submit = () => {
+    send(input);
+    adjustHeight(true);
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
   // One composer, two homes: centered mid-screen on the empty state, pinned
-  // bottom-center once a conversation exists. Paperclip feeds the solve pipeline.
+  // bottom-center once a conversation exists. Kokonut AI-Prompt layout: textarea
+  // on top, bottom bar with the animated mode selector + paperclip (solve
+  // pipeline) on the left, send on the right.
   const composerForm = (
     <form
-      onSubmit={(e) => { e.preventDefault(); send(input); }}
-      className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-[#1c1a24] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
+      onSubmit={(e) => { e.preventDefault(); submit(); }}
+      className="mx-auto w-full max-w-3xl rounded-2xl border border-[#1c1a24] bg-[#111111] p-1.5 focus-within:border-[#06d6a0]/60 transition"
     >
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        aria-label="Upload a PDF for Ninja to solve"
-        title="Upload a PDF — Ninja solves the whole paper"
-        className="mb-0.5 rounded-lg p-1.5 text-[#7ab5cc] hover:text-[#06d6a0] transition"
-      >
-        <Paperclip size={16} />
-      </button>
-      <textarea
-        ref={taRef}
+      <Textarea
+        ref={textareaRef}
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => { setInput(e.target.value); adjustHeight(); }}
         onKeyDown={onKeyDown}
-        rows={1}
         placeholder={mode === "buddy" ? "Tell me what you're stuck on…" : "Ask Ninja about your stats, plan, or mistakes…"}
-        className="max-h-40 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm text-white placeholder:text-[#4a8fa8] outline-none"
+        className="min-h-[48px] w-full resize-none rounded-xl border-none bg-transparent px-3 py-3 text-sm text-white shadow-none placeholder:text-[#4a8fa8] focus-visible:ring-0 focus-visible:ring-offset-0"
       />
-      <button
-        type="submit"
-        disabled={busy || !input.trim()}
-        aria-label="Send"
-        className="mb-0.5 rounded-lg bg-[#06d6a0] p-1.5 text-[#073b4c] disabled:opacity-30 hover:brightness-105 transition"
-      >
-        {busy ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-      </button>
+      <div className="flex items-center justify-between px-1.5 pb-1 pt-1.5">
+        <div className="flex items-center gap-1.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-[#c5e8f0] hover:bg-white/5 transition outline-none focus-visible:ring-1 focus-visible:ring-[#06d6a0]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={mode}
+                  className="flex items-center gap-1.5"
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {MODE_META[mode].icon}
+                  {MODE_META[mode].label}
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </motion.div>
+              </AnimatePresence>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-[13rem] border border-[#1c1a24] bg-[#111111] ring-0">
+              {(Object.keys(MODE_META) as Mode[]).map((m) => (
+                <DropdownMenuItem
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className="flex items-center justify-between gap-2 text-[#c5e8f0] focus:bg-white/5 focus:text-white"
+                >
+                  <div className="flex items-center gap-2">
+                    {MODE_META[m].icon}
+                    <span className="text-sm">{MODE_META[m].label}</span>
+                    <span className="text-[10px] text-[#4a8fa8]">{MODE_META[m].hint}</span>
+                  </div>
+                  {mode === m && <Check className="h-4 w-4 text-[#06d6a0]" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="mx-0.5 h-4 w-px bg-white/10" />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            aria-label="Upload a PDF for Ninja to solve"
+            title="Upload a PDF — Ninja solves the whole paper"
+            className="rounded-lg p-2 text-[#7ab5cc] hover:bg-white/5 hover:text-[#06d6a0] transition"
+          >
+            <Paperclip size={16} />
+          </button>
+        </div>
+        <button
+          type="submit"
+          disabled={busy || !input.trim()}
+          aria-label="Send"
+          className="rounded-lg bg-[#06d6a0] p-2 text-[#073b4c] disabled:opacity-30 hover:brightness-105 transition"
+        >
+          {busy ? <Loader2 className="animate-spin" size={16} /> : <ArrowRight size={16} />}
+        </button>
+      </div>
       <input ref={fileRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={onPdf} />
     </form>
   );
@@ -282,7 +345,9 @@ export default function ChatClient() {
       {/* Main */}
       <div className="flex flex-1 flex-col min-w-0 md:pl-20">
         {loadingThread ? (
-          <div className="flex flex-1 items-center justify-center text-[#06d6a0]"><Loader2 className="animate-spin" size={22} /></div>
+          <div className="flex flex-1 items-center justify-center">
+            <AITextLoading texts={["Opening chat…", "Loading turns…", "Almost there…"]} className="font-pixel text-xl" />
+          </div>
         ) : turns.length === 0 ? (
           /* Empty state — composer centered mid-screen, suggestion chips below.
              The hero reserves fixed heights (blurb = 2 lines) so toggling
@@ -321,9 +386,7 @@ export default function ChatClient() {
                     <div className="flex gap-2.5">
                       <NinjaLogo color="#06d6a0" className="mt-1 h-5 w-5 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        {t.a === null && !t.error && (
-                          <p className="text-[#06d6a0] text-sm animate-pulse">Ninja is analyzing your stats…</p>
-                        )}
+                        {t.a === null && !t.error && <AILoadingState />}
                         {t.error && (
                           <div className="flex items-start gap-2 text-[#ef476f] text-sm">
                             <X size={14} className="mt-0.5 shrink-0" /> <span>{t.error}</span>

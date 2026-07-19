@@ -2,18 +2,44 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { Settings, Swords, Trophy, BarChart2, History, Flame, Users, UserPlus, Check, X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EloGraph } from "@/components/elo-graph";
-import { SectionPointsBar, SectionAccuracyRadar } from "@/components/profile-charts";
 import { cn, getWinRate, formatPoints } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
 import { createClient } from "@/lib/supabase/client";
+
+// Recharts is the heaviest dependency on this route and only renders inside
+// the overview/stats tabs — load it after hydration behind fixed-height
+// skeletons (matching each chart's wrapper) so the profile shell paints fast
+// and nothing shifts when the charts arrive.
+function ChartSkeleton({ className }: { className: string }) {
+  return <div className={cn("animate-pulse rounded-lg bg-[#1a1a1a]", className)} />;
+}
+const EloGraph = dynamic(() => import("@/components/elo-graph").then((m) => m.EloGraph), {
+  ssr: false,
+  loading: () => <ChartSkeleton className="h-48" />,
+});
+const SectionPointsBar = dynamic(
+  () => import("@/components/profile-charts").then((m) => m.SectionPointsBar),
+  { ssr: false, loading: () => <ChartSkeleton className="h-44" /> }
+);
+const SectionAccuracyRadar = dynamic(
+  () => import("@/components/profile-charts").then((m) => m.SectionAccuracyRadar),
+  { ssr: false, loading: () => <ChartSkeleton className="h-56" /> }
+);
+
+// Kokonut UI smooth-tab motion (kokonutui/smooth-tab.tsx): the active pill
+// slides between tabs on a stiff spring, and the panel below enters with a
+// directional slide + blur keyed to travel direction.
+const PILL_SPRING = { type: "spring", stiffness: 400, damping: 30 } as const;
+const PANEL_TRANSITION = { duration: 0.4, ease: [0.32, 0.72, 0, 1] } as const;
 
 interface RecentMatch {
   match_id: string;
@@ -116,6 +142,7 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
   const league = getLeague(profile.elo);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
+  const [direction, setDirection] = useState(0);
   const [challenging, setChallenging] = useState(false);
 
   // Computed client-side so the page itself can be statically/ISR cached
@@ -337,25 +364,48 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
         </div>
 
         {/* ── Tabs ── */}
-        <div className="flex gap-1 bg-[#111111] rounded-xl p-1">
-          {(["overview", "history", "stats", ...(isOwnProfile ? (["friends"] as Tab[]) : [])] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "flex-1 py-2 text-sm font-medium rounded-lg transition-colors capitalize",
-                tab === t
-                  ? "bg-[#1a1a1a] text-white"
-                  : "text-[#7ab5cc] hover:text-white"
-              )}
-            >
-              {t === "overview" && <span className="flex items-center justify-center gap-1.5"><Trophy size={13} />Overview</span>}
-              {t === "history"  && <span className="flex items-center justify-center gap-1.5"><History size={13} />Matches</span>}
-              {t === "stats"    && <span className="flex items-center justify-center gap-1.5"><BarChart2 size={13} />Sections</span>}
-              {t === "friends"  && <span className="flex items-center justify-center gap-1.5"><Users size={13} />Friends</span>}
-            </button>
-          ))}
+        <div className="flex gap-1 bg-[#111111] rounded-xl p-1" role="tablist">
+          {(() => {
+            const tabs = ["overview", "history", "stats", ...(isOwnProfile ? (["friends"] as Tab[]) : [])] as Tab[];
+            return tabs.map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => {
+                  setDirection(tabs.indexOf(t) > tabs.indexOf(tab) ? 1 : -1);
+                  setTab(t);
+                }}
+                className={cn(
+                  "relative flex-1 py-2 text-sm font-medium rounded-lg transition-colors capitalize",
+                  tab === t ? "text-white" : "text-[#7ab5cc] hover:text-white"
+                )}
+              >
+                {tab === t && (
+                  <motion.span
+                    layoutId="profile-tab-pill"
+                    transition={PILL_SPRING}
+                    className="absolute inset-0 rounded-lg bg-[#1a1a1a]"
+                  />
+                )}
+                {t === "overview" && <span className="relative flex items-center justify-center gap-1.5"><Trophy size={13} />Overview</span>}
+                {t === "history"  && <span className="relative flex items-center justify-center gap-1.5"><History size={13} />Matches</span>}
+                {t === "stats"    && <span className="relative flex items-center justify-center gap-1.5"><BarChart2 size={13} />Sections</span>}
+                {t === "friends"  && <span className="relative flex items-center justify-center gap-1.5"><Users size={13} />Friends</span>}
+              </button>
+            ));
+          })()}
         </div>
+
+        {/* Panel — remounts per tab; enters sliding from the travel direction
+            with the smooth-tab blur. No exit animation: panels vary wildly in
+            height, so absolute-positioned exits would collapse the page. */}
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, x: direction >= 0 ? 40 : -40, filter: "blur(8px)" }}
+          animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+          transition={PANEL_TRANSITION}
+        >
 
         {/* ── Overview tab ── */}
         {tab === "overview" && (
@@ -811,6 +861,7 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
             </div>
           </div>
         )}
+        </motion.div>
       </main>
     </div>
   );

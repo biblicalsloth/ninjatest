@@ -490,6 +490,27 @@ function snippet(s: string, n: number) {
   return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
 }
 
+// PostgREST caps every response at 1000 rows and the bank is ~3.5k, so a bare
+// rpc() call silently returns only the first section's rows (all-VARC → DILR/
+// QUANT read STARVED, audit never reaches QUANT TITA). Page until a short page.
+async function listAllQuestions(
+  supabase: AnyClient,
+  p_section: string | null,
+  p_active: boolean | null
+): Promise<ListRow[]> {
+  const PAGE = 1000;
+  const all: ListRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .rpc("admin_list_questions", { p_section, p_active })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data as ListRow[]) ?? [];
+    all.push(...page);
+    if (page.length < PAGE) return all;
+  }
+}
+
 type SectionStat = { standaloneActive: number; passagesWith3: number; starved: boolean };
 
 function computeStats(rows: ListRow[]): Record<SectionCode, SectionStat> {
@@ -532,12 +553,16 @@ function ContentList({ reloadKey }: { reloadKey: number }) {
   // Note: no synchronous setLoading(true) here — it would trip
   // react-hooks/set-state-in-effect. Initial useState(true) covers first paint.
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc("admin_list_questions", {
-      p_section: section === "ALL" ? null : section,
-      p_active: active === "ALL" ? null : active === "ACTIVE",
-    });
-    if (error) toast.error("Failed to load: " + error.message);
-    setRows((data as ListRow[]) ?? []);
+    try {
+      setRows(await listAllQuestions(
+        supabase,
+        section === "ALL" ? null : section,
+        active === "ALL" ? null : active === "ACTIVE"
+      ));
+    } catch (e) {
+      toast.error("Failed to load: " + (e as Error).message);
+      setRows([]);
+    }
     setLoading(false);
   }, [supabase, section, active]);
 
@@ -862,12 +887,11 @@ function AuditPanel({ reloadKey, onChanged }: { reloadKey: number; onChanged: ()
     try {
       // Audit source: current flagged rows if any match the filter, else the
       // active bank for the chosen section. Cap 25 questions, batches of 5.
-      const { data, error } = await supabase.rpc("admin_list_questions", {
-        p_section: section === "ALL" ? null : section,
-        p_active: true,
-      });
-      if (error) throw new Error(error.message);
-      const all = (data as ListRow[]) ?? [];
+      const all = await listAllQuestions(
+        supabase,
+        section === "ALL" ? null : section,
+        true
+      );
       const flaggedIds = new Set(flagged.map((f) => f.id));
       const inScope = all.filter((r) =>
         (section === "ALL" || r.section === section) &&

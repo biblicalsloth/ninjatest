@@ -24,19 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChallengeDialog } from "@/components/challenge-dialog";
 import type { Profile } from "@/lib/supabase/types";
-import { cn, formatPoints, getWinRate } from "@/lib/utils";
+import { cn, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
-
-interface RecentMatch {
-  match_id: string;
-  opponent: string;
-  opponent_avatar: string | null;
-  my_score: number;
-  opp_score: number;
-  result: "win" | "loss" | "draw";
-  elo_delta: number;
-  played_at: string;
-}
 
 interface DailyProgress {
   matches_today: number;
@@ -45,7 +34,6 @@ interface DailyProgress {
 
 interface Props {
   profile: Profile;
-  recentMatches: RecentMatch[];
   dailyProgress: DailyProgress;
 }
 
@@ -54,7 +42,7 @@ const DAILY_TASKS = [
   { key: "wins" as const, label: "Win 2 matches today", target: 2, get: (p: DailyProgress) => p.wins_today },
 ];
 
-export default function LobbyClient({ profile, recentMatches, dailyProgress }: Props) {
+export default function LobbyClient({ profile, dailyProgress }: Props) {
   const router = useRouter();
   const [joining, setJoining] = useState(false);
   const [startingBot, setStartingBot] = useState(false);
@@ -215,39 +203,6 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress }: P
             </Link>
           </div>
 
-          {/* Recent matches */}
-          {recentMatches.length > 0 && (
-            <div>
-              <h2 className="font-pixel text-[#7ab5cc] text-sm mb-3">Recent matches</h2>
-              <div className="space-y-2">
-                {recentMatches.map((m) => (
-                  <div
-                    key={m.match_id}
-                    className="bg-[#111111] rounded-lg px-4 py-3 flex items-center gap-3"
-                  >
-                    <Avatar className="w-8 h-8 shrink-0">
-                      <AvatarImage src={m.opponent_avatar ?? undefined} />
-                      <AvatarFallback className="bg-[#120F17] text-[#06d6a0] text-xs font-bold">
-                        {m.opponent.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{m.opponent}</p>
-                      <p className="text-[#7ab5cc] text-xs">
-                        {m.my_score} — {m.opp_score}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0 space-y-0.5">
-                      <ResultBadge result={m.result} />
-                      <p className={`text-xs font-medium ${m.elo_delta >= 0 ? "text-[#06d6a0]" : "text-[#ef476f]"}`}>
-                        {formatPoints(m.elo_delta)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </section>
 
         {/* Right rail — profile snapshot + stats + dailies, boxed off from the play area */}
@@ -357,8 +312,3 @@ function StatCard({ label, value, accent, gold }: { label: string; value: string
   );
 }
 
-function ResultBadge({ result }: { result: "win" | "loss" | "draw" }) {
-  if (result === "win") return <Badge className="bg-[#06d6a0]/20 text-[#06d6a0] border-[#06d6a0]/30 text-xs px-2 py-0">W</Badge>;
-  if (result === "loss") return <Badge className="bg-[#ef476f]/20 text-[#ef476f] border-[#ef476f]/30 text-xs px-2 py-0">L</Badge>;
-  return <Badge className="bg-[#7ab5cc]/20 text-[#c5e8f0] border-[#7ab5cc]/30 text-xs px-2 py-0">D</Badge>;
-}

@@ -11,11 +11,9 @@ export default async function LobbyPage() {
   const sb = supabase as any;
   const [
     { data: profile },
-    { data: recentMatches },
     { data: dailyProgress },
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
-    sb.rpc("get_recent_matches", { p_limit: 5 }),
     sb.rpc("get_daily_progress"),
   ]);
 
@@ -24,7 +22,6 @@ export default async function LobbyPage() {
   return (
     <LobbyClient
       profile={profile}
-      recentMatches={recentMatches ?? []}
       dailyProgress={dailyProgress ?? { matches_today: 0, wins_today: 0 }}
     />
   );
