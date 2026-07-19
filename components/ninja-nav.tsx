@@ -24,6 +24,10 @@ const MODE_HINT: Record<Mode, string> = {
  * top-left in the lobby's max-w-5xl gutter, screen links right. The
  * Coach/Buddy toggle renders only when mode props are supplied (/ninja);
  * the other three screens omit it rather than showing a dead control.
+ *
+ * The item cluster reserves the chat rail's width (md:mr-72) on EVERY page,
+ * not just /ninja — one true position for the links across the ecosystem,
+ * and on /ninja it's what keeps them clear of the rail at any viewport.
  */
 export function NinjaNav({
   active,
@@ -40,7 +44,7 @@ export function NinjaNav({
     <header className="w-full max-w-5xl mx-auto px-4 pt-6">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <NinjatestLogo />
-        <nav aria-label="Ninja AI" className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2">
+        <nav aria-label="Ninja AI" className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2 md:mr-72">
           {mode && onModeChange && (
             <div className="flex rounded-full border border-[#1c1a24] bg-[#111111] p-0.5">
               {(["coach", "buddy"] as const).map((m) => (
