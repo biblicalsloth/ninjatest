@@ -417,9 +417,10 @@ export default function SettingsClient() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() =>
-                  document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth" })
-                }
+                onClick={() => {
+                  setActiveSection(s.id);
+                  document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth" });
+                }}
                 className={`w-full text-left text-sm rounded-lg px-3 py-2 transition-colors border-l-2 ${
                   activeSection === s.id
                     ? "border-[#06d6a0] text-[#06d6a0] font-medium bg-[#06d6a0]/5"
