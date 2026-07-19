@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, MessageSquare } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjaNav } from "@/components/ninja-nav";
 import { createClient } from "@/lib/supabase/client";
 
 interface Item {
@@ -61,34 +62,42 @@ export default function NinjaHistoryClient() {
 
   if (sessions === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[#06d6a0]">
-        <Loader2 className="animate-spin" size={22} />
+      <div className="min-h-screen bg-[#120F17]">
+        <NinjaNav active="history" />
+        <div className="flex items-center justify-center py-40 text-[#06d6a0]">
+          <Loader2 className="animate-spin" size={22} />
+        </div>
       </div>
     );
   }
 
   if (sessions.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <NinjaLogo color="#06d6a0" className="w-12 h-12" />
-        <p className="text-white text-lg font-semibold">No Ninja history yet</p>
-        <p className="text-[#7ab5cc] text-sm max-w-sm">
-          Ask Ninja about your stats, solve a paper, or generate a debrief after a match — everything shows up here.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/ninja"
-            className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
-          >
-            Start a chat
-          </Link>
-          <Link
-            href="/ninja/solve"
-            className="rounded-full border border-[#06d6a0]/50 px-5 py-2.5 text-[#06d6a0] font-semibold hover:bg-[#06d6a0]/10 transition"
-          >
-            Solve a paper
-          </Link>
-        </div>
+      <div className="min-h-screen bg-[#120F17]">
+        <NinjaNav active="history" />
+        <main className="max-w-5xl mx-auto px-4 pt-8">
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-[#1c1a24] bg-[#111111] px-6 py-20 text-center">
+            <NinjaLogo color="#06d6a0" className="w-12 h-12" />
+            <p className="font-pixel text-white text-lg">No Ninja history yet</p>
+            <p className="text-[#7ab5cc] text-sm max-w-sm">
+              Ask Ninja about your stats, solve a paper, or generate a debrief after a match — everything shows up here.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/ninja"
+                className="rounded-full bg-[#06d6a0] px-5 py-2.5 text-[#073b4c] font-semibold hover:brightness-105 transition"
+              >
+                Start a chat
+              </Link>
+              <Link
+                href="/ninja/solve"
+                className="rounded-full border border-[#06d6a0]/50 px-5 py-2.5 text-[#06d6a0] font-semibold hover:bg-[#06d6a0]/10 transition"
+              >
+                Solve a paper
+              </Link>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -96,37 +105,27 @@ export default function NinjaHistoryClient() {
   const active = sessions[Math.min(selected, sessions.length - 1)];
 
   return (
-    <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-5xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <NinjaLogo color="#06d6a0" className="w-6 h-6" />
-        <h1 className="text-white text-xl font-semibold">Ninja AI — History</h1>
-        <Link
-          href="/ninja"
-          className="ml-auto rounded-full bg-[#06d6a0] px-4 py-1.5 text-[#073b4c] text-sm font-semibold hover:brightness-105 transition"
-        >
-          New chat
-        </Link>
-        <Link
-          href="/ninja/solve"
-          className="rounded-full border border-[#06d6a0]/50 px-4 py-1.5 text-[#06d6a0] text-sm font-semibold hover:bg-[#06d6a0]/10 transition"
-        >
-          Solve a paper
-        </Link>
-      </div>
+    <div className="min-h-screen bg-[#120F17] pb-8">
+      <NinjaNav active="history" />
+      <main className="max-w-5xl mx-auto px-4 pt-8">
+        <div className="mb-6">
+          <h1 className="font-pixel text-xl text-white">History</h1>
+          <p className="text-xs text-[#7ab5cc] mt-1">Every Ninja output — chats, hints, debriefs — grouped per match and drill.</p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4">
-        {/* Sessions rail */}
-        <div className="flex flex-col gap-1.5 max-h-[75vh] overflow-y-auto pr-1">
-          {sessions.map((s, i) => {
-            const on = i === selected;
-            return (
-              <button
-                key={sessionKey(s)}
-                onClick={() => setSelected(i)}
-                className={`text-left rounded-lg px-3 py-2.5 border transition ${
-                  on ? "bg-[#111111] border-[#06d6a0]/50" : "bg-[#111111]/60 border-[#222222] hover:border-[#333333]"
-                }`}
-              >
+        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4">
+          {/* Sessions rail */}
+          <div className="flex flex-col gap-1.5 max-h-[75vh] overflow-y-auto pr-1">
+            {sessions.map((s, i) => {
+              const on = i === selected;
+              return (
+                <button
+                  key={sessionKey(s)}
+                  onClick={() => setSelected(i)}
+                  className={`text-left rounded-xl px-3 py-2.5 border transition ${
+                    on ? "bg-[#111111] border-[#06d6a0]/50" : "bg-[#111111]/60 border-[#1c1a24] hover:border-[#333333]"
+                  }`}
+                >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-white text-sm font-medium truncate">{sessionTitle(s)}</span>
                   {s.result && (
@@ -139,13 +138,13 @@ export default function NinjaHistoryClient() {
                   <MessageSquare size={11} /> {s.items.length}
                   <span className="text-[#4a8fa8]">· {new Date(s.last_at).toLocaleDateString()}</span>
                 </div>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Detail */}
-        <div className="rounded-xl bg-[#111111] p-5 max-h-[75vh] overflow-y-auto">
+          {/* Detail */}
+          <div className="rounded-xl border border-[#1c1a24] bg-[#111111] p-5 max-h-[75vh] overflow-y-auto">
           <div className="flex items-center justify-between gap-2 mb-4">
             <h2 className="text-white text-sm font-semibold">{sessionTitle(active)}</h2>
             {active.match_id && (
@@ -170,9 +169,10 @@ export default function NinjaHistoryClient() {
                 </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

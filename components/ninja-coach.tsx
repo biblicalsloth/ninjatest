@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Maximize2, Minimize2, Send, X } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
-import { NINJA_COACH_EVENT } from "@/lib/ninja";
 
 type CoachState = "closed" | "panel" | "expanded";
 
@@ -37,13 +36,6 @@ export function NinjaCoach() {
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Nav "Ask Ninja" button fires NINJA_COACH_EVENT: closed → panel, panel → expanded.
-  useEffect(() => {
-    const open = () => setState((s) => (s === "expanded" ? "expanded" : s === "panel" ? "expanded" : "panel"));
-    window.addEventListener(NINJA_COACH_EVENT, open);
-    return () => window.removeEventListener(NINJA_COACH_EVENT, open);
-  }, []);
 
   // Escape returns expanded → panel; focus the input when opening either surface.
   useEffect(() => {

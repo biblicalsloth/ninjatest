@@ -8,17 +8,14 @@ import {
   Users,
   Eye,
   Trophy,
-  CalendarDays,
   Settings,
   Shield,
   LogOut,
 } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useOnlineCount } from "@/lib/hooks/use-online-count";
 import { createClient } from "@/lib/supabase/client";
 import { signOut } from "@/lib/auth";
-import { openNinjaCoach } from "@/lib/ninja";
 import { cn } from "@/lib/utils";
 
 /*
@@ -90,13 +87,8 @@ export function SideNav() {
       <DockItem href="/spectate" label="Spectate" icon={<Eye size={20} />} pathname={pathname} />
       <DockItem href="/leaderboard" label="Leaderboard" icon={<Trophy size={20} />} pathname={pathname} />
       <DockItem href="/ninja" label="Ninja AI" icon={<NinjaLogo color="#073b4c" className="w-5 h-5" />} pathname={pathname} />
-      <DockItem href="/plan" label="Study plan" icon={<CalendarDays size={20} />} pathname={pathname} />
       <DockItem href="/settings" label="Settings" icon={<Settings size={20} />} pathname={pathname} />
       {me?.is_admin && <DockItem href="/admin" label="Admin" icon={<Shield size={20} />} pathname={pathname} />}
-
-      <span className="h-px w-6 bg-[#073b4c]/25 my-0.5" />
-
-      <DockButton onClick={openNinjaCoach} label="Ask Ninja" icon={<NinjaLogo color="#073b4c" className="w-5 h-5" />} />
 
       {me && (
         <>
@@ -114,7 +106,6 @@ export function SideNav() {
             </Avatar>
             <DockTip>Profile</DockTip>
           </Link>
-          <OnlineDot userId={me.id} />
         </>
       )}
     </nav>
@@ -163,20 +154,5 @@ function DockTip({ children }: { children: React.ReactNode }) {
     <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap rounded-md bg-[#111111] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
       {children}
     </span>
-  );
-}
-
-// Small presence indicator — one WS per authed user (deduped by userId).
-function OnlineDot({ userId }: { userId: string }) {
-  const onlineCount = useOnlineCount(userId);
-  if (onlineCount === null) return null;
-  return (
-    <div
-      title={`${onlineCount} online`}
-      className="mt-1 flex items-center gap-1 rounded-full bg-[#073b4c]/15 px-1.5 py-0.5"
-    >
-      <span className="w-1.5 h-1.5 rounded-full bg-[#073b4c] animate-pulse" />
-      <span className="text-[#073b4c] text-[10px] font-bold">{onlineCount}</span>
-    </div>
   );
 }

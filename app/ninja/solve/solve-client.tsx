@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Loader2, Upload, Check } from "lucide-react";
-import { NinjaLogo } from "@/components/ninja-logo";
+import { NinjaNav } from "@/components/ninja-nav";
 import type { ExtractGroup } from "@/lib/ai/extract";
 
 const SECTION_COLOR: Record<string, string> = { VARC: "#7ab5cc", DILR: "#ffd166", QUANT: "#06d6a0" };
@@ -57,15 +56,15 @@ export default function SolveClient() {
   const total = groups?.reduce((n, g) => n + g.questions.length, 0) ?? 0;
 
   return (
-    <div className="min-h-screen px-4 sm:pl-24 py-8 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2 mb-1">
-        <NinjaLogo color="#06d6a0" className="w-6 h-6" />
-        <h1 className="text-white text-xl font-semibold">Solve a paper</h1>
+    <div className="min-h-screen bg-[#120F17] pb-8">
+      <NinjaNav active="solve" />
+      <main className="max-w-5xl mx-auto px-4 pt-8">
+      <div className="mb-6">
+        <h1 className="font-pixel text-xl text-white">Solve a Paper</h1>
+        <p className="text-xs text-[#7ab5cc] mt-1">
+          Upload a test or sample paper (PDF). Ninja extracts every question and shows the answer with a worked explanation.
+        </p>
       </div>
-      <p className="text-[#7ab5cc] text-sm mb-6">
-        Upload a test or sample paper (PDF). Ninja extracts every question and shows the answer with a worked explanation.
-        <Link href="/ninja" className="text-[#06d6a0] hover:underline ml-2">← Ninja chat</Link>
-      </p>
 
       {/* Dropzone */}
       <div
@@ -104,7 +103,7 @@ export default function SolveClient() {
       {groups && (
         <div className="mt-6 space-y-4">
           {groups.map((g, gi) => (
-            <div key={gi} className="rounded-xl bg-[#111111] overflow-hidden">
+            <div key={gi} className="rounded-xl border border-[#1c1a24] bg-[#111111] overflow-hidden">
               {g.passage && (
                 <div className="bg-[#1c1c1c] px-5 py-3">
                   <span className="text-[11px] font-bold" style={{ color: SECTION_COLOR[g.section] ?? "#7ab5cc" }}>{g.section}</span>
@@ -120,6 +119,7 @@ export default function SolveClient() {
           ))}
         </div>
       )}
+      </main>
     </div>
   );
 }

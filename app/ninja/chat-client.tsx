@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Send, Trash2, PanelLeft, Paperclip, X, Loader2 } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
-import { PageHeader } from "@/components/page-header";
+import { NinjaNav } from "@/components/ninja-nav";
 import { createClient } from "@/lib/supabase/client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,14 +30,10 @@ const SUGGESTIONS = [
 ];
 
 // Plan mode used to live here as a button in the composer. It's now /plan — its
-// own route, cached per week, rendered as a calendar. Chat is chat.
+// own route, cached per week, rendered as a calendar. Chat is chat. The
+// Coach/Buddy toggle lives in the shared NinjaNav, not the rail.
 type Mode = "coach" | "buddy";
 
-const MODE_LABEL: Record<Mode, string> = { coach: "coach", buddy: "buddy" };
-const MODE_HINT: Record<Mode, string> = {
-  coach: "Grounded in your real stats",
-  buddy: "Socratic — I guide, you solve",
-};
 const REQ_MODE: Record<Mode, string | undefined> = { coach: undefined, buddy: "socratic" };
 
 // /ninja — modern-LLM chat over the user's own stats (the dock's Ninja AI entry
@@ -163,7 +158,7 @@ export default function ChatClient() {
   const composerForm = (
     <form
       onSubmit={(e) => { e.preventDefault(); send(input); }}
-      className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-[#333333] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
+      className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-[#1c1a24] bg-[#111111] px-3 py-2 focus-within:border-[#06d6a0]/60 transition"
     >
       <button
         type="button"
@@ -195,26 +190,25 @@ export default function ChatClient() {
     </form>
   );
 
+  // Conversations rail — mode toggle and screen links moved to NinjaNav, so
+  // this is purely the thread list with its new-chat + search affordances.
   const sidebar = (
-    <div className="flex h-full w-72 shrink-0 flex-col border-r md:border-r-0 md:border-l border-[#222222] bg-[#0d0d0d]">
-      <div className="flex items-center gap-2 px-3 py-3">
-        <NinjaLogo color="#06d6a0" className="w-5 h-5" />
-        <span className="text-white text-sm font-semibold">Ninja</span>
-        <button onClick={() => setDrawer(false)} className="ml-auto md:hidden text-[#7ab5cc]" aria-label="Close">
+    <div className="flex h-full w-72 shrink-0 flex-col border-r md:border-r-0 md:border-l border-[#1c1a24] bg-[#0d0d0d]">
+      <div className="flex items-center justify-between px-4 pt-5 pb-3">
+        <p className="font-pixel text-xs text-[#7ab5cc]">Chats</p>
+        <button onClick={() => setDrawer(false)} className="md:hidden text-[#7ab5cc] hover:text-white transition" aria-label="Close">
           <X size={18} />
         </button>
       </div>
-      <div className="px-3">
+      <div className="space-y-2 px-3 pb-3">
         <button
           onClick={newChat}
-          className="flex w-full items-center gap-2 rounded-lg bg-[#06d6a0] px-3 py-2 text-[#073b4c] text-sm font-semibold hover:brightness-105 transition"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#06d6a0] px-3 py-2 text-[#073b4c] text-sm font-semibold hover:brightness-105 transition"
         >
           <Plus size={16} /> New chat
         </button>
-      </div>
-      <div className="px-3 py-2">
-        <div className="flex items-center gap-2 rounded-lg border border-[#222222] bg-[#120F17] px-2.5 py-1.5">
-          <Search size={14} className="text-[#4a8fa8]" />
+        <div className="flex items-center gap-2 rounded-xl border border-[#1c1a24] bg-[#120F17] px-3 py-2 focus-within:border-[#06d6a0]/40 transition">
+          <Search size={14} className="shrink-0 text-[#4a8fa8]" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -223,27 +217,7 @@ export default function ChatClient() {
           />
         </div>
       </div>
-      {/* Chat modes — right-rail per the ChatGPT-style layout; plan is its own
-          one-shot page (/plan), linked below, never a free-text mode here. */}
-      <div className="px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4a8fa8] mb-1.5">Mode</p>
-        <div className="flex rounded-full bg-[#111111] p-0.5 text-xs font-semibold">
-          {(["coach", "buddy"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              aria-pressed={mode === m}
-              className={`flex-1 rounded-full px-3 py-1 capitalize transition ${
-                mode === m ? "bg-[#06d6a0] text-[#073b4c]" : "text-[#7ab5cc] hover:text-white"
-              }`}
-            >
-              {MODE_LABEL[m]}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-[10px] text-[#4a8fa8]">{MODE_HINT[mode]}</p>
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
+      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1">
         {conversations === null ? (
           <div className="flex justify-center py-6 text-[#06d6a0]"><Loader2 className="animate-spin" size={18} /></div>
         ) : filtered.length === 0 ? (
@@ -254,19 +228,21 @@ export default function ChatClient() {
             return (
               <div
                 key={c.conversation_id}
-                className={`group flex items-center gap-1 rounded-lg pr-1 ${on ? "bg-[#111111]" : "hover:bg-[#111111]/60"}`}
+                className={`group flex items-center gap-1 rounded-xl border pr-1 transition ${
+                  on ? "border-[#06d6a0]/40 bg-[#111111]" : "border-transparent hover:bg-[#111111]/70"
+                }`}
               >
                 <button
                   onClick={() => openConversation(c.conversation_id)}
-                  className="flex-1 min-w-0 text-left px-2.5 py-2"
+                  className="flex-1 min-w-0 text-left px-3 py-2"
                 >
-                  <p className="truncate text-sm text-white">{c.title || "Untitled chat"}</p>
-                  <p className="text-[10px] text-[#4a8fa8]">{new Date(c.last_at).toLocaleDateString()} · {c.turns} turn{c.turns === 1 ? "" : "s"}</p>
+                  <p className={`truncate text-sm ${on ? "text-white" : "text-[#c5e8f0]"}`}>{c.title || "Untitled chat"}</p>
+                  <p className="mt-0.5 text-[10px] text-[#4a8fa8]">{new Date(c.last_at).toLocaleDateString()} · {c.turns} turn{c.turns === 1 ? "" : "s"}</p>
                 </button>
                 <button
                   onClick={() => removeConversation(c.conversation_id)}
                   aria-label="Delete chat"
-                  className="shrink-0 p-1.5 text-[#4a8fa8] opacity-0 group-hover:opacity-100 hover:text-[#ef476f] transition"
+                  className="shrink-0 rounded-lg p-1.5 text-[#4a8fa8] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-[#ef476f] transition"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -275,16 +251,24 @@ export default function ChatClient() {
           })
         )}
       </div>
-      <div className="border-t border-[#222222] px-3 py-2 flex gap-3 text-xs">
-        <Link href="/ninja/history" className="text-[#7ab5cc] hover:text-[#06d6a0]">History</Link>
-        <Link href="/ninja/solve" className="text-[#7ab5cc] hover:text-[#06d6a0]">Solve a paper</Link>
-        <Link href="/plan" className="text-[#7ab5cc] hover:text-[#06d6a0]">Study plan</Link>
-      </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 flex bg-[#120F17] md:pl-20">
+    <div className="fixed inset-0 flex flex-col bg-[#120F17]">
+      {/* Shared Ninja ecosystem nav — logo in the lobby's gutter, Coach/Buddy
+          toggle + screen links in one row. Full-width, above rail and thread. */}
+      <NinjaNav
+        active="chat"
+        mode={mode}
+        onModeChange={setMode}
+        right={
+          <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
+            <PanelLeft size={18} />
+          </button>
+        }
+      />
+
       {/* Mobile drawer */}
       {drawer && (
         <div className="fixed inset-0 z-40 flex md:hidden" onClick={() => setDrawer(false)}>
@@ -293,29 +277,20 @@ export default function ChatClient() {
         </div>
       )}
 
+      <div className="flex flex-1 min-h-0 md:pl-20">
       {/* Main */}
       <div className="flex flex-1 flex-col min-w-0">
-        <div className="w-full max-w-5xl mx-auto px-4 pt-6">
-          <PageHeader
-            label="Ninja AI"
-            sub={MODE_HINT[mode]}
-            right={
-              <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
-                <PanelLeft size={18} />
-              </button>
-            }
-          />
-        </div>
-
         {loadingThread ? (
           <div className="flex flex-1 items-center justify-center text-[#06d6a0]"><Loader2 className="animate-spin" size={22} /></div>
         ) : turns.length === 0 ? (
-          /* Empty state — composer centered mid-screen, suggestion chips below it. */
+          /* Empty state — composer centered mid-screen, suggestion chips below.
+             The hero reserves fixed heights (blurb = 2 lines) so toggling
+             Coach/Buddy can't reflow the composer: zero movement by design. */
           <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 pb-10">
             <div className="text-center">
               <NinjaLogo color="#06d6a0" className="mx-auto h-12 w-12" />
-              <h2 className="mt-4 text-white text-xl font-semibold">{HERO_TITLE[mode]}</h2>
-              <p className="mx-auto mt-1 max-w-md text-[#7ab5cc] text-sm">{HERO_BLURB[mode]}</p>
+              <h2 className="mt-4 font-pixel text-white text-xl">{HERO_TITLE}</h2>
+              <p className="mx-auto mt-1 max-w-md min-h-10 text-[#7ab5cc] text-sm">{HERO_BLURB[mode]}</p>
             </div>
             {composerForm}
             <div className="flex max-w-lg flex-wrap justify-center gap-2">
@@ -364,7 +339,7 @@ export default function ChatClient() {
             </div>
 
             {/* Composer pinned bottom-center once a conversation exists */}
-            <div className="border-t border-[#222222] px-4 py-3">
+            <div className="border-t border-[#1c1a24] px-4 py-3">
               {composerForm}
               <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-[#4a8fa8]">
                 Ninja can be wrong — verify anything important. Enter to send, Shift+Enter for a new line.
@@ -376,14 +351,12 @@ export default function ChatClient() {
 
       {/* Desktop sidebar (right) */}
       <div className="hidden md:flex">{sidebar}</div>
+      </div>
     </div>
   );
 }
 
-const HERO_TITLE: Record<Mode, string> = {
-  coach: "Ask Ninja anything",
-  buddy: "Ask Ninja anything",
-};
+const HERO_TITLE = "Ask Ninja anything";
 const HERO_BLURB: Record<Mode, string> = {
   coach: "Grounded in your real stats — sections, margins, streaks, and recent mistakes.",
   buddy: "I'll guide you through your weak spots step by step.",

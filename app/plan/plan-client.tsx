@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CalendarDays, Loader2, RefreshCw, X } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
+import { NinjaNav } from "@/components/ninja-nav";
 import { getSectionBadgeClass } from "@/lib/utils";
 import { PLAN_DAYS, type PlanDay, type PlanSection, type StudyPlan } from "@/lib/ai/model";
 import type { CatSection } from "@/lib/supabase/types";
@@ -90,34 +90,30 @@ export default function PlanClient({
 
   return (
     <div className="min-h-screen bg-[#120F17] pb-8">
-      {/* Header sits in the app-wide max-w-5xl box (no dock offset) so the logo
-          lands in the same spot as the lobby; the wide calendar keeps max-w-7xl. */}
-      <div className="max-w-5xl mx-auto px-4 pt-6">
-        <PageHeader
-          label="Study plan"
-          sub={
-            <>
+      <NinjaNav active="plan" />
+      {/* Everything — heading and calendar — shares the lobby's max-w-5xl
+          gutter, so no card breaks the container grid. */}
+      <main className="max-w-5xl mx-auto px-4 pt-8">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="mr-auto min-w-0">
+            <h1 className="font-pixel text-xl text-white">Study Plan</h1>
+            <p className="text-xs text-[#7ab5cc] mt-1">
               {week ? `Week of ${dayLabel(week, 0)}` : "This week"}
               {plan && totalMinutes > 0 && ` · ${Math.round(totalMinutes / 60 * 10) / 10}h planned`}
-            </>
-          }
-          right={
-            plan && (
-              <button
-                onClick={() => generate(true)}
-                disabled={busy || regens >= 1}
-                title={regens >= 1 ? "One regenerate per week — a fresh plan unlocks Monday" : "Rebuild this week's plan"}
-                className="flex items-center gap-2 rounded-lg border border-[#333333] px-3 py-2 text-xs font-semibold text-[#7ab5cc] transition hover:border-[#06d6a0] hover:text-[#06d6a0] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {busy ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-                {regens >= 1 ? "Regenerated" : "Regenerate"}
-              </button>
-            )
-          }
-        />
-      </div>
-      <div className="px-4 pt-8 md:pl-28">
-        <div className="mx-auto max-w-7xl">
+            </p>
+          </div>
+          {plan && (
+            <button
+              onClick={() => generate(true)}
+              disabled={busy || regens >= 1}
+              title={regens >= 1 ? "One regenerate per week — a fresh plan unlocks Monday" : "Rebuild this week's plan"}
+              className="flex items-center gap-2 rounded-lg border border-[#333333] px-3 py-2 text-xs font-semibold text-[#7ab5cc] transition hover:border-[#06d6a0] hover:text-[#06d6a0] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+              {regens >= 1 ? "Regenerated" : "Regenerate"}
+            </button>
+          )}
+        </div>
 
         {error && (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-[#ef476f]/40 bg-[#ef476f]/10 px-3 py-2 text-sm text-[#ef476f]">
@@ -133,7 +129,7 @@ export default function PlanClient({
             {(plan.diagnosis || plan.target) && (
               <div className="mb-5 grid gap-3 md:grid-cols-2">
                 {plan.diagnosis && (
-                  <div className="rounded-xl border border-[#222222] bg-[#111111] p-4">
+                  <div className="rounded-xl border border-[#1c1a24] bg-[#111111] p-4">
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#4a8fa8]">Where you are</p>
                     <p className="text-sm leading-relaxed text-[#c5e8f0]">{plan.diagnosis}</p>
                   </div>
@@ -157,7 +153,7 @@ export default function PlanClient({
                   <section
                     key={day}
                     className={`flex min-h-[180px] flex-col rounded-xl border bg-[#111111] p-3 ${
-                      today ? "border-[#06d6a0]/60" : "border-[#222222]"
+                      today ? "border-[#06d6a0]/60" : "border-[#1c1a24]"
                     }`}
                   >
                     <div className="mb-2 flex items-baseline justify-between">
@@ -172,7 +168,7 @@ export default function PlanClient({
                         <p className="text-[11px] text-[#4a8fa8]">—</p>
                       ) : (
                         tasks.map((t, j) => (
-                          <div key={j} className="rounded-lg border border-[#222222] bg-[#120F17] p-2">
+                          <div key={j} className="rounded-lg border border-[#1c1a24] bg-[#120F17] p-2">
                             <div className="mb-1.5 flex items-center gap-1.5">
                               <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wide ${chipClass(t.section)}`}>
                                 {t.section}
@@ -196,15 +192,14 @@ export default function PlanClient({
             </p>
           </>
         )}
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
 
 function Empty({ busy, onGenerate }: { busy: boolean; onGenerate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-5 rounded-xl border border-[#222222] bg-[#111111] px-6 py-20 text-center">
+    <div className="flex flex-col items-center justify-center gap-5 rounded-xl border border-[#1c1a24] bg-[#111111] px-6 py-20 text-center">
       <CalendarDays className="text-[#06d6a0]" size={36} />
       <div>
         <h2 className="text-lg font-semibold text-white">No plan for this week yet</h2>

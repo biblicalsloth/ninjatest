@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { NinjaDailyFocus } from "@/components/ninja-daily-focus";
 import { NinjatestLogo } from "@/components/ninja-logo";
+import { useOnlineCount } from "@/lib/hooks/use-online-count";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -97,7 +98,10 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress }: P
           the first card ~90px below the rail card and desynced the two column
           tops. */}
       <header className="max-w-5xl mx-auto px-4 pt-6">
-        <NinjatestLogo />
+        <div className="flex items-center justify-between gap-3">
+          <NinjatestLogo />
+          <OnlinePill userId={profile.id} />
+        </div>
         <div className="min-w-0 mt-8">
           <h1 className="font-pixel text-2xl break-words">
             Welcome, <span className="text-[#06d6a0]">{displayName}</span>
@@ -320,6 +324,26 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress }: P
       </main>
 
       <ChallengeDialog open={showChallenge} onOpenChange={setShowChallenge} />
+    </div>
+  );
+}
+
+// The app's only online-count surface — the dock pill is gone by design.
+// One WS per authed lobby visitor, deduped across tabs by userId.
+function OnlinePill({ userId }: { userId: string }) {
+  const count = useOnlineCount(userId);
+  if (count === null) return null;
+  return (
+    <div
+      title={`${count} online now`}
+      className="flex shrink-0 items-center gap-2 rounded-full border border-[#1c1a24] bg-[#111111] px-3 py-1.5"
+    >
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#06d6a0] opacity-50" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#06d6a0]" />
+      </span>
+      <span className="text-xs font-semibold text-white">{count}</span>
+      <span className="text-xs text-[#7ab5cc]">online</span>
     </div>
   );
 }
