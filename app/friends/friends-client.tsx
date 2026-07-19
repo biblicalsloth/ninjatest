@@ -16,6 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useChallengeAccepted } from "@/lib/hooks/use-challenge-accepted";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,9 @@ export default function FriendsClient({ myId }: Props) {
   const router = useRouter();
   const [friends, setFriends] = useState<FriendRow[]>([]);
   const [challenges, setChallenges] = useState<IncomingChallenge[]>([]);
+  const [sentCode, setSentCode] = useState<string | null>(null);
+  // Route the host into the match the moment the friend accepts.
+  useChallengeAccepted(sentCode);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
@@ -210,6 +214,7 @@ export default function FriendsClient({ myId }: Props) {
       p_target_id: f.other_id,
     });
     if (error || !code) { toast.error("Failed to create challenge"); return; }
+    setSentCode(code as string);
     try {
       await navigator.clipboard.writeText(`${window.location.origin}/c/${code}`);
     } catch { /* clipboard optional */ }

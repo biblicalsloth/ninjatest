@@ -4,7 +4,9 @@ import type { Database } from "@/lib/supabase/types";
 
 // /auth stays reachable in waitlist mode so sign-in, the OAuth callback, and
 // password reset keep working; app routes below remain blocked until launch.
-const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth"];
+// /c stays open so a logged-out friend can land on a challenge link — the page
+// itself bounces them through /auth/login?next=/c/<code>.
+const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth", "/c"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;

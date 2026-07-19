@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Copy, Check, Clock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useChallengeAccepted } from "@/lib/hooks/use-challenge-accepted";
 import {
   Dialog,
   DialogContent,
@@ -41,9 +42,11 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  void router;
+  // Route the host into the match the moment the friend accepts.
+  useChallengeAccepted(open ? code : null);
 
   useEffect(() => {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -107,6 +110,14 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
     }
   }
 
+  function handleJoin() {
+    // Codes are lowercase hex; the display renders them uppercase, so
+    // normalize whatever the friend typed before routing.
+    const c = joinCode.trim().toLowerCase();
+    if (!c) return;
+    router.push(`/c/${c}`);
+  }
+
   function handleClose() {
     setCode(null);
     setIsRated(true);
@@ -114,6 +125,7 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
     setSecondsLeft(0);
     setInviteEmail("");
     setEmailSent(false);
+    setJoinCode("");
     if (timerRef.current) clearInterval(timerRef.current);
     onOpenChange(false);
   }
@@ -192,6 +204,29 @@ export function ChallengeDialog({ open, onOpenChange }: Props) {
             >
               {creating ? "Creating…" : "Create Challenge Link"}
             </Button>
+
+            {/* Join with a friend's code */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-[#333333]" />
+              <span className="text-[#7ab5cc] text-xs">or join with a code</span>
+              <div className="flex-1 h-px bg-[#333333]" />
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleJoin(); }}
+                placeholder="Enter challenge code"
+                className="bg-[#120F17] border-[#333333] text-white placeholder:text-[#4a8fa8] h-11 font-mono tracking-widest uppercase flex-1"
+              />
+              <Button
+                onClick={handleJoin}
+                disabled={!joinCode.trim()}
+                className="h-11 px-5 bg-[#06d6a0]/10 border border-[#06d6a0]/30 text-[#06d6a0] hover:bg-[#06d6a0]/20 font-semibold rounded-full shrink-0"
+              >
+                Join
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4 pt-2">
