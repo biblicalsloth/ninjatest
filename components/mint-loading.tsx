@@ -3,9 +3,11 @@ import { NinjatestLogo } from "@/components/ninja-logo";
 // Mirrors the mint auth panel (components/auth-panel.tsx). Used as the
 // Suspense fallback in route loading.tsx files — Next swaps it out the
 // moment the page resolves, so the bar never lingers past load.
+// z-[60]: must sit ABOVE the floating Ask Ninja pill (z-50, mounted in the
+// layout so it survives the suspense swap) — nothing floats over a loading screen.
 export function MintLoading({ message }: { message: string }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#06d6a0] px-6">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#06d6a0] px-6">
       <style>{`
         @keyframes mint-fill {
           0% { width: 0%; }

@@ -167,8 +167,10 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // Authed users bouncing off /auth go through the exam picker, not straight
+  // to the lobby — every login funnels through /exams.
   if (isAuthed && pathname.startsWith("/auth")) {
-    url.pathname = "/lobby";
+    url.pathname = "/exams";
     return NextResponse.redirect(url);
   }
 

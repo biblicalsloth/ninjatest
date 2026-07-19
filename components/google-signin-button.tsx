@@ -17,7 +17,7 @@ function GoogleLogo() {
   );
 }
 
-export function GoogleSignInButton({ next = "/lobby" }: { next?: string }) {
+export function GoogleSignInButton({ next = "/exams" }: { next?: string }) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {

@@ -15,7 +15,7 @@ type AuthMode = "signin" | "signup";
 // /auth/login and /auth/signup so all three auth surfaces read identically.
 export function AuthPanel({
   defaultMode = "signin",
-  next = "/lobby",
+  next = "/exams", // every fresh login funnels through the exam picker
   callbackError = false,
 }: {
   defaultMode?: AuthMode;
