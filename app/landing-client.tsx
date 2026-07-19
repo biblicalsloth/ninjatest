@@ -9,6 +9,7 @@ import { Sparkles } from "lucide-react";
 import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ParticleFlow } from "@/components/landing/particle-flow";
+import BentoGrid from "@/components/kokonutui/bento-grid";
 import dynamic from "next/dynamic";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
@@ -369,6 +370,20 @@ export default function LandingClient() {
                 </span>
               ))}
             </div>
+          </section>
+
+          {/* ── S5b: Feature bento ── */}
+          <section id="features" className="overflow-hidden border-t border-[#222222] px-10 py-20 scroll-mt-24">
+            <Reveal>
+              <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05] mb-5">
+                Built like a game.<br />Scored like the exam.
+              </h2>
+              <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-10">
+                Every dial — clocks, penalties, ELO — is tuned so the rating means
+                what it says.
+              </p>
+            </Reveal>
+            <BentoGrid />
           </section>
 
           {/* ── S6: Floating-pill parallax ── */}
