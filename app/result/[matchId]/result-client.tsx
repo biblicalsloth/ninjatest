@@ -106,7 +106,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
       .subscribe();
     // Fallback poll in case the socket misses the update.
     const poll = setInterval(() => router.refresh(), 15_000);
-    return () => { clearInterval(poll); channel.unsubscribe(); };
+    return () => { clearInterval(poll); supabase.removeChannel(channel); };
   }, [pending, match.id, router]);
 
   async function handleEmailResult() {

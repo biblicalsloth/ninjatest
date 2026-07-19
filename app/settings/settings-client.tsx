@@ -10,6 +10,7 @@ import {
   Loader2,
   LogOut,
   SlidersHorizontal,
+  Trash2,
   User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -165,6 +166,10 @@ export default function SettingsClient() {
 
   const [activeSection, setActiveSection] = useState<string>("profile");
 
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
   // Client-side prefs (localStorage only — see PREF_KEYS note above).
   // Lazy init is hydration-safe: first paint is the loading spinner.
   const [soundOn, setSoundOn] = useState(() => readPref(PREF_KEYS.sound, true));
@@ -204,16 +209,19 @@ export default function SettingsClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Scroll-spy for the left rail
+  // Scroll-spy for the left rail. Track each section's visibility in a map and pick the
+  // topmost one currently in the band (SECTIONS is document order) — the old "last
+  // isIntersecting entry wins" lit the wrong item whenever two sections overlapped the band.
   useEffect(() => {
     if (loading) return;
+    const visible = new Map<string, boolean>();
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) setActiveSection(e.target.id);
-        }
+        for (const e of entries) visible.set(e.target.id, e.isIntersecting);
+        const active = SECTIONS.find((s) => visible.get(s.id));
+        if (active) setActiveSection(active.id);
       },
-      { rootMargin: "-20% 0px -70% 0px" }
+      { rootMargin: "-15% 0px -70% 0px" }
     );
     for (const s of SECTIONS) {
       const el = document.getElementById(s.id);
@@ -291,6 +299,32 @@ export default function SettingsClient() {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+    router.push("/auth/login");
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== username) return;
+    setDeleting(true);
+
+    // Best-effort avatar cleanup via the Storage API (RPC can't touch storage tables).
+    try {
+      const { data: files } = await supabase.storage.from("avatars").list(userId);
+      if (files?.length) {
+        await supabase.storage.from("avatars").remove(files.map((f) => `${userId}/${f.name}`));
+      }
+    } catch {
+      /* orphaned avatar is harmless — proceed with account deletion */
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("delete_account");
+    if (error) {
+      toast.error("Failed to delete account: " + error.message);
+      setDeleting(false);
+      return;
+    }
+    await supabase.auth.signOut();
+    toast.success("Account deleted");
     router.push("/auth/login");
   }
 
@@ -388,7 +422,7 @@ export default function SettingsClient() {
                 }
                 className={`w-full text-left text-sm rounded-lg px-3 py-2 transition-colors border-l-2 ${
                   activeSection === s.id
-                    ? "border-[#06d6a0] text-white bg-[#111111]"
+                    ? "border-[#06d6a0] text-[#06d6a0] font-medium bg-[#06d6a0]/5"
                     : "border-transparent text-[#7ab5cc] hover:text-white hover:bg-[#111111]/60"
                 }`}
               >
@@ -528,6 +562,65 @@ export default function SettingsClient() {
                 >
                   Sign out everywhere
                 </Button>
+              </div>
+
+              <div className="border-t border-[#ef476f]/20" />
+
+              <div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-white">Delete account</p>
+                    <p className="text-[#4a8fa8] text-xs mt-0.5">
+                      Permanently erases your profile, matches and rating. This cannot be undone.
+                    </p>
+                  </div>
+                  {!showDeleteConfirm && (
+                    <Button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      variant="outline"
+                      className="border-[#ef476f]/50 text-[#ef476f] hover:bg-[#ef476f]/10 hover:text-[#ef476f] rounded-lg shrink-0 flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} />
+                      Delete account
+                    </Button>
+                  )}
+                </div>
+
+                {showDeleteConfirm && (
+                  <div className="mt-4 rounded-lg border border-[#ef476f]/30 bg-[#ef476f]/5 p-4 space-y-3">
+                    <p className="text-xs text-[#c5e8f0]">
+                      Type your username <span className="font-mono text-[#ef476f]">{username}</span> to
+                      confirm.
+                    </p>
+                    <Input
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      placeholder={username}
+                      autoComplete="off"
+                      className="bg-[#120F17] border-[#ef476f]/40 text-white placeholder:text-[#4a8fa8] focus:border-[#ef476f]"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handleDeleteAccount}
+                        disabled={deleting || deleteConfirmText !== username}
+                        className="bg-[#ef476f] text-white font-semibold rounded-lg hover:bg-[#d63a5f] disabled:opacity-50 shrink-0"
+                      >
+                        {deleting ? "Deleting…" : "Delete my account"}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          setDeleteConfirmText("");
+                        }}
+                        disabled={deleting}
+                        variant="outline"
+                        className="border-[#333333] text-[#c5e8f0] hover:bg-[#111111] hover:text-white rounded-lg shrink-0"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </SettingsCard>
           </div>

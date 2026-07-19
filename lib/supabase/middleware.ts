@@ -6,7 +6,7 @@ import type { Database } from "@/lib/supabase/types";
 // password reset keep working; app routes below remain blocked until launch.
 // /c stays open so a logged-out friend can land on a challenge link — the page
 // itself bounces them through /auth/login?next=/c/<code>.
-const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth", "/c"];
+const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth", "/c", "/pricing"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;

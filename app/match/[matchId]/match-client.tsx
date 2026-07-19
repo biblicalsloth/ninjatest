@@ -408,7 +408,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     return () => {
       clearForfeit();
       window.removeEventListener("online", rehydrate);
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMatch.id, fetchQuestion, rehydrate, router, supabase]);

@@ -38,7 +38,7 @@ export function useOnlineCount(userId?: string) {
     });
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [userId]);
 

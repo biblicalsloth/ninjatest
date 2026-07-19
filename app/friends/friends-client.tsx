@@ -123,7 +123,7 @@ export default function FriendsClient({ myId }: Props) {
         }
       )
       .subscribe();
-    return () => { channel.unsubscribe(); };
+    return () => { supabase.removeChannel(channel); };
   }, [supabase, myId]);
 
   useEffect(() => {

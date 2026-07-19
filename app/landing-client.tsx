@@ -216,6 +216,7 @@ export default function LandingClient() {
             <div className="flex items-center gap-7">
               <a href="#ai" className="text-white/45 hover:text-white text-sm transition-colors">Ninja AI</a>
               <a href="#matchmaking" className="text-white/45 hover:text-white text-sm transition-colors">Matchmaking</a>
+              <Link href="/pricing" className="text-white/45 hover:text-white text-sm transition-colors">Pricing</Link>
               {!IS_WAITLIST && (
                 <Link href="/leaderboard" className="text-white/45 hover:text-white text-sm transition-colors">Leaderboard</Link>
               )}
@@ -233,33 +234,22 @@ export default function LandingClient() {
 
           {/* ── S1: Hero ── */}
           <section className="relative overflow-hidden">
-            <div data-parallax="0.07" style={{ willChange: "transform" }} className="relative z-10 px-10 pt-14 pb-10">
-              <div className="inline-flex items-center gap-2.5 bg-[#06d6a0]/8 border border-[#06d6a0]/20 rounded-full pl-2 pr-4 py-1.5 mb-8">
-                <span className="w-5 h-5 rounded-full bg-[#06d6a0] flex items-center justify-center overflow-hidden animate-spin-slow">
-                  <NinjaLogo color="#120F17" className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-[#06d6a0] text-xs font-medium tracking-wide">Now rating aspirants across India</span>
-              </div>
+            <div data-parallax="0.07" style={{ willChange: "transform" }} className="relative z-10 px-10 pt-14 pb-10 flex flex-col items-center text-center">
               <h1 className="font-pixel text-[clamp(2.9rem,5.8vw,5.2rem)] leading-[0.98] text-balance">
                 <span className="text-[#06d6a0]">Competitive Exams</span> prep is a solo sport.<br />
                 <span className="text-[#06d6a0]">Not anymore.</span>
               </h1>
-              <p className="mt-8 text-[#c5e8f0]/70 text-lg font-light max-w-[46ch] leading-relaxed">
-                Nine questions. Three sections. One opponent. Real-time 1v1 mock battles,
-                with a rating that tells you the truth about where you stand.
+              <p className="mt-8 text-[#c5e8f0]/70 text-lg font-light max-w-[54ch] leading-relaxed mx-auto">
+                Ninjatest is the AI-native arena for the world&apos;s toughest entrance exams —
+                a real-time, 1v1 ranked mode where every question is matched to your level,
+                scored by the second, and rated so you always know exactly where you stand.
               </p>
-              <div className="mt-10 flex items-center gap-5 flex-wrap">
+              <div className="mt-10 flex items-center justify-center gap-5 flex-wrap">
                 <button
                   onClick={handleOpen}
                   className="spring-pulse inline-flex items-center gap-2 bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#05b088] transition-colors"
                 >
-                  {IS_WAITLIST ? "Join the waitlist →" : "Enter the arena →"}
-                </button>
-                <button
-                  onClick={handleOpen}
-                  className="inline-flex items-center gap-2 border border-[#06d6a0]/40 text-[#06d6a0] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#06d6a0]/10 transition-colors"
-                >
-                  Join the Waitlist →
+                  {IS_WAITLIST ? "Join Waitlist →" : "Enter the arena →"}
                 </button>
               </div>
             </div>
@@ -441,6 +431,7 @@ export default function LandingClient() {
               <div className="flex items-center gap-6">
                 <a href="/privacy" className="text-white/35 hover:text-white/60 text-xs transition-colors">Privacy Policy</a>
                 <a href="/terms" className="text-white/35 hover:text-white/60 text-xs transition-colors">Terms &amp; Conditions</a>
+                <Link href="/pricing" className="text-white/35 hover:text-white/60 text-xs transition-colors">Pricing</Link>
                 {!IS_WAITLIST && (
                   <Link href="/leaderboard" className="text-white/35 hover:text-white/60 text-xs transition-colors">Leaderboard</Link>
                 )}

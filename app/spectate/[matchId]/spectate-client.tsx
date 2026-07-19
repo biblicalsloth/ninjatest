@@ -85,7 +85,7 @@ export default function SpectateClient({ initialMatch }: Props) {
       })
       .subscribe();
 
-    return () => { channel.unsubscribe(); };
+    return () => { supabase.removeChannel(channel); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.match_id, fetchQuestion]);
 
