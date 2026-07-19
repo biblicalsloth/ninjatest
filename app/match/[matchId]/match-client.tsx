@@ -73,6 +73,10 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const pendingAdvanceRef = useRef<{ newIndex: number; matchState?: Match } | null>(null);
   const matchStartedRef = useRef(match.status !== "pending");
   const fetchRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // fetchQuestion's stuck-retry must re-derive my index via rehydrate (the cron
+  // may have drained me past it), but rehydrate is defined after fetchQuestion —
+  // bridge the cycle with a ref.
+  const rehydrateRef = useRef<() => Promise<void>>(async () => {});
 
   const myScore = isPlayerA ? currentMatch.score_a : currentMatch.score_b;
   const oppScore = isPlayerA ? currentMatch.score_b : currentMatch.score_a;
@@ -130,10 +134,16 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     toast.error("Failed to load question — retrying on next update");
     // Self-paced: an idle/finished opponent produces no further UPDATEs, so
     // without a self-scheduled retry this player would sit on "Loading
-    // question…" while their server clock burns down to a NULL skip.
+    // question…" while their server clock burns down to a NULL skip. Retry via
+    // rehydrate, NOT fetchQuestion(index): while we were failing, the cron may
+    // have drained my clock past `index` (or the match ended) — a blind refetch
+    // of the same index then fails 'not current question' forever, which is
+    // exactly the "questions failed to load repeatedly" stuck loop. Rehydrate
+    // re-derives my index from my answer count and routes to the result when
+    // the match is over.
     if (fetchRetryRef.current) clearTimeout(fetchRetryRef.current);
     fetchRetryRef.current = setTimeout(() => {
-      if (qIndexRef.current !== index || !questionRef.current) fetchQuestion(index);
+      if (qIndexRef.current !== index || !questionRef.current) void rehydrateRef.current();
     }, 4000);
   }, [currentMatch.id, supabase]);
 
@@ -172,6 +182,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       await fetchQuestion(idx);
     }
   }, [match.id, supabase, router, fetchQuestion, resolveMyIndex]);
+  rehydrateRef.current = rehydrate;
 
   /* Load my current question if the match is already active (pending waits for
      presence to fire start_match) */
@@ -438,6 +449,16 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     });
 
     if (error) {
+      // Deterministic server verdicts, not transient failures. 'stale question' /
+      // 'already answered' mean my answer already landed (a success whose
+      // response was lost, or a cron drain) — unlocking the UI here would strand
+      // the player resubmitting into the same error forever. 'match not active'
+      // means the match ended under me. All three: re-derive my position from
+      // the DB and move on (rehydrate routes to the result if the match is over).
+      if (/stale question|already answered|match not active/.test(error.message)) {
+        await rehydrate();
+        return;
+      }
       toast.error("Failed to submit: " + error.message);
       setSubmitted(false);
       setSelected(null);

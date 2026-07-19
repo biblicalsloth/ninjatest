@@ -36,6 +36,9 @@ export default function QueuePage() {
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
 
     async function handleMatched(matchId: string, sb: typeof supabase): Promise<boolean> {
+      // The realtime event, the SUBSCRIBED fallback read, the heartbeat and the
+      // poll below can all land at once — first one wins, the rest no-op.
+      if (matchedRef.current) return true;
       // Clear the "Joining queue…" gate so the initiator (matched via the entry
       // read, before setVerifying(false) ran) also sees the "Opponent found!"
       // card, not the loading text — same handoff screen for both players.
@@ -152,8 +155,29 @@ export default function QueuePage() {
         });
 
       channelRef.current = channel;
+
+      // Deterministic "matched" detection: realtime is the fast path, but a
+      // silently dead socket (sleep, network flap) fires no event and no
+      // CHANNEL_ERROR — the waiting player then only learns via the 20s
+      // heartbeat. Poll our own queue row (cheap indexed own-row select) so the
+      // worst case is ~4s, not 20s. Realtime still usually wins.
+      pollId = setInterval(async () => {
+        if (matchedRef.current || document.hidden) return;
+        const { data } = await supabase
+          .from("matchmaking_queue")
+          .select("status, match_id")
+          .eq("user_id", user.id)
+          .order("enqueued_at", { ascending: false })
+          .limit(1)
+          .single();
+        const row = data as { status: string; match_id: string | null } | null;
+        if (row?.status === "matched" && row.match_id) {
+          await handleMatched(row.match_id, supabase);
+        }
+      }, 4000);
     }
 
+    let pollId: ReturnType<typeof setInterval> | null = null;
     setup();
 
     // Liveness heartbeat: the server cancels waiting rows whose heartbeat is
@@ -196,6 +220,7 @@ export default function QueuePage() {
 
     return () => {
       clearInterval(heartbeat);
+      if (pollId) clearInterval(pollId);
       channelRef.current?.unsubscribe();
       // Leaving the page without cancelling used to strand a ghost waiting
       // row. leave_queue only touches 'waiting' rows, so this is a no-op when
