@@ -255,20 +255,7 @@ export default function ChatClient() {
   );
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#120F17]">
-      {/* Shared Ninja ecosystem nav — logo in the lobby's gutter, Coach/Buddy
-          toggle + screen links in one row. Full-width, above rail and thread. */}
-      <NinjaNav
-        active="chat"
-        mode={mode}
-        onModeChange={setMode}
-        right={
-          <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
-            <PanelLeft size={18} />
-          </button>
-        }
-      />
-
+    <div className="fixed inset-0 flex bg-[#120F17]">
       {/* Mobile drawer */}
       {drawer && (
         <div className="fixed inset-0 z-40 flex md:hidden" onClick={() => setDrawer(false)}>
@@ -277,9 +264,19 @@ export default function ChatClient() {
         </div>
       )}
 
-      <div className="flex flex-1 min-h-0 md:pl-20">
-      {/* Main */}
-      <div className="flex flex-1 flex-col min-w-0">
+      {/* Main — nav lives INSIDE this column so its links stop left of the
+          full-height chats rail instead of running over it. */}
+      <div className="flex flex-1 flex-col min-w-0 md:pl-20">
+        <NinjaNav
+          active="chat"
+          mode={mode}
+          onModeChange={setMode}
+          right={
+            <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
+              <PanelLeft size={18} />
+            </button>
+          }
+        />
         {loadingThread ? (
           <div className="flex flex-1 items-center justify-center text-[#06d6a0]"><Loader2 className="animate-spin" size={22} /></div>
         ) : turns.length === 0 ? (
@@ -349,9 +346,8 @@ export default function ChatClient() {
         )}
       </div>
 
-      {/* Desktop sidebar (right) */}
+      {/* Desktop sidebar (right, full height) */}
       <div className="hidden md:flex">{sidebar}</div>
-      </div>
     </div>
   );
 }
