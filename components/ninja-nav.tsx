@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { motion } from "motion/react";
 import { NinjatestLogo } from "@/components/ninja-logo";
 
@@ -22,8 +21,6 @@ const MODE_HINT: Record<Mode, string> = {
 
 const SPRING = { type: "spring", stiffness: 400, damping: 32 } as const;
 
-const MotionLink = motion.create(Link);
-
 /*
  * Shared top nav for the Ninja AI ecosystem — /ninja, /ninja/history,
  * /ninja/solve, /plan — and only those four. One seamless row: brand lockup
@@ -36,10 +33,10 @@ const MotionLink = motion.create(Link);
  * and on /ninja it's what keeps them clear of the rail at any viewport.
  *
  * Links use the Kokonut UI Morphic Navbar geometry: a joined capsule strip
- * where the highlighted item pops out as its own mint pill and the adjacent
- * segments round their corners to make room. Navigation remounts the page,
- * so the morph tracks hover (falling back to the active screen) — that's
- * what makes the motion spring actually visible.
+ * where the ACTIVE item pops out as its own mint pill and the adjacent
+ * segments round their corners to make room. The pill tracks only the
+ * active screen — hover/focus merely recolor text. Navigation remounts the
+ * page, so the pill's layout spring rarely runs visibly; that's accepted.
  */
 export function NinjaNav({
   active,
@@ -52,9 +49,7 @@ export function NinjaNav({
   onModeChange?: (m: Mode) => void;
   right?: React.ReactNode;
 }) {
-  const [hovered, setHovered] = useState<Screen | null>(null);
-  const shown = hovered ?? active;
-  const shownIdx = ITEMS.findIndex((it) => it.key === shown);
+  const activeIdx = ITEMS.findIndex((it) => it.key === active);
 
   return (
     <header className="w-full max-w-5xl mx-auto px-4 pt-6">
@@ -89,34 +84,41 @@ export function NinjaNav({
               ))}
             </div>
           )}
-          <div
-            className="flex items-center overflow-hidden rounded-full border border-[#1c1a24]"
-            onMouseLeave={() => setHovered(null)}
-          >
+          <div className="flex items-center overflow-hidden rounded-full border border-[#1c1a24]">
             {ITEMS.map((it, i) => {
-              const isShown = shown === it.key;
-              const roundL = i === 0 || shownIdx === i - 1;
-              const roundR = i === ITEMS.length - 1 || shownIdx === i + 1;
+              const isActive = active === it.key;
+              const roundL = i === 0 || activeIdx === i - 1;
+              const roundR = i === ITEMS.length - 1 || activeIdx === i + 1;
               return (
-                <MotionLink
+                <Link
                   key={it.key}
                   href={it.href}
-                  layout
-                  transition={SPRING}
-                  onMouseEnter={() => setHovered(it.key)}
-                  onFocus={() => setHovered(it.key)}
-                  onBlur={() => setHovered(null)}
-                  aria-current={active === it.key ? "page" : undefined}
-                  className={`font-pixel text-sm px-3 py-1.5 md:px-4 transition-[border-radius,background-color,color] duration-300 ${
-                    isShown
-                      ? "mx-1.5 rounded-full bg-[#06d6a0] text-[#073b4c]"
-                      : `bg-[#111111] text-[#7ab5cc] hover:text-white ${roundL ? "rounded-l-full" : ""} ${
+                  aria-current={isActive ? "page" : undefined}
+                  className={`group relative font-pixel text-sm px-3 py-1.5 md:px-4 cursor-pointer ${
+                    isActive
+                      ? "mx-1.5 rounded-full"
+                      : `bg-[#111111] ${roundL ? "rounded-l-full" : ""} ${
                           roundR ? "rounded-r-full" : ""
                         }`
                   }`}
                 >
-                  {it.label}
-                </MotionLink>
+                  {isActive && (
+                    <motion.span
+                      layoutId="ninja-nav-pill"
+                      transition={SPRING}
+                      className="absolute inset-0 rounded-full bg-[#06d6a0]"
+                    />
+                  )}
+                  <span
+                    className={`relative transition-colors ${
+                      isActive
+                        ? "text-[#073b4c]"
+                        : "text-[#7ab5cc] hover:text-white group-focus-visible:text-white"
+                    }`}
+                  >
+                    {it.label}
+                  </span>
+                </Link>
               );
             })}
           </div>
