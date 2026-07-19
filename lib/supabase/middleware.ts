@@ -9,20 +9,6 @@ const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth"];
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // The admin console runs as its OWN Vercel deployment bound to admin.<domain>,
-  // gated behind Vercel Authentication (only the developer / team members can
-  // load it). ADMIN_ENABLED=1 is set ONLY on that project (and in .env.local to
-  // work on the console locally). Everywhere else the console 404s — it's not
-  // part of the shipped app. The is_admin page gate + RPC checks stay behind
-  // this as defense-in-depth. The admin-only routing lives after auth below.
-  const isAdminDeployment = process.env.ADMIN_ENABLED === "1";
-  if (
-    !isAdminDeployment &&
-    (pathname === "/admin" || pathname.startsWith("/admin/"))
-  ) {
-    return new NextResponse(null, { status: 404 });
-  }
-
   // Session client + auth run FIRST, even in waitlist mode, so signed-in users
   // can be let through to the app (soft launch) while anon visitors are held to
   // the landing page. The waitlist gate is applied after isAuthed is known.
@@ -72,13 +58,9 @@ export async function updateSession(request: NextRequest) {
   // Waitlist mode: the landing page is the public front door — anonymous
   // visitors get ONLY "/", "/api/waitlist", "/auth". SIGNED-IN users fall
   // through to the full app (soft launch): they can play while the public still
-  // sees the waitlist. Never on the admin deployment. Removing the env var (the
-  // launch) makes this branch dead and the whole site the app for everyone.
-  if (
-    !isAdminDeployment &&
-    process.env.NEXT_PUBLIC_APP_MODE === "waitlist" &&
-    !isAuthed
-  ) {
+  // sees the waitlist. Removing the env var (the launch) makes this branch dead
+  // and the whole site the app for everyone.
+  if (process.env.NEXT_PUBLIC_APP_MODE === "waitlist" && !isAuthed) {
     const allowed = WAITLIST_ALLOWED.some(
       (p) => pathname === p || pathname.startsWith(p + "/")
     );
@@ -87,31 +69,6 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     return supabaseResponse;
-  }
-
-  // Admin deployment: serve ONLY the console. Root → /admin, /auth signs the
-  // developer in, /admin* passes to the is_admin page gate; every other path
-  // 404s so the subdomain is admin-only and shares nothing with the app.
-  if (isAdminDeployment) {
-    if (pathname === "/") {
-      url.pathname = "/admin";
-      return NextResponse.redirect(url);
-    }
-    if (pathname.startsWith("/auth")) {
-      if (isAuthed) {
-        url.pathname = "/admin";
-        return NextResponse.redirect(url);
-      }
-      return supabaseResponse;
-    }
-    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-      if (!isAuthed) {
-        url.pathname = "/auth/login";
-        return NextResponse.redirect(url);
-      }
-      return supabaseResponse;
-    }
-    return new NextResponse(null, { status: 404 });
   }
 
   // /leaderboard is public in the real app (anon-callable RPC + public client
