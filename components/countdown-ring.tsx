@@ -26,7 +26,7 @@ export function CountdownRing({ progress, remaining, size = 56, section }: Props
   const isUrgent = progress < 0.2;
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className={`relative${isUrgent ? " timer-urgent" : ""}`} style={{ width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
         {/* Track */}
         <circle

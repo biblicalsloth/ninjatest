@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SpectateClient from "./spectate-client";
+import { Enter } from "@/components/enter";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -17,5 +18,9 @@ export default async function SpectateMatchPage({ params }: Props) {
   const match = data?.[0];
   if (!match) redirect("/spectate");
 
-  return <SpectateClient initialMatch={match} />;
+  return (
+    <Enter>
+      <SpectateClient initialMatch={match} />
+    </Enter>
+  );
 }

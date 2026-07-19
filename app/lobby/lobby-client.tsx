@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import { ChallengeDialog } from "@/components/challenge-dialog";
 import type { Profile } from "@/lib/supabase/types";
 import { cn, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
+import { gsap, useGSAP, enterUp, countTo, prefersReduced, DUR, EASE } from "@/lib/motion";
 
 interface DailyProgress {
   matches_today: number;
@@ -78,19 +79,45 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
   const winRate = getWinRate(profile.wins, profile.matches_played);
   const league = getLeague(profile.elo);
 
+  /* Entrance orchestration — presentation only. Header rises, mode cards
+     stagger in, rail follows, league badge settles with a small overshoot,
+     rating numbers roll up. Reduced motion: everything static instantly. */
+  const scope = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      if (prefersReduced()) return;
+      enterUp("[data-anim='head']", { stagger: 0.08 });
+      enterUp("[data-anim='card']", { stagger: 0.05, delay: 0.1 });
+      enterUp("[data-anim='rail']", { delay: 0.2 });
+      gsap.from("[data-anim='badge']", {
+        scale: 0.7,
+        opacity: 0,
+        duration: DUR.base,
+        ease: EASE.settle,
+        delay: 0.4,
+        clearProps: "all",
+      });
+      gsap.utils.toArray<HTMLElement>("[data-countup]").forEach((el) => {
+        const to = parseInt(el.textContent ?? "0", 10);
+        if (!Number.isNaN(to)) countTo(el, 0, to, { delay: 0.25 });
+      });
+    },
+    { scope }
+  );
+
   return (
-    <div className="min-h-screen bg-[#120F17] text-white">
+    <div ref={scope} className="min-h-screen bg-[#120F17] text-white">
       {/* Header — brand mark leads top-left, greeting stacked below it. Shares
           the grid's container so both align to the same gutters. The greeting
           lives here, not in the left column: keeping it inside <section> pushed
           the first card ~90px below the rail card and desynced the two column
           tops. */}
       <header className="max-w-5xl mx-auto px-4 pt-6">
-        <div className="flex items-center justify-between gap-3">
+        <div data-anim="head" className="flex items-center justify-between gap-3">
           <NinjatestLogo />
           <OnlinePill userId={profile.id} />
         </div>
-        <div className="min-w-0 mt-8">
+        <div data-anim="head" className="min-w-0 mt-8">
           <h1 className="font-pixel text-2xl break-words">
             Welcome, <span className="text-[#06d6a0]">{displayName}</span>
           </h1>
@@ -108,6 +135,7 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ranked 1v1 — primary */}
             <button
+              data-anim="card"
               onClick={handleFindMatch}
               disabled={joining}
               className="group relative text-left rounded-2xl p-5 bg-gradient-to-br from-[#06d6a0] to-[#05b088] text-[#073b4c] disabled:opacity-70 overflow-hidden transition-transform hover:-translate-y-0.5"
@@ -126,8 +154,9 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
 
             {/* Challenge a friend */}
             <button
+              data-anim="card"
               onClick={() => setShowChallenge(true)}
-              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-colors"
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-[border-color,transform] hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <Users size={22} className="text-[#06d6a0]" />
@@ -141,8 +170,9 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
 
             {/* Practice */}
             <Link
+              data-anim="card"
               href="/practice"
-              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-colors"
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-[border-color,transform] hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <Target size={22} className="text-[#06d6a0]" />
@@ -156,9 +186,10 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
 
             {/* Vs Ninja Bot */}
             <button
+              data-anim="card"
               onClick={handlePlayBot}
               disabled={startingBot}
-              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-colors disabled:opacity-70"
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-[border-color,transform] hover:-translate-y-0.5 disabled:opacity-70"
             >
               <div className="flex items-center justify-between">
                 <Bot size={22} className="text-[#06d6a0]" />
@@ -174,8 +205,9 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
 
             {/* Spectate */}
             <Link
+              data-anim="card"
               href="/spectate"
-              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-colors"
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#06d6a0]/40 transition-[border-color,transform] hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <Eye size={22} className="text-[#7ab5cc]" />
@@ -189,8 +221,9 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
 
             {/* Leaderboard */}
             <Link
+              data-anim="card"
               href="/leaderboard"
-              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#ffd166]/40 transition-colors"
+              className="group text-left rounded-2xl p-5 bg-[#111111] border border-[#1c1a24] hover:border-[#ffd166]/40 transition-[border-color,transform] hover:-translate-y-0.5"
             >
               <div className="flex items-center justify-between">
                 <Trophy size={22} className="text-[#ffd166]" />
@@ -207,7 +240,7 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
 
         {/* Right rail — profile snapshot + stats + dailies, boxed off from the play area */}
         <aside>
-          <div className="lg:sticky lg:top-6 rounded-2xl border border-white/10 bg-[#111111] p-5 space-y-5">
+          <div data-anim="rail" className="lg:sticky lg:top-6 rounded-2xl border border-white/10 bg-[#111111] p-5 space-y-5">
             {/* Profile header */}
             <div className="flex items-center gap-4">
               <Avatar className="w-14 h-14">
@@ -220,6 +253,7 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-white truncate">{displayName}</p>
                   <Badge
+                    data-anim="badge"
                     variant="outline"
                     className="shrink-0"
                     style={{
@@ -304,9 +338,14 @@ function OnlinePill({ userId }: { userId: string }) {
 }
 
 function StatCard({ label, value, accent, gold }: { label: string; value: string; accent?: boolean; gold?: boolean }) {
+  // Pure-numeric values (ELO/peak) get the odometer roll; "62%" stays static.
+  const countable = /^\d+$/.test(value);
   return (
     <div className="bg-[#181818] rounded-xl p-4 text-center">
-      <div className={`text-xl font-bold ${gold ? "text-[#ffd166]" : accent ? "text-[#06d6a0]" : "text-white"}`}>{value}</div>
+      <div
+        data-countup={countable ? "" : undefined}
+        className={`text-xl font-bold tabular-nums ${gold ? "text-[#ffd166]" : accent ? "text-[#06d6a0]" : "text-white"}`}
+      >{value}</div>
       <div className="text-[#7ab5cc] text-xs mt-0.5">{label}</div>
     </div>
   );

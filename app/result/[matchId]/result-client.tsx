@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, RotateCcw, Home, Copy, Check, Mail, Target, Loader2 } from "lucide-react";
+import { Trophy, RotateCcw, Home, Copy, Check, Mail, Target, Loader2, Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,6 +13,7 @@ import { NinjaDebrief } from "@/components/ninja-debrief";
 import { askNinja } from "@/lib/ninja";
 import type { Match, Profile, MatchAnswer } from "@/lib/supabase/types";
 import { cn, formatPoints } from "@/lib/utils";
+import { gsap, useGSAP, enterUp, stamp, countTo, prefersReduced, DUR, EASE } from "@/lib/motion";
 
 interface Props {
   match: Match;
@@ -24,7 +25,6 @@ interface Props {
 
 export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, myAnswers }: Props) {
   const router = useRouter();
-  const [showElo, setShowElo] = useState(false);
   const [rematchCode, setRematchCode] = useState<string | null>(null);
   const [creatingRematch, setCreatingRematch] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -52,10 +52,44 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   // so hold that state instead of showing a bogus outcome.
   const pending = match.status !== "completed" && match.status !== "abandoned";
 
-  useEffect(() => {
-    const timer = setTimeout(() => setShowElo(true), 800);
-    return () => clearTimeout(timer);
-  }, []);
+  /* The payoff sequence: outcome stamps → cards rise → numbers roll (score
+     count-up, ELO before→after) → answer dots pop → ELO delta and streak
+     stamp last. Pending matches get the quiet version; when finalization
+     arrives (pending flips), the whole verdict re-stamps. Presentation only —
+     the realtime watcher below is untouched. */
+  const scope = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      if (prefersReduced()) return;
+      const tl = gsap.timeline();
+      tl.add(stamp("[data-anim='banner']"));
+      tl.add(enterUp("[data-anim='card']", { stagger: 0.08 }), "-=0.15");
+      if (pending) return;
+      tl.addLabel("nums", "-=0.15");
+      gsap.utils.toArray<HTMLElement>("[data-roll-to]").forEach((el) => {
+        const to = parseInt(el.dataset.rollTo ?? "", 10);
+        if (Number.isNaN(to)) return;
+        const from = parseInt(el.dataset.rollFrom ?? "", 10);
+        tl.add(countTo(el, Number.isNaN(from) ? 0 : from, to), "nums");
+      });
+      tl.add(
+        gsap.from("[data-anim='dot']", {
+          scale: 0.6,
+          opacity: 0,
+          duration: DUR.snap,
+          ease: EASE.settle,
+          stagger: 0.04,
+          clearProps: "all",
+        }),
+        "nums+=0.1"
+      );
+      const deltas = gsap.utils.toArray<HTMLElement>("[data-anim='delta']");
+      if (deltas.length) tl.add(stamp(deltas), "nums+=0.45");
+      const flare = scope.current?.querySelector("[data-anim='streak']");
+      if (flare) tl.add(stamp(flare), "nums+=0.6");
+    },
+    { scope, dependencies: [pending], revertOnUpdate: true }
+  );
 
   // While pending, watch for finalization and pull the decided result in.
   useEffect(() => {
@@ -135,11 +169,11 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
   }
 
   return (
-    <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-start px-4 py-8">
+    <div ref={scope} className="min-h-screen bg-[#120F17] flex flex-col items-center justify-start px-4 py-8">
       <div className="w-full max-w-md space-y-6">
 
         {/* Result banner */}
-        <div className={cn(
+        <div data-anim="banner" className={cn(
           "rounded-2xl p-6 text-center border",
           pending
             ? "bg-[#ffd166]/10 border-[#ffd166]/30"
@@ -170,10 +204,17 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
               <h1 className="text-[#ef476f] text-3xl font-bold text-balance">Defeat</h1>
               <p className="text-[#c5e8f0] text-sm mt-1">Better luck next time</p></>
           )}
+          {/* Streak flare — stamps in last on a decided win */}
+          {!pending && !isAbandoned && iWon && myProfile.current_streak >= 2 && (
+            <div data-anim="streak" className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#ffd166]/10 border border-[#ffd166]/30 px-3 py-1">
+              <Flame size={12} className="text-[#ffd166]" />
+              <span className="text-[#ffd166] text-xs font-semibold">{myProfile.current_streak} win streak</span>
+            </div>
+          )}
         </div>
 
         {/* Score comparison */}
-        <div className="bg-[#111111] rounded-xl p-5">
+        <div data-anim="card" className="bg-[#111111] rounded-xl p-5">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="space-y-2">
               <Avatar className="w-12 h-12 mx-auto">
@@ -183,7 +224,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                 </AvatarFallback>
               </Avatar>
               <p className="text-white text-sm font-semibold truncate">{myProfile.display_name ?? myProfile.username}</p>
-              <p className="text-[#ffd166] text-2xl font-bold">{myScore}</p>
+              <p data-roll-to={myScore} className="text-[#ffd166] text-2xl font-bold tabular-nums">{myScore}</p>
               <p className="text-[#7ab5cc] text-xs">{myCorrect}/9 correct</p>
             </div>
             <div className="flex flex-col items-center justify-center gap-1">
@@ -204,7 +245,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
                 <><p className="text-[#7ab5cc] text-2xl font-bold">·&thinsp;·&thinsp;·</p>
                   <p className="text-[#7ab5cc] text-xs">still answering</p></>
               ) : (
-                <><p className="text-white text-2xl font-bold">{oppScore}</p>
+                <><p data-roll-to={oppScore} className="text-white text-2xl font-bold tabular-nums">{oppScore}</p>
                   <p className="text-[#7ab5cc] text-xs">{oppCorrect}/9 correct</p></>
               )}
             </div>
@@ -213,10 +254,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
 
         {/* ELO changes — only once the match is finalized (no rating until then) */}
         {match.is_rated && !pending && (
-          <div className={cn(
-            "bg-[#111111] rounded-xl p-5 motion-safe:transition-[opacity,transform] motion-safe:duration-500",
-            showElo ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-          )}>
+          <div data-anim="card" className="bg-[#111111] rounded-xl p-5">
             <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Rating change</h3>
             <div className="grid grid-cols-2 gap-6">
               <EloChange username={myProfile.display_name ?? myProfile.username} before={myEloBefore} after={myEloAfter} delta={myDelta} />
@@ -227,7 +265,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
 
         {/* Per-question breakdown. Flat 9-grid — the section mix is content-driven
             now (quant-only today), so no fixed 3-3-3 grouping. */}
-        <div className="bg-[#111111] rounded-xl p-5">
+        <div data-anim="card" className="bg-[#111111] rounded-xl p-5">
           <h3 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4">Your answers</h3>
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 9 }).map((_, i) => {
@@ -259,10 +297,15 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
 
         {/* Ninja debrief + email — only once the match is finalized (the debrief
             RPC needs a finished match, and the email would send a partial result). */}
-        {!pending && <NinjaDebrief matchId={match.id} />}
+        {!pending && (
+          <div data-anim="card">
+            <NinjaDebrief matchId={match.id} />
+          </div>
+        )}
 
         {!pending && (
           <button
+            data-anim="card"
             onClick={handleEmailResult}
             disabled={sendingEmail || emailSent}
             className="w-full flex items-center justify-center gap-2 text-[#7ab5cc] hover:text-white text-sm py-2 transition-colors disabled:opacity-50"
@@ -274,7 +317,7 @@ export default function ResultClient({ match, myProfile, oppProfile, isPlayerA, 
 
         {/* Rematch */}
         {!rematchCode ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div data-anim="card" className="grid grid-cols-2 gap-3">
             <Button
               onClick={handleRematch}
               disabled={creatingRematch}
@@ -326,9 +369,13 @@ function EloChange({ username, before, after, delta }: {
   return (
     <div className="text-center">
       <p className="text-[#7ab5cc] text-xs truncate mb-1">{username}</p>
-      <p className="text-white font-bold text-lg">{after ?? before ?? "—"}</p>
+      <p
+        data-roll-to={after ?? undefined}
+        data-roll-from={before ?? undefined}
+        className="text-white font-bold text-lg tabular-nums"
+      >{after ?? before ?? "—"}</p>
       {delta !== null && (
-        <p className={cn("text-sm font-semibold elo-pop", delta > 0 ? "text-[#06d6a0]" : delta < 0 ? "text-[#ef476f]" : "text-[#7ab5cc]")}>
+        <p className={cn("inline-block text-sm font-semibold", delta > 0 ? "text-[#06d6a0]" : delta < 0 ? "text-[#ef476f]" : "text-[#7ab5cc]")} data-anim="delta">
           {formatPoints(delta)}
         </p>
       )}
@@ -342,6 +389,7 @@ function AnswerDot({ status, points, qNum, onAsk }: {
 }) {
   return (
     <button
+      data-anim="dot"
       onClick={onAsk}
       title="Ask Ninja to attempt this question"
       className="flex flex-col items-center gap-1 bg-[#120F17] rounded-lg py-2 w-full hover:bg-[#1a1622] transition-colors cursor-pointer"

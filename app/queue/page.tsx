@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { X, Zap, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { gsap, useGSAP, enterUp, stamp, prefersReduced } from "@/lib/motion";
 
 export default function QueuePage() {
   const router = useRouter();
@@ -32,6 +33,11 @@ export default function QueuePage() {
 
   /* Verify in queue + listen for match */
   useEffect(() => {
+    // StrictMode double-mounts this effect; the stale setup() must not create
+    // a channel after its cleanup already ran, or the second mount's
+    // supabase.channel(same topic) returns an already-subscribed channel and
+    // .on("postgres_changes") throws.
+    let cancelled = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
 
@@ -111,6 +117,7 @@ export default function QueuePage() {
 
       setVerifying(false);
 
+      if (cancelled) return;
       const channel = supabase
         .channel(`queue:${user.id}`)
         .on(
@@ -219,9 +226,14 @@ export default function QueuePage() {
     }, 20_000);
 
     return () => {
+      cancelled = true;
       clearInterval(heartbeat);
       if (pollId) clearInterval(pollId);
-      channelRef.current?.unsubscribe();
+      // removeChannel, not unsubscribe: the client caches channels by topic,
+      // and a merely-unsubscribed one is handed back on the next visit —
+      // where .on() after subscribe() throws.
+      if (channelRef.current) supabaseRef.current?.removeChannel(channelRef.current);
+      channelRef.current = null;
       // Leaving the page without cancelling used to strand a ghost waiting
       // row. leave_queue only touches 'waiting' rows, so this is a no-op when
       // we routed into a match. Fire-and-forget.
@@ -279,6 +291,34 @@ export default function QueuePage() {
 
   const currentBand = Math.min(1000, 100 + elapsed * 20);
 
+  /* Motion only — the routing timer in handleMatched is untouched. The search
+     loop reads as the ELO band physically widening: rings ripple outward from
+     the core. On match found the loop dies with its branch and the verdict
+     stamps in. */
+  const scope = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      if (verifying || matchFound || prefersReduced()) return;
+      enterUp("[data-anim='search']", { stagger: 0.05 });
+      gsap.utils.toArray<HTMLElement>("[data-ring]").forEach((el, i) => {
+        gsap.fromTo(
+          el,
+          { scale: 1, opacity: 0.5 },
+          { scale: 2.4, opacity: 0, duration: 2.4, ease: "power1.out", repeat: -1, delay: i * 0.8 }
+        );
+      });
+    },
+    { scope, dependencies: [verifying, !!matchFound] }
+  );
+  useGSAP(
+    () => {
+      if (!matchFound || prefersReduced()) return;
+      stamp("[data-anim='stamp']");
+      enterUp("[data-anim='found']", { delay: 0.2 });
+    },
+    { scope, dependencies: [!!matchFound] }
+  );
+
   if (verifying) {
     return (
       <div className="min-h-screen bg-[#120F17] flex items-center justify-center">
@@ -289,25 +329,27 @@ export default function QueuePage() {
 
   if (matchFound) {
     return (
-      <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
-        <div className="w-20 h-20 rounded-full bg-[#06d6a0]/10 border-2 border-[#06d6a0] flex items-center justify-center mb-6 animate-pulse">
+      <div ref={scope} className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
+        <div data-anim="stamp" className="w-20 h-20 rounded-full bg-[#06d6a0]/10 border-2 border-[#06d6a0] flex items-center justify-center mb-6">
           <Zap size={32} className="text-[#06d6a0]" />
         </div>
-        <h1 className="text-white text-2xl font-bold mb-2">Opponent found!</h1>
+        <h1 data-anim="found" className="text-white text-2xl font-bold mb-2">Opponent found!</h1>
         {matchFound.opponent && (
-          <p className="text-[#7ab5cc] text-sm mb-1">vs <span className="text-white font-semibold">{matchFound.opponent}</span></p>
+          <p data-anim="found" className="text-[#7ab5cc] text-sm mb-1">vs <span className="text-white font-semibold">{matchFound.opponent}</span></p>
         )}
-        <p className="text-[#4a8fa8] text-xs">Loading match…</p>
+        <p data-anim="found" className="text-[#4a8fa8] text-xs">Loading match…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
-      {/* Animated search indicator */}
-      <div className="relative mb-8">
-        <div className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/20 motion-safe:animate-ping" style={{ transform: "scale(1.5)" }} />
-        <div className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/10 motion-safe:animate-ping" style={{ transform: "scale(2)", animationDelay: "0.5s" }} />
+    <div ref={scope} className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
+      {/* Animated search indicator — rings ripple outward like the widening
+          ELO band (gsap loop above; static circles under reduced motion) */}
+      <div data-anim="search" className="relative mb-8">
+        <div data-ring className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/30 opacity-0" />
+        <div data-ring className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/20 opacity-0" />
+        <div data-ring className="absolute inset-0 rounded-full border-2 border-[#06d6a0]/10 opacity-0" />
         <div className="w-24 h-24 rounded-full bg-[#0a4f66] border-2 border-[#06d6a0]/40 flex items-center justify-center">
           <div className="flex gap-1">
             {[0, 1, 2].map((i) => (
@@ -323,12 +365,12 @@ export default function QueuePage() {
         </div>
       </div>
 
-      <h1 className="text-white text-2xl font-bold mb-1">Finding your opponent…</h1>
-      <p className="text-[#7ab5cc] text-sm mb-8">
+      <h1 data-anim="search" className="text-white text-2xl font-bold mb-1">Finding your opponent…</h1>
+      <p data-anim="search" className="text-[#7ab5cc] text-sm mb-8">
         Your band: ±{currentBand} ELO{currentBand >= 1000 ? " (any)" : ""} · {formatTime(elapsed)} elapsed
       </p>
 
-      <div className="flex gap-6 mb-10 text-center">
+      <div data-anim="search" className="flex gap-6 mb-10 text-center">
         <div>
           <div className="text-[#ffd166] font-bold text-lg">{currentBand}</div>
           <div className="text-[#7ab5cc] text-xs">ELO band</div>

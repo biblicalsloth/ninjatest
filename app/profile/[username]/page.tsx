@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/server";
 import ProfileClient from "./profile-client";
+import { Enter } from "@/components/enter";
 
 // Public, crawlable page. Cache at the edge and revalidate every 60s instead of
 // re-running 3 RPCs on every visitor/bot hit. No auth cookie is read here, so
@@ -29,11 +30,13 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const profileData = data as any;
 
   return (
-    <ProfileClient
-      profileData={profileData}
-      recentMatches={rm ?? []}
-      sectionStats={ss ?? []}
-      deepStats={ds ?? null}
-    />
+    <Enter>
+      <ProfileClient
+        profileData={profileData}
+        recentMatches={rm ?? []}
+        sectionStats={ss ?? []}
+        deepStats={ds ?? null}
+      />
+    </Enter>
   );
 }

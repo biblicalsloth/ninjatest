@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { getWinRate } from "@/lib/utils";
+import { gsap, useGSAP, enterUp, prefersReduced } from "@/lib/motion";
 
 export interface LeaderboardEntry {
   rank: number;
@@ -38,8 +39,22 @@ export function LeaderboardTable({ entries }: { entries: LeaderboardEntry[] }) {
     });
   }, []);
 
+  /* Row stagger on load — only the first dozen (the visible fold); the rest
+     render static. Client-side only, so the page stays ISR-cached. */
+  const scope = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      if (prefersReduced() || !scope.current) return;
+      enterUp(gsap.utils.toArray<Element>(scope.current.children).slice(0, 12), {
+        y: 8,
+        stagger: 0.035,
+      });
+    },
+    { scope }
+  );
+
   return (
-    <div className="space-y-1">
+    <div ref={scope} className="space-y-1">
       {entries.map((entry) => {
         const isMe = myUsername === entry.username;
         const winRate = getWinRate(entry.wins, entry.wins + entry.losses + entry.draws);

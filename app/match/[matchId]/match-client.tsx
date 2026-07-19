@@ -12,6 +12,7 @@ import { SpeedMeter } from "@/components/speed-meter";
 import { Button } from "@/components/ui/button";
 import type { Match, Profile, MatchQuestion, CatSection } from "@/lib/supabase/types";
 import { getSectionBadgeClass, formatPoints, cn } from "@/lib/utils";
+import { gsap, useGSAP, enterUp, stamp, countTo, prefersReduced, DUR, EASE } from "@/lib/motion";
 
 interface Props {
   match: Match;
@@ -490,16 +491,57 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
     }
   }
 
+  /* ── Motion (presentation only — nothing here touches timers, submit, or
+     realtime; every effect is keyed on already-committed state) ── */
+  const motionScope = useRef<HTMLDivElement>(null);
+  const qaVisible = !!question && startsIn === 0 && !showReveal;
+
+  /* Question in: content rises when a new index renders. Opacity/transform
+     only — options are clickable from the first frame. */
+  useGSAP(
+    () => {
+      if (!qaVisible || prefersReduced()) return;
+      enterUp("[data-anim='qa']", { y: 10, duration: 0.3, stagger: 0.05 });
+    },
+    { scope: motionScope, dependencies: [qIndex, qaVisible] }
+  );
+
+  /* Answer locked: quick press-settle on whatever the player committed.
+     Skips have no [data-anim='pick'] element — nothing to animate. */
+  useGSAP(
+    () => {
+      if (!submitted || prefersReduced()) return;
+      const el = motionScope.current?.querySelector("[data-anim='pick']");
+      if (!el) return;
+      gsap.fromTo(
+        el,
+        { scale: 0.98 },
+        { scale: 1, duration: DUR.snap, ease: EASE.settle, clearProps: "transform" }
+      );
+    },
+    { scope: motionScope, dependencies: [submitted] }
+  );
+
+  /* Reveal punch: the ±pts verdict stamps, answer rows follow. */
+  useGSAP(
+    () => {
+      if (!showReveal || !revealData || prefersReduced()) return;
+      stamp("[data-anim='verdict']");
+      enterUp("[data-anim='rrow']", { y: 8, delay: 0.1 });
+    },
+    { scope: motionScope, dependencies: [showReveal] }
+  );
+
   /* ── Reveal screen ── */
   if (showReveal && revealData && question) {
     const options = question.options as string[];
     return (
-      <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
+      <div ref={motionScope} className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-2xl space-y-5">
           {/* Result badge */}
           <div className="flex items-center justify-between">
-            <span className={cn(
-              "text-sm font-bold px-3 py-1 rounded-full",
+            <span data-anim="verdict" className={cn(
+              "inline-block text-sm font-bold px-3 py-1 rounded-full",
               revealData.is_correct
                 ? "bg-[#06d6a0]/15 text-[#06d6a0]"
                 : selected === null
@@ -531,13 +573,14 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           {/* TITA reveal: expected answer vs what the player typed */}
           {revealData.qtype === "tita" ? (
             <div className="space-y-2.5">
-              <div className="px-4 py-3.5 rounded-xl border border-[#06d6a0] bg-[#06d6a0]/10">
+              <div data-anim="rrow" className="px-4 py-3.5 rounded-xl border border-[#06d6a0] bg-[#06d6a0]/10">
                 <div className="text-[#06d6a0] text-xs uppercase tracking-wider font-medium mb-1">
                   Correct answer
                 </div>
                 <div className="text-white font-mono text-base">{revealData.answer_value}</div>
               </div>
               <div
+                data-anim="rrow"
                 className={cn(
                   "px-4 py-3.5 rounded-xl border",
                   revealData.is_correct
@@ -572,6 +615,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               return (
                 <div
                   key={i}
+                  data-anim="rrow"
                   className={cn(
                     "w-full text-left px-4 py-3.5 rounded-xl border text-sm",
                     isCorrect
@@ -633,7 +677,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
   const options = question.options as string[];
 
   return (
-    <div className="min-h-screen bg-[#120F17] flex flex-col">
+    <div ref={motionScope} className="min-h-screen bg-[#120F17] flex flex-col">
       {/* Top bar */}
       <div className="bg-[#120F17] border-b border-[#222222] px-4 py-3">
         <div className="max-w-2xl mx-auto">
@@ -674,7 +718,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
           {/* Section + Q number */}
-          <div className="flex items-center gap-2">
+          <div data-anim="qa" className="flex items-center gap-2">
             <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-md", getSectionBadgeClass(section))}>
               {section}
             </span>
@@ -684,31 +728,36 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           </div>
 
           {/* Speed meter */}
-          <SpeedMeter
-            progress={progressPct}
-            section={section}
-            capMs={capMs}
-            timeRemaining={timeRemaining}
-          />
+          <div data-anim="qa">
+            <SpeedMeter
+              progress={progressPct}
+              section={section}
+              capMs={capMs}
+              timeRemaining={timeRemaining}
+            />
+          </div>
 
           {/* Shared passage (passage-group questions only) */}
           {question.passage && (
-            <div className="max-h-72 overflow-y-auto rounded-xl border border-[#222222] bg-[#111111] px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-wrap">
+            <div data-anim="qa" className="max-h-72 overflow-y-auto rounded-xl border border-[#222222] bg-[#111111] px-4 py-3 text-[#c5e8f0] text-sm leading-relaxed whitespace-pre-wrap">
               {question.passage}
             </div>
           )}
           {question.passage_image_url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={question.passage_image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
+            <img data-anim="qa" src={question.passage_image_url} alt="" loading="lazy" className="max-w-full rounded-xl border border-[#222222]" />
           )}
 
           {/* Question body */}
-          <QuestionBody body={question.body} className="text-white text-base leading-relaxed" />
-          {question.image_url && <QuestionDiagram url={question.image_url} />}
+          <div data-anim="qa">
+            <QuestionBody body={question.body} className="text-white text-base leading-relaxed" />
+            {question.image_url && <QuestionDiagram url={question.image_url} />}
+          </div>
 
           {/* Answer input — TITA types a value, MCQ picks an option */}
           {question.qtype === "tita" ? (
             <form
+              data-anim="qa"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (submitted || !typedAnswer.trim()) return;
@@ -722,6 +771,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               <div className="flex gap-2.5">
                 <input
                   id="tita-answer"
+                  data-anim={submitted ? "pick" : undefined}
                   value={typedAnswer}
                   onChange={(e) => {
                     // Reject rather than sanitise. Stripping non-numerics would turn
@@ -758,10 +808,11 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
               </p>
             </form>
           ) : (
-            <div className="space-y-2.5">
+            <div data-anim="qa" className="space-y-2.5">
               {options.map((opt, i) => (
                 <button
                   key={i}
+                  data-anim={submitted && selected === i ? "pick" : undefined}
                   onClick={() => handleSubmit(i)}
                   disabled={submitted}
                   className={cn(
@@ -837,11 +888,40 @@ function PlayerBar({
             </span>
           )}
         </p>
-        <p className="text-[#ffd166] font-bold text-lg leading-none">{score}</p>
+        <p className="text-[#ffd166] font-bold text-lg leading-none">
+          <ScoreNumber value={score} />
+        </p>
         {!isMe && answered && (
           <p className="text-[#7ab5cc] text-xs">answered</p>
         )}
       </div>
     </div>
+  );
+}
+
+/* Odometer score tick — rolls between server-committed values with a small
+   settle. Transform/opacity only; realtime opponent updates never shift layout. */
+function ScoreNumber({ value }: { value: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const prev = useRef(value);
+  useGSAP(
+    () => {
+      const el = ref.current;
+      const from = prev.current;
+      prev.current = value;
+      if (!el || from === value || prefersReduced()) return;
+      countTo(el, from, value, { duration: 0.5 });
+      gsap.fromTo(
+        el,
+        { scale: 1.25 },
+        { scale: 1, duration: DUR.base, ease: EASE.settle, clearProps: "transform" }
+      );
+    },
+    { dependencies: [value] }
+  );
+  return (
+    <span ref={ref} className="inline-block tabular-nums">
+      {value}
+    </span>
   );
 }

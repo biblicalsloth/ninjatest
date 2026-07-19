@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/page-header";
+import { Enter } from "@/components/enter";
 
 interface ActiveMatch {
   match_id: string;
@@ -42,6 +43,7 @@ export default async function SpectatePage() {
       <main className="max-w-2xl mx-auto px-4 pb-24">
 
         {matches.length === 0 ? (
+          <Enter>
           <div className="mt-6 bg-[#111111] border border-[#1c1a24] rounded-xl px-6 py-16 text-center">
             <Eye size={28} className="mx-auto mb-3 text-[#4a8fa8]" />
             <p className="text-white text-sm font-medium">No live matches right now</p>
@@ -49,8 +51,9 @@ export default async function SpectatePage() {
               Matches show up here the moment two players start battling. Check back in a bit.
             </p>
           </div>
+          </Enter>
         ) : (
-          <div className="mt-6 space-y-2">
+          <Enter className="mt-6 space-y-2">
             {matches.map((m) => (
               <Link
                 key={m.match_id}
@@ -77,7 +80,7 @@ export default async function SpectatePage() {
                 <Eye size={16} className="text-[#4a8fa8] group-hover:text-[#06d6a0] shrink-0 transition-colors" />
               </Link>
             ))}
-          </div>
+          </Enter>
         )}
       </main>
     </div>
