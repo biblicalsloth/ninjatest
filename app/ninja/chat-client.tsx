@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Send, Trash2, PanelLeft, Paperclip, X, Loader2 } from "lucide-react";
-import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
+import { NinjaLogo } from "@/components/ninja-logo";
+import { PageHeader } from "@/components/page-header";
 import { createClient } from "@/lib/supabase/client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -294,13 +295,16 @@ export default function ChatClient() {
 
       {/* Main */}
       <div className="flex flex-1 flex-col min-w-0">
-        <div className="flex items-center gap-3 border-b border-[#222222] px-4 py-3">
-          <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
-            <PanelLeft size={18} />
-          </button>
-          <NinjatestLogo />
-          <h1 className="font-pixel text-lg text-white ml-3">Ninja AI</h1>
-          <span className="ml-auto hidden sm:block text-[11px] text-[#4a8fa8]">{MODE_HINT[mode]}</span>
+        <div className="w-full max-w-5xl mx-auto px-4 pt-6">
+          <PageHeader
+            label="Ninja AI"
+            sub={MODE_HINT[mode]}
+            right={
+              <button onClick={() => setDrawer(true)} className="md:hidden text-[#7ab5cc]" aria-label="Open chats">
+                <PanelLeft size={18} />
+              </button>
+            }
+          />
         </div>
 
         {loadingThread ? (

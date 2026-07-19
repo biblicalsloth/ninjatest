@@ -27,7 +27,9 @@ export default async function SpectatePage() {
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      <main className="max-w-2xl mx-auto px-4 pt-6 pb-24">
+      {/* Header sits in the app-wide max-w-5xl box so the logo lands in the same
+          spot as the lobby; the narrower content column below keeps max-w-2xl. */}
+      <div className="max-w-5xl mx-auto px-4 pt-6">
         <PageHeader
           label="Spectate"
           sub={
@@ -36,6 +38,8 @@ export default async function SpectatePage() {
               : `${matches.length} live ${matches.length === 1 ? "match" : "matches"} right now`
           }
         />
+      </div>
+      <main className="max-w-2xl mx-auto px-4 pb-24">
 
         {matches.length === 0 ? (
           <div className="mt-6 bg-[#111111] border border-[#1c1a24] rounded-xl px-6 py-16 text-center">

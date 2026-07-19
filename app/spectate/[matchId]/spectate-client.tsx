@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { NinjatestLogo } from "@/components/ninja-logo";
+import { PageHeader } from "@/components/page-header";
 import { CountdownRing } from "@/components/countdown-ring";
 import { QuestionBody } from "@/components/question-body";
 import { QuestionDiagram } from "@/components/question-diagram";
@@ -107,22 +107,26 @@ export default function SpectateClient({ initialMatch }: Props) {
 
   if (match.status !== "active" || !question) {
     return (
-      <div className="min-h-screen bg-[#120F17] flex flex-col items-center justify-center px-4 gap-4">
-        <NinjatestLogo />
-        <p className="text-white text-lg font-semibold">
-          {match.status === "completed" ? "Match ended" : "Loading…"}
-        </p>
-        {match.status === "completed" && (
-          <p className="text-[#7ab5cc] text-sm">
-            {match.player_a_username} {match.score_a} — {match.score_b} {match.player_b_username}
+      <div className="min-h-screen bg-[#120F17] flex flex-col">
+        <div className="max-w-5xl mx-auto w-full px-4 pt-6">
+          <PageHeader label="Spectate" />
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center px-4 gap-4 pb-24">
+          <p className="text-white text-lg font-semibold">
+            {match.status === "completed" ? "Match ended" : "Loading…"}
           </p>
-        )}
-        <button
-          onClick={() => router.push("/spectate")}
-          className="text-[#06d6a0] text-sm font-medium hover:underline"
-        >
-          Back to live matches
-        </button>
+          {match.status === "completed" && (
+            <p className="text-[#7ab5cc] text-sm">
+              {match.player_a_username} {match.score_a} — {match.score_b} {match.player_b_username}
+            </p>
+          )}
+          <button
+            onClick={() => router.push("/spectate")}
+            className="text-[#06d6a0] text-sm font-medium hover:underline"
+          >
+            Back to live matches
+          </button>
+        </div>
       </div>
     );
   }
@@ -134,22 +138,27 @@ export default function SpectateClient({ initialMatch }: Props) {
 
   return (
     <div className="min-h-screen bg-[#120F17] flex flex-col">
-      <div className="bg-[#120F17] border-b border-[#222222] px-4 py-3">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <NinjatestLogo />
-            <div className="flex items-center gap-4">
-              <Link href="/spectate" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
-                <ArrowLeft size={14} />
-                Back
-              </Link>
-              <span className="text-[#7ab5cc] text-xs flex items-center gap-1.5">
-                <Eye size={12} />
-                Spectating
-              </span>
-            </div>
-          </div>
-
+      <div className="bg-[#120F17] border-b border-[#222222] pb-3">
+        {/* Header sits in the app-wide max-w-5xl box so the logo lands in the same
+            spot as the lobby; the match readout below keeps max-w-2xl. */}
+        <div className="max-w-5xl mx-auto px-4 pt-6 mb-4">
+          <PageHeader
+            label="Spectate"
+            right={
+              <div className="flex items-center gap-4">
+                <Link href="/spectate" className="text-[#7ab5cc] hover:text-white transition-colors flex items-center gap-1.5 text-sm">
+                  <ArrowLeft size={14} />
+                  Back
+                </Link>
+                <span className="text-[#7ab5cc] text-xs flex items-center gap-1.5">
+                  <Eye size={12} />
+                  Spectating
+                </span>
+              </div>
+            }
+          />
+        </div>
+        <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-center gap-1.5 mb-3">
             {Array.from({ length: 9 }).map((_, i) => (
               <div

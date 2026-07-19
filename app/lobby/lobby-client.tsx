@@ -98,7 +98,7 @@ export default function LobbyClient({ profile, recentMatches, dailyProgress }: P
           tops. */}
       <header className="max-w-5xl mx-auto px-4 pt-6">
         <NinjatestLogo />
-        <div className="min-w-0 mt-6">
+        <div className="min-w-0 mt-8">
           <h1 className="font-pixel text-2xl break-words">
             Welcome, <span className="text-[#06d6a0]">{displayName}</span>
           </h1>

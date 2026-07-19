@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/page-header";
 
 export default function SettingsClient() {
   const router = useRouter();
@@ -127,11 +128,9 @@ export default function SettingsClient() {
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      <header className="border-b border-[#222222] px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center justify-center">
-          <h1 className="text-white font-semibold">Settings</h1>
-        </div>
-      </header>
+      <div className="max-w-5xl mx-auto px-4 pt-6">
+        <PageHeader label="Settings" />
+      </div>
 
       <main className="max-w-lg mx-auto px-4 py-8 space-y-6">
 

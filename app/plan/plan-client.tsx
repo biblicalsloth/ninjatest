@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CalendarDays, Loader2, RefreshCw, X } from "lucide-react";
-import { NinjatestLogo } from "@/components/ninja-logo";
+import { PageHeader } from "@/components/page-header";
 import { getSectionBadgeClass } from "@/lib/utils";
 import { PLAN_DAYS, type PlanDay, type PlanSection, type StudyPlan } from "@/lib/ai/model";
 import type { CatSection } from "@/lib/supabase/types";
@@ -89,29 +89,35 @@ export default function PlanClient({
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#120F17] px-4 py-8 md:pl-28">
-      <div className="mx-auto max-w-7xl">
-        <NinjatestLogo />
-        <header className="mt-6 mb-6 flex flex-wrap items-center gap-3">
-          <div className="mr-auto">
-            <h1 className="font-pixel text-xl text-white">Study plan</h1>
-            <p className="text-xs text-[#7ab5cc]">
+    <div className="min-h-screen bg-[#120F17] pb-8">
+      {/* Header sits in the app-wide max-w-5xl box (no dock offset) so the logo
+          lands in the same spot as the lobby; the wide calendar keeps max-w-7xl. */}
+      <div className="max-w-5xl mx-auto px-4 pt-6">
+        <PageHeader
+          label="Study plan"
+          sub={
+            <>
               {week ? `Week of ${dayLabel(week, 0)}` : "This week"}
               {plan && totalMinutes > 0 && ` · ${Math.round(totalMinutes / 60 * 10) / 10}h planned`}
-            </p>
-          </div>
-          {plan && (
-            <button
-              onClick={() => generate(true)}
-              disabled={busy || regens >= 1}
-              title={regens >= 1 ? "One regenerate per week — a fresh plan unlocks Monday" : "Rebuild this week's plan"}
-              className="flex items-center gap-2 rounded-lg border border-[#333333] px-3 py-2 text-xs font-semibold text-[#7ab5cc] transition hover:border-[#06d6a0] hover:text-[#06d6a0] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {busy ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-              {regens >= 1 ? "Regenerated" : "Regenerate"}
-            </button>
-          )}
-        </header>
+            </>
+          }
+          right={
+            plan && (
+              <button
+                onClick={() => generate(true)}
+                disabled={busy || regens >= 1}
+                title={regens >= 1 ? "One regenerate per week — a fresh plan unlocks Monday" : "Rebuild this week's plan"}
+                className="flex items-center gap-2 rounded-lg border border-[#333333] px-3 py-2 text-xs font-semibold text-[#7ab5cc] transition hover:border-[#06d6a0] hover:text-[#06d6a0] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busy ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                {regens >= 1 ? "Regenerated" : "Regenerate"}
+              </button>
+            )
+          }
+        />
+      </div>
+      <div className="px-4 pt-8 md:pl-28">
+        <div className="mx-auto max-w-7xl">
 
         {error && (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-[#ef476f]/40 bg-[#ef476f]/10 px-3 py-2 text-sm text-[#ef476f]">
@@ -190,6 +196,7 @@ export default function PlanClient({
             </p>
           </>
         )}
+        </div>
       </div>
     </div>
   );

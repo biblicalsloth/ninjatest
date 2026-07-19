@@ -26,8 +26,12 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-[#120F17] text-white">
-      <main className="max-w-2xl mx-auto px-4 pt-6 pb-24">
+      {/* Header sits in the app-wide max-w-5xl box so the logo lands in the same
+          spot as the lobby; the narrower content column below keeps max-w-2xl. */}
+      <div className="max-w-5xl mx-auto px-4 pt-6">
         <PageHeader label="Leaderboard" sub="Top 100 players this season" />
+      </div>
+      <main className="max-w-2xl mx-auto px-4 pb-24">
 
         {/* Season banner */}
         {season && (
