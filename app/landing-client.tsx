@@ -216,6 +216,7 @@ export default function LandingClient() {
             <div className="flex items-center gap-7">
               <a href="#ai" className="text-white/45 hover:text-white text-sm transition-colors">Ninja AI</a>
               <a href="#matchmaking" className="text-white/45 hover:text-white text-sm transition-colors">Matchmaking</a>
+              <Link href="/docs" className="text-white/45 hover:text-white text-sm transition-colors">Docs</Link>
               <Link href="/pricing" className="text-white/45 hover:text-white text-sm transition-colors">Pricing</Link>
               {!IS_WAITLIST && (
                 <Link href="/leaderboard" className="text-white/45 hover:text-white text-sm transition-colors">Leaderboard</Link>
@@ -431,6 +432,7 @@ export default function LandingClient() {
               <div className="flex items-center gap-6">
                 <a href="/privacy" className="text-white/35 hover:text-white/60 text-xs transition-colors">Privacy Policy</a>
                 <a href="/terms" className="text-white/35 hover:text-white/60 text-xs transition-colors">Terms &amp; Conditions</a>
+                <Link href="/docs" className="text-white/35 hover:text-white/60 text-xs transition-colors">Technology</Link>
                 <Link href="/pricing" className="text-white/35 hover:text-white/60 text-xs transition-colors">Pricing</Link>
                 {!IS_WAITLIST && (
                   <Link href="/leaderboard" className="text-white/35 hover:text-white/60 text-xs transition-colors">Leaderboard</Link>

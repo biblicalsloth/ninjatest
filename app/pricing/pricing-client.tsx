@@ -2,8 +2,12 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Check, X } from "lucide-react";
+import { NinjatestLogo } from "@/components/ninja-logo";
 import { useGSAP, enterUp, prefersReduced } from "@/lib/motion";
+
+const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
 
 // Placeholder pricing — no billing wired. [tier][currency][period].
 const PRICING = {
@@ -85,9 +89,9 @@ function Cell({ v }: { v: boolean | string }) {
   return <span className="text-[#c5e8f0]/80 text-sm">{v}</span>;
 }
 
-// Gold CTA — mint would vanish against the mint page bg.
+// Same CTA as the landing hero — mint is the only CTA color.
 const CTA =
-  "inline-flex items-center justify-center gap-2 bg-[#ffd166] text-[#120F17] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#ffdd85] transition-colors";
+  "spring-pulse inline-flex items-center justify-center gap-2 bg-[#06d6a0] text-[#120F17] font-bold text-sm rounded-full px-6 py-3 hover:bg-[#05b088] transition-colors";
 
 export default function PricingClient() {
   const [currency, setCurrency] = useState<Currency>("usd");
@@ -103,13 +107,28 @@ export default function PricingClient() {
   );
 
   return (
-    <div ref={scope} className="min-h-screen bg-[#053b30] text-white">
+    <div ref={scope} className="relative min-h-screen bg-[#120F17] text-white overflow-x-hidden">
+      {/* Landing's gradient field, fixed behind the page. Every section below
+          stays transparent or it reads as a framed box against the gradient. */}
+      <div className="fixed inset-0 pointer-events-none">
+        <Grainient
+          color1="#120F17" color2="#120F17" color3="#9f84bd"
+          timeSpeed={0.45} colorBalance={-0.2} warpStrength={0.6}
+          warpFrequency={5} warpSpeed={2} warpAmplitude={50}
+          blendAngle={0} blendSoftness={0.05} rotationAmount={500}
+          noiseScale={2} grainAmount={0.1} grainScale={2}
+          grainAnimated={false} contrast={1.5} gamma={1} saturation={1}
+          centerX={0} centerY={0} zoom={0.9}
+        />
+      </div>
+
+      <div className="relative" style={{ zIndex: 1 }}>
       {/* Nav */}
       <nav className="px-6 sm:px-10 py-6 flex items-center justify-between">
-        <Link href="/" className="font-pixel text-lg tracking-tight text-white hover:text-[#ffd166] transition-colors">
-          Ninjatest
+        <Link href="/">
+          <NinjatestLogo />
         </Link>
-        <Link href="/auth/signup" className="text-[#ffd166] hover:text-white text-sm font-semibold transition-colors">
+        <Link href="/auth/signup" className="text-[#06d6a0] hover:text-white text-sm font-semibold transition-colors">
           Sign up →
         </Link>
       </nav>
@@ -119,7 +138,7 @@ export default function PricingClient() {
         <header className="text-center pt-14 pb-10">
           <h1 data-rise className="font-pixel text-[clamp(2.4rem,5vw,4.2rem)] leading-[1.02] text-balance">
             Rate your prep.<br />
-            <span className="text-[#ffd166]">Pick your arena.</span>
+            <span className="text-[#06d6a0]">Pick your arena.</span>
           </h1>
           <p data-rise className="mt-6 text-[#c5e8f0]/80 text-lg font-light max-w-[48ch] mx-auto leading-relaxed">
             Start free, upgrade when the daily battles aren&apos;t enough. Every plan is
@@ -163,12 +182,12 @@ export default function PricingClient() {
                 data-rise
                 className={`relative rounded-2xl bg-[#111111] p-7 flex flex-col ${
                   highlight
-                    ? "border-2 border-[#ffd166] md:-translate-y-3 shadow-[0_0_40px_rgba(255,209,102,0.15)]"
+                    ? "border-2 border-[#06d6a0] md:-translate-y-3 shadow-[0_0_40px_rgba(6,214,160,0.15)]"
                     : "border border-[#222222]"
                 }`}
               >
                 {highlight && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#ffd166] text-[#120F17] text-xs font-bold rounded-full px-3 py-1">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#06d6a0] text-[#120F17] text-xs font-bold rounded-full px-3 py-1">
                     Most Popular
                   </span>
                 )}
@@ -176,10 +195,10 @@ export default function PricingClient() {
                 <p className="text-[#7ab5cc] text-sm mt-2 min-h-[2.5rem]">{t.desc}</p>
 
                 <div className="mt-5 flex items-end gap-1">
-                  <span className={`font-mono text-2xl ${highlight ? "text-[#ffd166]" : "text-white/70"}`}>
+                  <span className={`font-mono text-2xl ${highlight ? "text-[#06d6a0]" : "text-white/70"}`}>
                     {SYMBOL[currency]}
                   </span>
-                  <span className={`font-mono text-5xl tabular-nums leading-none ${highlight ? "text-[#ffd166]" : "text-white"}`}>
+                  <span className={`font-mono text-5xl tabular-nums leading-none ${highlight ? "text-[#06d6a0]" : "text-white"}`}>
                     {price}
                   </span>
                   <span className="font-mono text-sm text-white/40 mb-1.5">{UNIT[period]}</span>
@@ -211,7 +230,7 @@ export default function PricingClient() {
                 <tr className="border-b border-[#222222]">
                   <th className="p-4 text-sm font-medium text-white/50">Feature</th>
                   <th className="p-4 text-sm font-semibold text-center">Rookie</th>
-                  <th className="p-4 text-sm font-semibold text-center text-[#ffd166]">Challenger</th>
+                  <th className="p-4 text-sm font-semibold text-center text-[#06d6a0]">Challenger</th>
                   <th className="p-4 text-sm font-semibold text-center">Grandmaster</th>
                 </tr>
               </thead>
@@ -220,7 +239,7 @@ export default function PricingClient() {
                   <tr key={row.label} className="border-b border-[#1a1a1a] last:border-0">
                     <td className="p-4 text-sm text-[#c5e8f0]/85">{row.label}</td>
                     <td className="p-4 text-center"><Cell v={row.rookie} /></td>
-                    <td className="p-4 text-center bg-[#ffd166]/[0.03]"><Cell v={row.challenger} /></td>
+                    <td className="p-4 text-center bg-[#06d6a0]/[0.04]"><Cell v={row.challenger} /></td>
                     <td className="p-4 text-center"><Cell v={row.grandmaster} /></td>
                   </tr>
                 ))}
@@ -230,7 +249,7 @@ export default function PricingClient() {
         </div>
 
         {/* Footer CTA band */}
-        <div data-rise className="mt-20 rounded-2xl border border-[#ffd166]/25 bg-[#111111] px-8 py-14 text-center">
+        <div data-rise className="mt-20 rounded-2xl border border-[#06d6a0]/25 bg-[#111111] px-8 py-14 text-center">
           <h2 className="font-pixel text-[clamp(1.8rem,3.5vw,2.8rem)] leading-tight mb-4">
             Your percentile has an opponent.
           </h2>
@@ -241,6 +260,7 @@ export default function PricingClient() {
             Enter the arena →
           </Link>
         </div>
+      </div>
       </div>
     </div>
   );
@@ -262,7 +282,7 @@ function Pill<T extends string>({
           key={o.v}
           onClick={() => onChange(o.v)}
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-            value === o.v ? "bg-[#ffd166] text-[#120F17]" : "text-white/50 hover:text-white"
+            value === o.v ? "bg-[#06d6a0] text-[#120F17]" : "text-white/50 hover:text-white"
           }`}
         >
           {o.label}
