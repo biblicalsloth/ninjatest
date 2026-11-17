@@ -26,6 +26,7 @@ export type Database = {
           system_prompt: string
           temperature: number
           updated_at: string
+          vision_model_id: string | null
         }
         Insert: {
           enabled?: boolean
@@ -36,6 +37,7 @@ export type Database = {
           system_prompt?: string
           temperature?: number
           updated_at?: string
+          vision_model_id?: string | null
         }
         Update: {
           enabled?: boolean
@@ -46,6 +48,7 @@ export type Database = {
           system_prompt?: string
           temperature?: number
           updated_at?: string
+          vision_model_id?: string | null
         }
         Relationships: []
       }
@@ -773,6 +776,7 @@ export type Database = {
           matches_played: number
           onboarding_completed: boolean
           peak_elo: number
+          study_start_time: string | null
           username: string
           wins: number
         }
@@ -793,6 +797,7 @@ export type Database = {
           matches_played?: number
           onboarding_completed?: boolean
           peak_elo?: number
+          study_start_time?: string | null
           username: string
           wins?: number
         }
@@ -813,6 +818,7 @@ export type Database = {
           matches_played?: number
           onboarding_completed?: boolean
           peak_elo?: number
+          study_start_time?: string | null
           username?: string
           wins?: number
         }
@@ -1164,6 +1170,7 @@ export type Database = {
           system_prompt: string
           temperature: number
           updated_at: string
+          vision_model_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1267,6 +1274,16 @@ export type Database = {
           started_at: string
         }[]
       }
+      get_match_section_breakdown: {
+        Args: { p_match_id: string }
+        Returns: {
+          answered: number
+          correct: number
+          points: number
+          section: string
+        }[]
+      }
+      get_mistake_patterns: { Args: never; Returns: Json }
       get_ninja_daily_focus: {
         Args: never
         Returns: {
@@ -1418,6 +1435,13 @@ export type Database = {
           status: Database["public"]["Enums"]["match_status"]
         }[]
       }
+      get_week_activity: {
+        Args: { p_tz?: string; p_week_start?: string }
+        Returns: {
+          day: string
+          sections: string[]
+        }[]
+      }
       join_queue: { Args: never; Returns: undefined }
       leave_queue: { Args: never; Returns: boolean }
       list_coach_conversations: { Args: never; Returns: Json }
@@ -1456,9 +1480,22 @@ export type Database = {
         }
         Returns: string[]
       }
+      pick_spread: {
+        Args: { p_avoid?: string[]; p_cands: string[]; p_n: number }
+        Returns: string[]
+      }
       question_cap_ms: {
         Args: { p_index: number; p_question_ids: string[] }
         Returns: number
+      }
+      question_near_duplicates: {
+        Args: { p_min_sim?: number; p_since?: string }
+        Returns: {
+          a: string
+          b: string
+          section: Database["public"]["Enums"]["cat_section"]
+          similarity: number
+        }[]
       }
       queue_heartbeat: { Args: never; Returns: boolean }
       rated_pair_count_today: {
