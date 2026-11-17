@@ -232,8 +232,7 @@ export default function SettingsClient() {
 
   async function handleSaveProfile() {
     setSaving(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("profiles")
       .update({ display_name: displayName || null })
       .eq("id", userId);
@@ -290,8 +289,7 @@ export default function SettingsClient() {
     const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
     const urlWithBust = `${publicUrl}?t=${Date.now()}`;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("profiles").update({ avatar_url: urlWithBust }).eq("id", userId);
+    await supabase.from("profiles").update({ avatar_url: urlWithBust }).eq("id", userId);
     setAvatarUrl(urlWithBust);
     toast.success("Avatar updated");
     setUploadingAvatar(false);
@@ -316,8 +314,7 @@ export default function SettingsClient() {
       /* orphaned avatar is harmless — proceed with account deletion */
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc("delete_account");
+    const { error } = await supabase.rpc("delete_account");
     if (error) {
       toast.error("Failed to delete account: " + error.message);
       setDeleting(false);

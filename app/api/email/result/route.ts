@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendMatchResult } from "@/lib/email";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
+import { APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 export async function POST(req: NextRequest) {
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,8 +24,7 @@ export async function POST(req: NextRequest) {
   const match_id = typeof body?.match_id === "string" ? body.match_id : "";
   if (!match_id) return NextResponse.json({ error: "Missing match_id" }, { status: 400 });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: matchRaw } = await (supabase as any).from("matches").select("*").eq("id", match_id).single();
+  const { data: matchRaw } = await supabase.from("matches").select("*").eq("id", match_id).single();
   const match = matchRaw as import("@/lib/supabase/types").Match | null;
   if (!match || (match.player_a !== user.id && match.player_b !== user.id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

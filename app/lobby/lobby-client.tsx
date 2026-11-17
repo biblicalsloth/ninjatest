@@ -66,8 +66,7 @@ export default function LobbyClient({ profile, dailyProgress }: Props) {
     if (startingBot) return;
     setStartingBot(true);
     const supabase = createClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc("match_with_bot");
+    const { data, error } = await supabase.rpc("match_with_bot");
     if (error || !data) {
       toast.error("Bot unavailable right now — try again");
       setStartingBot(false);

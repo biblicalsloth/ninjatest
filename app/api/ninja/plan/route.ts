@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { getModel, parsePlan, PLAN_SYSTEM, type AiConfig, type StudyPlan } from "@/lib/ai/model";
-import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
+import { inLiveMatch, LIVE_MATCH_ERROR, APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 // Ninja weekly study plan. One plan per user per week, cached in
 // ninja_study_plans, grounded in get_learner_profile (their real rolled-up
@@ -15,6 +15,8 @@ import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
 // ~$0.002 call — and the cache means most page loads cost nothing at all.
 
 export async function POST(req: NextRequest) {
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

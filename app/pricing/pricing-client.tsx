@@ -9,6 +9,12 @@ import { useGSAP, enterUp, prefersReduced } from "@/lib/motion";
 
 const Grainient = dynamic(() => import("@/components/Grainient"), { ssr: false });
 
+// In waitlist mode this page is information only — nobody can reach the app, so
+// every CTA points at the landing survey instead of /auth/signup. `#waitlist`
+// is read by landing-client on mount and opens the survey directly.
+const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
+const CTA_HREF = IS_WAITLIST ? "/#waitlist" : "/auth/signup";
+
 // Placeholder pricing — no billing wired. [tier][currency][period].
 const PRICING = {
   rookie: { usd: { mo: 0, yr: 0 }, inr: { mo: 0, yr: 0 } },
@@ -128,8 +134,8 @@ export default function PricingClient() {
         <Link href="/">
           <NinjatestLogo />
         </Link>
-        <Link href="/auth/signup" className="text-[#06d6a0] hover:text-white text-sm font-semibold transition-colors">
-          Sign up →
+        <Link href={CTA_HREF} className="text-[#06d6a0] hover:text-white text-sm font-semibold transition-colors">
+          {IS_WAITLIST ? "Join Waitlist →" : "Sign up →"}
         </Link>
       </nav>
 
@@ -141,8 +147,9 @@ export default function PricingClient() {
             <span className="text-[#06d6a0]">Pick your arena.</span>
           </h1>
           <p data-rise className="mt-6 text-[#c5e8f0]/80 text-lg font-light max-w-[48ch] mx-auto leading-relaxed">
-            Start free, upgrade when the daily battles aren&apos;t enough. Every plan is
-            server-rated, real-time, and ruthless.
+            {IS_WAITLIST
+              ? "Here's what the plans will look like at launch. Nothing is on sale yet — join the waitlist and you'll be first in when it opens."
+              : "Start free, upgrade when the daily battles aren't enough. Every plan is server-rated, real-time, and ruthless."}
           </p>
         </header>
 
@@ -204,8 +211,10 @@ export default function PricingClient() {
                   <span className="font-mono text-sm text-white/40 mb-1.5">{UNIT[period]}</span>
                 </div>
 
-                <Link href="/auth/signup" className={`${CTA} mt-6 w-full`}>
-                  {price === 0 ? "Start free →" : "Choose plan →"}
+                <Link href={CTA_HREF} className={`${CTA} mt-6 w-full`}>
+                  {IS_WAITLIST
+                    ? "Join waitlist →"
+                    : price === 0 ? "Start free →" : "Choose plan →"}
                 </Link>
 
                 <ul className="mt-7 space-y-3">
@@ -254,10 +263,12 @@ export default function PricingClient() {
             Your percentile has an opponent.
           </h2>
           <p className="text-[#c5e8f0]/70 text-base max-w-[44ch] mx-auto mb-8">
-            Sign up free, play your first rated battle in under a minute.
+            {IS_WAITLIST
+              ? "We're not open yet. Join the waitlist — early aspirants get founding badges and first access."
+              : "Sign up free, play your first rated battle in under a minute."}
           </p>
-          <Link href="/auth/signup" className={CTA}>
-            Enter the arena →
+          <Link href={CTA_HREF} className={CTA}>
+            {IS_WAITLIST ? "Join the waitlist →" : "Enter the arena →"}
           </Link>
         </div>
       </div>

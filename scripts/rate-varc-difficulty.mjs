@@ -178,7 +178,7 @@ async function main() {
           const r = parseRatings(text);
           if (Object.keys(r).length) { process.stdout.write(`\r  units done: ${++done}/${units.length}`); return r; }
         }
-      } catch (e) { /* try fallback */ }
+      } catch { /* try fallback */ }
     }
     console.warn(`\n  unit failed (${unit.questions.length} qs) — left at current elo`);
     return {};

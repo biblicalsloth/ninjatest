@@ -15,8 +15,7 @@ export function NinjaDailyFocus() {
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any).rpc("get_ninja_daily_focus");
+      const { data } = await supabase.rpc("get_ninja_daily_focus");
       const row = Array.isArray(data) ? data[0] : null;
       if (row?.content) {
         if (!cancelled) setContent(row.content);

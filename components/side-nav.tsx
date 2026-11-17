@@ -58,8 +58,7 @@ export function SideNav() {
     supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id;
       if (!uid) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: row } = await (supabase as any)
+      const { data: row } = await supabase
         .from("profiles")
         .select("id, username, avatar_url")
         .eq("id", uid)

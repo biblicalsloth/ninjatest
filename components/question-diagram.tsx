@@ -7,6 +7,7 @@
 export function QuestionDiagram({ url }: { url: string }) {
   return (
     <div className="flex max-h-[55vh] justify-center overflow-auto rounded-xl border border-[#222222] bg-black/20 p-1">
+      {/* eslint-disable-next-line @next/next/no-img-element -- storage URLs of arbitrary size; next/image would need fixed dims + remotePatterns */}
       <img
         src={url}
         alt="Question diagram"

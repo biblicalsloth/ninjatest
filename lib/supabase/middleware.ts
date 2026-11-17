@@ -2,18 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/supabase/types";
 
-// /auth stays reachable in waitlist mode so sign-in, the OAuth callback, and
-// password reset keep working; app routes below remain blocked until launch.
-// /c stays open so a logged-out friend can land on a challenge link — the page
-// itself bounces them through /auth/login?next=/c/<code>.
-const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/auth", "/c", "/pricing", "/docs"];
+// Waitlist mode = not launched: nobody signs in or signs up on this domain, so
+// /auth (login, signup, reset, OAuth callback) is blocked along with the app.
+// The real app for testers is test.ninjatest.app (no NEXT_PUBLIC_APP_MODE).
+// /c is blocked too: an accepted challenge would create a match nobody can open.
+const WAITLIST_ALLOWED = ["/", "/api/waitlist", "/pricing", "/docs"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Session client + auth run FIRST, even in waitlist mode, so signed-in users
-  // can be let through to the app (soft launch) while anon visitors are held to
-  // the landing page. The waitlist gate is applied after isAuthed is known.
+  // Session client + auth run FIRST, even in waitlist mode, so the session
+  // cookie keeps refreshing on the landing/auth pages.
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
@@ -57,12 +56,14 @@ export async function updateSession(request: NextRequest) {
 
   const url = request.nextUrl.clone();
 
-  // Waitlist mode: the landing page is the public front door — anonymous
-  // visitors get ONLY "/", "/api/waitlist", "/auth". SIGNED-IN users fall
-  // through to the full app (soft launch): they can play while the public still
-  // sees the waitlist. Removing the env var (the launch) makes this branch dead
-  // and the whole site the app for everyone.
-  if (process.env.NEXT_PUBLIC_APP_MODE === "waitlist" && !isAuthed) {
+  // Waitlist mode: the landing page is the public front door and NOBODY reaches
+  // the app or the auth pages. Supabase Auth itself stays open because staging
+  // shares the project, so a session minted on test.ninjatest.app is still a
+  // valid cookie here — which is why this has no `!isAuthed` carve-out and why
+  // every /api handler that does work also checks APP_LOCKED. Testers use
+  // test.ninjatest.app. Removing the env var (the launch) makes this branch
+  // dead and the whole site the app for everyone.
+  if (process.env.NEXT_PUBLIC_APP_MODE === "waitlist") {
     const allowed = WAITLIST_ALLOWED.some(
       (p) => pathname === p || pathname.startsWith(p + "/")
     );
@@ -75,7 +76,7 @@ export async function updateSession(request: NextRequest) {
 
   // /leaderboard is public in the real app (anon-callable RPC + public client
   // + ISR — see the caching notes in CLAUDE.md). PRIVATE_LEADERBOARD=1 is set
-  // ONLY on the ninjatest-flbe project (the staging app, which builds `test`
+  // ONLY on the ninjatest-flbe project (the staging app, which builds `main`
   // and serves test.ninjatest.app), so its board isn't publicly browsable.
   // Project-scoped rather than a hostname check because that project also
   // answers on ninjatest-test.vercel.app; VERCEL_ENV is no use either, since
@@ -108,8 +109,7 @@ export async function updateSession(request: NextRequest) {
     !isPublicRoute &&
     request.cookies.get("nt_onboarded")?.value !== "1"
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (supabase as any)
+    const { data: profile } = await supabase
       .from("profiles")
       .select("onboarding_completed")
       .eq("id", claimsData!.claims.sub as string)

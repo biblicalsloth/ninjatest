@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendChallengeInvite } from "@/lib/email";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
+import { APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 // Conservative single-address email check. We intentionally reject arrays and
 // anything that doesn't look like a lone address so this endpoint can't be used
@@ -9,6 +10,11 @@ import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 export async function POST(req: NextRequest) {
+  // Waitlist mode: /api is outside proxy.ts, and create_challenge is callable
+  // straight from supabase-js, so without this any signup on the public domain
+  // could send branded invite mail to arbitrary addresses before launch.
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

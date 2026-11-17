@@ -29,7 +29,7 @@ The MVP is fully built and hardened — not a prototype:
 
 ## The role
 
-We're looking for a **technical co-founder** to own the product and take it from launch through scale.
+We're looking for a **technical co-founder** to own the product and take it from prototype to launch through scale.
 
 ### What you'll own
 

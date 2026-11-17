@@ -28,3 +28,11 @@ export async function inLiveMatch(sb: any, userId: string): Promise<boolean> {
 }
 
 export const LIVE_MATCH_ERROR = "Ninja is off while you're in a match. Finish the match first.";
+
+// Waitlist mode: the app isn't launched, so no metered LLM route may run at all.
+// proxy.ts's matcher excludes /api, so the middleware waitlist gate never sees
+// these routes — signing up still works in waitlist mode, which would otherwise
+// leave /api/ninja/solve ($0.06–0.31 per PDF) open on the public domain to
+// anyone with an account. Every user-facing ninja route checks this first.
+export const APP_LOCKED = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
+export const APP_LOCKED_ERROR = "Ninjatest is in private beta. Join the waitlist at ninjatest.app.";

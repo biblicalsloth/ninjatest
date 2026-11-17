@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { getModel, type AiConfig } from "@/lib/ai/model";
-import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
+import { inLiveMatch, LIVE_MATCH_ERROR, APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 // Ninja daily focus: one personalized challenge line per day, cached in
 // ninja_daily_focus. Single cheap non-agentic call — the route fetches the
@@ -13,6 +13,8 @@ const DAILY_SYSTEM = `You are Ninja, a CAT prep coach. Given a player's per-sect
 It must be concrete, doable today inside the app (ranked matches, a section challenge vs a friend, practice drills), and target their sharpest current weakness. Mention the section by name. No quotes, no emoji, no preamble — output only the line itself.`;
 
 export async function POST(req: NextRequest) {
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

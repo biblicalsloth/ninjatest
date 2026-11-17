@@ -171,6 +171,7 @@ export default function ProfileClient({ profileData, recentMatches, sectionStats
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch; state is set after the await, not synchronously
     if (isOwnProfile) loadFriends();
   }, [isOwnProfile]);
 

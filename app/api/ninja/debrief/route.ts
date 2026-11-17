@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { getModel, type AiConfig } from "@/lib/ai/model";
-import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
+import { inLiveMatch, LIVE_MATCH_ERROR, APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 // Post-match debrief: one cached AI analysis per player per match. The data
 // RPC enforces participant + finished; the save RPC is first-write-wins, so a
@@ -18,6 +18,8 @@ Write a debrief for "me" (not the opponent). Format, exactly:
 No headers, no praise-padding, no generic advice. Times are in ms; convert to seconds. A "skipped" answer scored 0; wrong answers score negative.`;
 
 export async function POST(req: NextRequest) {
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

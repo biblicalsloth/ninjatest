@@ -52,8 +52,7 @@ export default function SpectateClient({ initialMatch }: Props) {
   }, [supabase]);
 
   const fetchQuestion = useCallback(async (matchId: string, index: number) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc("get_match_question_spectator", {
+    const { data, error } = await supabase.rpc("get_match_question_spectator", {
       p_match_id: matchId,
       p_index: index,
     });
@@ -62,6 +61,7 @@ export default function SpectateClient({ initialMatch }: Props) {
   }, [supabase]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch; state is set after the await, not synchronously
     if (match.status === "active") fetchQuestion(match.match_id, match.current_index);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

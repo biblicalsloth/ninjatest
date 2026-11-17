@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
 import { extractQuestions } from "@/lib/ai/extract";
-import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
+import { inLiveMatch, LIVE_MATCH_ERROR, APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 export const runtime = "nodejs";   // pdf-lib needs Node
 export const maxDuration = 300;    // many chunks × LLM calls
@@ -12,10 +12,12 @@ const MAX_BYTES = 20 * 1024 * 1024; // 20MB upload ceiling
 
 // User-facing PDF solver. Any signed-in player uploads a test/sample paper;
 // Ninja extracts every question and solves it (answer + explanation). Ephemeral:
-// nothing is saved and nothing touches the question bank — that's the admin-only
-// /api/ninja/extract flow. Same pipeline (extractQuestions), no admin gate,
-// tighter rate limit since callers are untrusted.
+// nothing is saved and nothing touches the question bank (bank ingest is the
+// scripts/ path since the admin console was removed). Tight rate limit since
+// callers are untrusted.
 export async function POST(req: NextRequest) {
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

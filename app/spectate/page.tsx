@@ -22,8 +22,7 @@ export default async function SpectatePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any).rpc("get_active_matches", { p_limit: 20 });
+  const { data } = await supabase.rpc("get_active_matches", { p_limit: 20 });
   const matches = (data ?? []) as ActiveMatch[];
 
   return (

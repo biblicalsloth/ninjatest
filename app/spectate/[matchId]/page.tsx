@@ -13,8 +13,7 @@ export default async function SpectateMatchPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/auth/login?next=/spectate/${matchId}`);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any).rpc("get_spectator_match", { p_match_id: matchId });
+  const { data } = await supabase.rpc("get_spectator_match", { p_match_id: matchId });
   const match = data?.[0];
   if (!match) redirect("/spectate");
 

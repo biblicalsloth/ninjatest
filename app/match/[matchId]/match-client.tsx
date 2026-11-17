@@ -11,7 +11,7 @@ import { QuestionDiagram } from "@/components/question-diagram";
 import { SpeedMeter } from "@/components/speed-meter";
 import { Button } from "@/components/ui/button";
 import type { Match, Profile, MatchQuestion, CatSection } from "@/lib/supabase/types";
-import { getSectionBadgeClass, formatPoints, cn } from "@/lib/utils";
+import { getSectionBadgeClass, cn } from "@/lib/utils";
 import { gsap, useGSAP, enterUp, stamp, countTo, prefersReduced, DUR, EASE } from "@/lib/motion";
 
 interface Props {
@@ -254,8 +254,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
 
   /* Reveal countdown when showReveal becomes true */
   useEffect(() => {
-    if (!showReveal) return;
-    setRevealCountdown(3);
+    if (!showReveal) return; // countdown reset to 3 where showReveal is set
     const id = setInterval(() => {
       setRevealCountdown((c) => {
         if (c <= 1) {
@@ -332,7 +331,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
             });
             if (data?.[0]) {
               setRevealData(data[0] as RevealData);
-              setShowReveal(true);
+              setRevealCountdown(3); setShowReveal(true);
               pendingAdvanceRef.current = null;
               setTimeout(() => router.push(`/result/${currentMatch.id}`), 3000);
               return;
@@ -356,7 +355,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
           });
           if (data?.[0]) {
             setRevealData(data[0] as RevealData);
-            setShowReveal(true);
+            setRevealCountdown(3); setShowReveal(true);
             pendingAdvanceRef.current = { newIndex: updated.current_index, matchState: updated };
           } else {
             await fetchQuestion(updated.current_index);
@@ -481,7 +480,7 @@ export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, u
       });
       if (data?.[0]) {
         setRevealData(data[0] as RevealData);
-        setShowReveal(true);
+        setRevealCountdown(3); setShowReveal(true);
         pendingAdvanceRef.current = { newIndex: answeredIndex + 1 };
       } else if (answeredIndex + 1 >= 9) {
         router.push(`/result/${match.id}`);

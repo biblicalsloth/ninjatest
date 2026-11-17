@@ -16,7 +16,7 @@ export default function QueuePage() {
   const [startingBot, setStartingBot] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [matchFound, setMatchFound] = useState<{ matchId: string; opponent: string | null } | null>(null);
-  const startRef = useRef(Date.now());
+  const startRef = useRef(0); // set on mount — Date.now() in render is impure
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,6 +25,7 @@ export default function QueuePage() {
 
   /* Timer */
   useEffect(() => {
+    startRef.current = Date.now();
     const id = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 1000);
@@ -38,7 +39,7 @@ export default function QueuePage() {
     // supabase.channel(same topic) returns an already-subscribed channel and
     // .on("postgres_changes") throws.
     let cancelled = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let supabase: ReturnType<typeof import("@/lib/supabase/client").createClient>;
 
     async function handleMatched(matchId: string, sb: typeof supabase): Promise<boolean> {
@@ -239,7 +240,7 @@ export default function QueuePage() {
       // we routed into a match. Fire-and-forget.
       supabaseRef.current?.rpc("leave_queue").then(() => {}, () => {});
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [router]);
 
   async function handlePlayBot() {

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   // Plain insert (not upsert) — RLS only grants anon INSERT, not UPDATE, so a
   // resubmission can't be used to overwrite someone else's row by guessing
   // their email. Duplicate email (23505) is treated as success.
-  const { error: dbError } = await (supabase as any).from("waitlist").insert(payload);
+  const { error: dbError } = await supabase.from("waitlist").insert(payload);
   if (dbError && dbError.code !== "23505") {
     console.error("Waitlist DB insert error", dbError.message);
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });

@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
 import { type AiConfig } from "@/lib/ai/model";
 import { runCoach, SOCRATIC_SYSTEM } from "@/lib/ai/coach";
-import { inLiveMatch, LIVE_MATCH_ERROR } from "@/lib/ai/live-match";
+import { inLiveMatch, LIVE_MATCH_ERROR, APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
 // Ninja Coach: freeform "how am I doing / what should I work on" Q&A. The model
 // autonomously pulls the caller's own stats (tools bound to their username
 // server-side — it can't read anyone else) and answers grounded in real numbers.
 export async function POST(req: NextRequest) {
+  if (APP_LOCKED) return NextResponse.json({ error: APP_LOCKED_ERROR }, { status: 403 });
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

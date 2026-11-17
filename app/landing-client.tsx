@@ -2,10 +2,18 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import {
+  BarChart3, Bot, Check, ChevronRight, Eye, Flame, Home, Lightbulb,
+  LogOut, Settings, Sparkles, Target, Trophy, Users, Zap,
+} from "lucide-react";
+import { getSectionBadgeClass } from "@/lib/utils";
+import { getLeague } from "@/lib/leagues";
+import { CountdownRing } from "@/components/countdown-ring";
+import { SpeedMeter } from "@/components/speed-meter";
 import { NinjaLogo, NinjatestLogo } from "@/components/ninja-logo";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { ParticleFlow } from "@/components/landing/particle-flow";
@@ -52,9 +60,9 @@ const QUESTIONS = [
   { id: "name" as const,       label: "What's your name?",           type: "text",   placeholder: "Your name" },
   { id: "email" as const,      label: "Email address?",              type: "email",  placeholder: "you@example.com" },
   { id: "phone" as const,      label: "Phone number?",               type: "tel",    placeholder: "+91 98765 43210" },
-  { id: "year" as const,       label: "CAT target year?",            type: "select", options: ["2025", "2026", "2027", "2028"] },
-  { id: "percentile" as const, label: "Current mock percentile?",    type: "select", options: ["<50", "50–70", "70–85", "85–95", "95+"] },
-  { id: "section" as const,    label: "Which section haunts you?",   type: "pills",  options: ["VARC", "DILR", "Quant"] },
+  { id: "year" as const,       label: "When do you sit the exam?",   type: "select", options: ["2025", "2026", "2027", "2028"] },
+  { id: "percentile" as const, label: "Where are your mocks landing?", type: "select", options: ["Bottom half", "50–70", "70–85", "85–95", "Top 5%"] },
+  { id: "section" as const,    label: "Which part hurts most?",      type: "pills",  options: ["Verbal", "Logic", "Quant"] },
 ] as const;
 
 type Phase = "idle" | "expanding" | "open";
@@ -103,6 +111,13 @@ export default function LandingClient() {
     c.addEventListener("scroll", onScroll, { passive: true });
     update();
     return () => { c.removeEventListener("scroll", onScroll); cancelAnimationFrame(rafId); };
+  }, []);
+
+  // /#waitlist opens the survey straight away — /pricing and /docs point their
+  // CTAs here instead of /auth/signup while the app is closed. The panel is
+  // state, not a route, so a hash is the whole handoff.
+  useEffect(() => {
+    if (window.location.hash === "#waitlist") handleOpen();
   }, []);
 
   function handleOpen() {
@@ -216,7 +231,6 @@ export default function LandingClient() {
             <div className="flex items-center gap-7">
               <a href="#ai" className="text-white/45 hover:text-white text-sm transition-colors">Ninja AI</a>
               <a href="#matchmaking" className="text-white/45 hover:text-white text-sm transition-colors">Matchmaking</a>
-              <Link href="/docs" className="text-white/45 hover:text-white text-sm transition-colors">Docs</Link>
               <Link href="/pricing" className="text-white/45 hover:text-white text-sm transition-colors">Pricing</Link>
               {!IS_WAITLIST && (
                 <Link href="/leaderboard" className="text-white/45 hover:text-white text-sm transition-colors">Leaderboard</Link>
@@ -241,9 +255,9 @@ export default function LandingClient() {
                 <span className="text-[#06d6a0]">Not anymore.</span>
               </h1>
               <p className="mt-8 text-[#c5e8f0]/70 text-lg font-light max-w-[54ch] leading-relaxed mx-auto">
-                Ninjatest is the AI-native arena for the world&apos;s toughest entrance exams —
-                a real-time, 1v1 ranked mode where every question is matched to your level,
-                scored by the second, and rated so you always know exactly where you stand.
+                Ninjatest turns studying into a live 1v1 game. Get matched with someone at
+                your level, race them through a short set of questions, and walk away with a
+                rating that tells you exactly where you stand.
               </p>
               <div className="mt-10 flex items-center justify-center gap-5 flex-wrap">
                 <button
@@ -258,6 +272,12 @@ export default function LandingClient() {
 
           {/* ── S2: Marquee ── */}
           <LogoMarquee />
+
+          {/* ── S2·5: the real dashboard, straight under the marquee ── */}
+          <DashboardShot />
+
+          {/* ── S2a: Vetted by ── */}
+          <InstituteMarquee />
 
           {/* ── S2b: Built for battle prep ── */}
           <section className="px-10 py-10 border-b border-[#222222] text-center">
@@ -279,8 +299,8 @@ export default function LandingClient() {
                   <span className="text-[#7ab5cc]/35">No hiding.</span>
                 </h2>
                 <p className="mt-5 text-[#c5e8f0]/60 text-sm leading-relaxed max-w-[52ch]">
-                  Every battle is a compressed mock: three VARC, three DILR, three Quant —
-                  or nine from the section you fear most.
+                  A match is a short mock with the boring parts cut out — a few from each
+                  part of the paper, or all nine from the one you keep avoiding.
                 </p>
               </Reveal>
               <CarouselControls />
@@ -297,39 +317,40 @@ export default function LandingClient() {
               <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05] mb-5">
                 After the battle,<br />the debrief.
               </h2>
-              <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-14">
-                Ninja reviews your match the way a good teacher would: where you lost time,
-                which trap you took, what to drill next. Then it builds the practice set itself.
+              <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-12">
+                The match ends and Ninja is already reading it back to you — where the time
+                went, which answer was bait, what to fix tonight. The kind of read you would
+                get from a friend who watched the whole thing.
               </p>
             </Reveal>
 
-            <div className="space-y-16">
+            <div className="grid gap-4 md:grid-cols-2">
               <AiFeatureBlock
-                eyebrow="Match debrief" accent="#06d6a0"
-                title="Every swing moment, explained."
-                body="A per-question breakdown of your time against your opponent's — including the two questions that actually decided the match."
-                flip={false}
+                eyebrow="Your match, read back"
+                accent="#06d6a0"
+                title="The two questions that decided it"
+                body="Not a wall of stats. A short read on where you pulled ahead, where you bled time, and the moment the match actually turned."
               ><DebriefMock /></AiFeatureBlock>
 
               <AiFeatureBlock
-                eyebrow="Ask Ninja" accent="#118ab2"
-                title="Explanations on demand."
-                body="Question-level reasoning whenever you want it — locked during live matches, open the second you finish."
-                flip
+                eyebrow="Ask about any question"
+                accent="#118ab2"
+                title="&ldquo;Why was that wrong?&rdquo;"
+                body="Ask about anything you just answered and get a real explanation, not the textbook line. Locked while you are playing — nobody gets to phone a friend mid-match."
               ><AskNinjaMock /></AiFeatureBlock>
 
               <AiFeatureBlock
-                eyebrow="Generated practice" accent="#ffd166"
-                title="Drills built from your own mistakes."
-                body="Weakness-targeted sets composed from your match history. If arrangements keep costing you, arrangements are what you get."
-                flip={false}
+                eyebrow="Drills that follow"
+                accent="#ffd166"
+                title="Homework you did not have to set"
+                body="Whatever cost you the match becomes tonight's practice set. Keep losing to the same puzzle type and that is what keeps showing up."
               ><PracticeMock /></AiFeatureBlock>
 
               <AiFeatureBlock
-                eyebrow="A worthy bot" accent="#9f84bd"
-                title="No opponent online? Still a match."
-                body="The bot plays at your rating, honestly — it answers on its own clock and never peeks at the answer key."
-                flip
+                eyebrow="Nobody around"
+                accent="#9f84bd"
+                title="There is always a game"
+                body="If nobody is online, the bot plays. It answers at your level, on its own clock, and it never peeks at the answer key."
               ><BotMock /></AiFeatureBlock>
             </div>
           </section>
@@ -341,21 +362,21 @@ export default function LandingClient() {
                 Matched by the math,<br />in seconds.
               </h2>
               <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-10">
-                Tap play. The queue pairs you with someone at your level — the band widens
-                the longer you wait, so you always get a game.
+                Tap play and we look for someone your speed. The longer nobody turns up,
+                the wider we look — so you are never left standing there.
               </p>
             </Reveal>
 
             <MatchmakingViz />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-10">
-              <StatCard label="Time to match" highlight="under 10s" value="typical at peak" footnote="band widens 20 ELO per second" />
-              <StatCard label="Rated fairness" highlight="zero-sum" value="every point won is a point lost" footnote="100 ELO floor, no farming" />
-              <StatCard label="Rematch guard" highlight="3 per day" value="same rated pair" footnote="so ratings stay honest" />
+              <StatCard label="Waiting around" highlight="under 10s" value="usual wait in the evening" footnote="we widen the search every second" />
+              <StatCard label="What a win is worth" highlight="their loss" value="you gain exactly what they drop" footnote="no points invented, none destroyed" />
+              <StatCard label="Farming your friend" highlight="3 a day" value="same two people, rated" footnote="after that it is just for fun" />
             </div>
 
             <div className="flex flex-wrap gap-2 mt-8">
-              {["ELO-banded queue", "heartbeat liveness", "forfeit protection", "friend challenges", "section-only battles", "seasonal soft resets"].map(f => (
+              {["matched to your level", "play a friend by code", "one-part-only matches", "watch live matches", "monthly seasons", "win streaks"].map(f => (
                 <span key={f} className="font-pixel text-[11px] text-[#7ab5cc] border border-[#7ab5cc]/20 bg-[#7ab5cc]/5 rounded-full px-3.5 py-1.5">
                   {f}
                 </span>
@@ -367,11 +388,11 @@ export default function LandingClient() {
           <section id="features" className="overflow-hidden border-t border-[#222222] px-10 py-20 scroll-mt-24">
             <Reveal>
               <h2 className="font-pixel text-[clamp(1.9rem,3.8vw,3.2rem)] leading-[1.05] mb-5">
-                Built like a game.<br />Scored like the exam.
+                Built like a game.<br />Marked like the exam.
               </h2>
               <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[52ch] mb-10">
-                Every dial — clocks, penalties, ELO — is tuned so the rating means
-                what it says.
+                Six things you get on day one. All of them are the point — none of them
+                are a settings screen.
               </p>
             </Reveal>
             <BentoGrid />
@@ -390,9 +411,9 @@ export default function LandingClient() {
             <ParticleFlow height={280} />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
               {[
-                { n: "01", t: "Queue", b: "One tap. The server finds your equal." },
-                { n: "02", t: "Battle", b: "Nine synchronized questions. Same clock, same order, no pauses." },
-                { n: "03", t: "Rank", b: "Margin-weighted, zero-sum ELO. Beat a stronger player, gain more." },
+                { n: "01", t: "Queue", b: "One tap. We go and find someone your speed." },
+                { n: "02", t: "Battle", b: "Nine questions, your own clock, no pausing and no going back." },
+                { n: "03", t: "Rank", b: "Win big and you climb faster. Beat someone better and you climb faster still." },
               ].map((s, i) => (
                 <Reveal key={s.n} delay={i * 100}>
                   <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 h-full">
@@ -413,8 +434,8 @@ export default function LandingClient() {
                   Your percentile<br />has an opponent.
                 </h2>
                 <p className="text-[#c5e8f0]/60 text-base leading-relaxed max-w-[46ch] mx-auto mb-8">
-                  Join the waitlist — early aspirants get founding badges and first access
-                  to rated seasons.
+                  Get on the list. Early players keep a founding badge and get first go at
+                  the ranked seasons.
                 </p>
                 <button
                   onClick={handleOpen}
@@ -432,7 +453,6 @@ export default function LandingClient() {
               <div className="flex items-center gap-6">
                 <a href="/privacy" className="text-white/35 hover:text-white/60 text-xs transition-colors">Privacy Policy</a>
                 <a href="/terms" className="text-white/35 hover:text-white/60 text-xs transition-colors">Terms &amp; Conditions</a>
-                <Link href="/docs" className="text-white/35 hover:text-white/60 text-xs transition-colors">Technology</Link>
                 <Link href="/pricing" className="text-white/35 hover:text-white/60 text-xs transition-colors">Pricing</Link>
                 {!IS_WAITLIST && (
                   <Link href="/leaderboard" className="text-white/35 hover:text-white/60 text-xs transition-colors">Leaderboard</Link>
@@ -647,13 +667,13 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 
 /* ── S3: infinite scroll-snap carousel ── */
 const MATCH_CARDS = [
-  { tag: "VARC", accent: "#118ab2", title: "Reading, against the clock", body: "Passage-grouped questions with a 60-second reading window before the timer starts charging.", metaLabel: "Timed at", metaValue: "90s per question" },
-  { tag: "DILR", accent: "#ffd166", title: "Sets that fight back", body: "Puzzle sets served as a group — the hardest section gets the longest clock.", metaLabel: "Timed at", metaValue: "120s per question" },
-  { tag: "QUANT", accent: "#06d6a0", title: "Speed is a skill", body: "The highest speed multiplier of the three. A fast correct answer out-scores a slow one.", metaLabel: "Timed at", metaValue: "105s per question" },
-  { tag: "Scoring", accent: "#9f84bd", title: "The referee is a database", body: "Every answer is scored server-side. Client clocks and client claims are ignored.", metaLabel: "Measured", metaValue: "server time only" },
-  { tag: "Speed bonus", accent: "#06d6a0", title: "Every 5 seconds saved counts", body: "Bonus accrues in five-second blocks. A random guess is worth exactly zero expected points.", metaLabel: "Max", metaValue: "140 pts / question" },
-  { tag: "Live", accent: "#118ab2", title: "You see them answer", body: "Real-time presence: you know the moment your opponent locks in — never what they chose.", metaLabel: "Latency", metaValue: "under a second" },
-  { tag: "Spectate", accent: "#ffd166", title: "Watch the top table", body: "Any live match is watchable, read-only, with answers hidden until the reveal.", metaLabel: "Delay", metaValue: "none" },
+  { tag: "Verbal", accent: "#118ab2", title: "Read fast, or read again", body: "Passages come with a free minute to read before the clock starts charging you. After that, every second is on the meter.", metaLabel: "You get", metaValue: "90s a question" },
+  { tag: "Logic", accent: "#ffd166", title: "Puzzles that fight back", body: "Sets arrive whole, the way they do in the real paper. It is the hardest part, so it gets the longest clock.", metaLabel: "You get", metaValue: "120s a question" },
+  { tag: "Quant", accent: "#06d6a0", title: "Being quick is worth points", body: "The biggest speed reward of the three. Two people can both be right and only one of them wins the question.", metaLabel: "You get", metaValue: "105s a question" },
+  { tag: "Fair play", accent: "#9f84bd", title: "Nobody can fudge their time", body: "Your score is worked out on our side, not in your browser. A slow laptop cannot cost you points and a clever one cannot win them.", metaLabel: "Timed by", metaValue: "our clock" },
+  { tag: "Speed bonus", accent: "#06d6a0", title: "Every five seconds saved counts", body: "Answer sooner and the question is worth more. Wild guessing is worth nothing on average — that is deliberate.", metaLabel: "Best case", metaValue: "140 pts a question" },
+  { tag: "Live", accent: "#118ab2", title: "You feel them answering", body: "You see the moment your opponent locks something in. You never see what they picked.", metaLabel: "Delay", metaValue: "under a second" },
+  { tag: "Spectate", accent: "#ffd166", title: "Watch the good ones play", body: "Any live match can be watched from the stands. Answers stay hidden until the players are done.", metaLabel: "Cost", metaValue: "free, always" },
 ];
 
 // Module-level ref so header controls (rendered in a different subtree) can
@@ -718,43 +738,53 @@ function MatchCarousel() {
   );
 }
 
-/* ── S4: AI feature blocks + product mocks ── */
-function AiFeatureBlock({ eyebrow, accent, title, body, flip, children }: {
-  eyebrow: string; accent: string; title: string; body: string; flip: boolean; children: React.ReactNode;
+/* ── S4: AI feature cards + product mocks ──
+   Restyled 2026-07-26: was an alternating flip layout with a blurred colour
+   glow parallaxing behind each mock. Now one card per feature — copy on top,
+   the real screen underneath, hairline between. Same card language as the
+   bento so the page reads as one system. */
+function AiFeatureBlock({ eyebrow, accent, title, body, children }: {
+  eyebrow: string; accent: string; title: string; body: string; children: React.ReactNode;
 }) {
   return (
-    <div className={`flex items-center gap-10 flex-wrap md:flex-nowrap ${flip ? "md:flex-row-reverse" : ""}`}>
-      <Reveal className="flex-1 min-w-[260px]">
-        <span className="inline-block font-pixel text-[11px] rounded-full border px-3 py-1 mb-4"
-          style={{ color: accent, borderColor: `${accent}40`, background: `${accent}14` }}>
+    <Reveal className="h-full">
+      <div className="h-full flex flex-col rounded-2xl border border-[#222222] bg-[#111111] p-6 transition-colors duration-300 hover:border-[#06d6a0]/35">
+        <span className="inline-flex self-start items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] rounded-full border px-2.5 py-1"
+          style={{ color: accent, borderColor: `${accent}33`, background: `${accent}14` }}>
+          <span className="w-1 h-1 rounded-full" style={{ background: accent }} />
           {eyebrow}
         </span>
-        <h3 className="font-pixel text-2xl text-white leading-snug mb-3">{title}</h3>
-        <p className="text-[#7ab5cc] text-sm leading-relaxed max-w-[46ch]">{body}</p>
-      </Reveal>
-      <div className="flex-1 min-w-[280px] relative">
-        <div data-parallax="0.1" className="absolute inset-4 rounded-2xl blur-2xl opacity-20" style={{ background: accent, willChange: "transform" }} />
-        <div data-parallax="0.06" style={{ willChange: "transform" }} className="relative">{children}</div>
+        <h3 className="font-pixel text-xl text-white leading-snug mt-4">{title}</h3>
+        <p className="text-[#7ab5cc] text-sm leading-relaxed mt-3">{body}</p>
+        <div className="mt-6 pt-6 border-t border-[#222222]">{children}</div>
       </div>
-    </div>
+    </Reveal>
+  );
+}
+
+/* Mocks render inside a card now, so they drop their own border/background —
+   a card inside a card is the boxy look this section was redone to remove. */
+function MockHead({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <h4 className="text-[#4a8fa8] text-[10px] font-mono uppercase tracking-[0.18em] mb-3 flex items-center gap-1.5">
+      {icon} {label}
+    </h4>
   );
 }
 
 function DebriefMock() {
   return (
-    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5">
-      <h4 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-3 flex items-center gap-1.5">
-        <Sparkles size={12} className="text-[#06d6a0]" /> Ninja debrief
-      </h4>
+    <div>
+      <MockHead icon={<Sparkles size={11} className="text-[#06d6a0]" />} label="Ninja debrief" />
       <p className="text-[#c5e8f0] text-sm leading-relaxed mb-4">
-        You won the match in DILR: 41 seconds faster across the set, both correct.
-        Q4 is where it turned — your opponent spent 68s on the seating arrangement
-        and guessed; you skipped in 12s and banked the clock.
+        You won this on the puzzle set — 41 seconds quicker, both of you right.
+        Question 4 is where it turned: they burned 68 seconds and guessed anyway,
+        you walked away after 12 and spent the time elsewhere.
       </p>
       <div className="flex flex-wrap gap-2">
-        <span className="text-[10px] font-mono text-[#06d6a0] bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">Q4 · +41s banked</span>
-        <span className="text-[10px] font-mono text-[#ef476f] bg-[#ef476f]/10 border border-[#ef476f]/20 rounded-full px-2.5 py-1">Q7 · trap option C</span>
-        <span className="text-[10px] font-mono text-[#ffd166] bg-[#ffd166]/10 border border-[#ffd166]/20 rounded-full px-2.5 py-1">VARC pace · −9s avg</span>
+        <span className="text-[10px] font-mono text-[#06d6a0] bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">Q4 · 41s saved</span>
+        <span className="text-[10px] font-mono text-[#ef476f] bg-[#ef476f]/10 border border-[#ef476f]/20 rounded-full px-2.5 py-1">Q7 · took the bait</span>
+        <span className="text-[10px] font-mono text-[#ffd166] bg-[#ffd166]/10 border border-[#ffd166]/20 rounded-full px-2.5 py-1">Reading · 9s faster</span>
       </div>
     </div>
   );
@@ -762,10 +792,10 @@ function DebriefMock() {
 
 function AskNinjaMock() {
   return (
-    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 space-y-3">
+    <div className="space-y-3">
       <div className="flex justify-end">
         <p className="bg-[#1c1c1c] text-[#c5e8f0] text-sm rounded-lg rounded-br-sm px-3.5 py-2.5 max-w-[85%]">
-          Why is option B wrong here? The passage seems to support it.
+          Why is B wrong? The passage seems to say exactly that.
         </p>
       </div>
       <div className="flex gap-2.5">
@@ -773,9 +803,9 @@ function AskNinjaMock() {
           <NinjaLogo color="#120F17" className="w-4 h-4" />
         </span>
         <p className="text-[#c5e8f0] text-sm leading-relaxed">
-          B restates the author&apos;s example, not the argument. The passage uses the
-          2010 census as an illustration — the claim itself is in the final
-          paragraph, which only D paraphrases without adding &quot;always&quot;.
+          It says it, but as an example — not as the point. The actual claim is in
+          the last paragraph, and D is the only option that repeats it without
+          quietly adding &ldquo;always&rdquo;.
         </p>
       </div>
     </div>
@@ -784,15 +814,13 @@ function AskNinjaMock() {
 
 function PracticeMock() {
   const rows = [
-    { s: "DILR", c: "#ffd166", t: "Circular arrangement · 6 people, 2 constraints", d: "targets Q4-type skips" },
-    { s: "DILR", c: "#ffd166", t: "Linear arrangement · conditional clues", d: "targets slow starts" },
-    { s: "VARC", c: "#118ab2", t: "Inference · author's main claim", d: "targets trap option C" },
+    { s: "Logic", c: "#ffd166", t: "Circular seating · 6 people", d: "you skipped this type" },
+    { s: "Logic", c: "#ffd166", t: "Linear seating · clue chains", d: "you start too slow" },
+    { s: "Verbal", c: "#118ab2", t: "What is the author's point?", d: "you took the bait" },
   ];
   return (
-    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5">
-      <h4 className="text-[#7ab5cc] text-xs font-medium uppercase tracking-wider mb-4 flex items-center gap-1.5">
-        <Sparkles size={12} className="text-[#ffd166]" /> Generated practice · from your last 5 matches
-      </h4>
+    <div>
+      <MockHead icon={<Sparkles size={11} className="text-[#ffd166]" />} label="Built from your last 5 matches" />
       <div className="space-y-2.5">
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-3 bg-[#1c1c1c] rounded-lg px-3.5 py-2.5">
@@ -808,7 +836,7 @@ function PracticeMock() {
 
 function BotMock() {
   return (
-    <div className="bg-[#111111] border border-[#222222] rounded-xl p-5">
+    <div>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <span className="w-8 h-8 rounded-full bg-[#9f84bd]/15 border border-[#9f84bd]/30 flex items-center justify-center overflow-hidden">
@@ -816,92 +844,103 @@ function BotMock() {
           </span>
           <div>
             <p className="text-white text-sm font-semibold leading-none">NINJA-BOT</p>
-            <p className="text-[#4a8fa8] text-[10px] font-mono mt-1">plays at 1240 ELO · unrated</p>
+            <p className="text-[#4a8fa8] text-[10px] font-mono mt-1">playing at your level · rating safe</p>
           </div>
         </div>
         <span className="text-[10px] font-mono text-[#7ab5cc] bg-[#7ab5cc]/10 border border-[#7ab5cc]/20 rounded-full px-2.5 py-1">Q 5 / 9</span>
       </div>
       <div className="flex items-center gap-4 bg-[#1c1c1c] rounded-lg px-4 py-3">
         <span className="w-2 h-2 rounded-full bg-[#06d6a0] animate-pulse shrink-0" />
-        <p className="text-[#c5e8f0] text-xs flex-1">Bot is reading the question…</p>
+        <p className="text-[#c5e8f0] text-xs flex-1">Bot is still reading…</p>
         <span className="font-pixel text-sm text-[#ffd166]">0:47</span>
       </div>
     </div>
   );
 }
 
-/* ── S5: matchmaking visualization ── */
-function MatchmakingViz() {
-  const [view, setView] = useState<"wait" | "gap">("wait");
+/* ── S5: matchmaking charts ──
+   Redrawn 2026-07-26 as minimal line charts: one hairline baseline, no fill,
+   no floating annotations, one endpoint dot, labels in plain English. The old
+   version stacked three grid lines, a tinted area, two callouts and a formula
+   caption on a 270px canvas and read as an engineering plot. */
 
-  // Band-vs-wait: band = min(1000, 100 + 20s), 0–60s → x 0..520, y 240..20
-  const bandPts = Array.from({ length: 61 }, (_, s) => {
-    const band = Math.min(1000, 100 + 20 * s);
-    return `${20 + (s / 60) * 500},${240 - (band / 1000) * 200}`;
-  }).join(" ");
+const CH = { w: 560, h: 180, padX: 8, top: 16, bot: 150 };
 
-  // ELO-exchanged-vs-gap: Δ ≈ K(1−E)·shrink for the favorite, K=24
-  const gapPts = Array.from({ length: 41 }, (_, i) => {
-    const gap = i * 20; // 0..800
-    const e = 1 / (1 + Math.pow(10, -gap / 400));
-    const shrink = 2.2 / (0.001 * gap + 2.2);
-    const delta = 24 * (1 - e) * shrink;
-    return `${20 + (gap / 800) * 500},${240 - (delta / 12) * 200}`;
-  }).join(" ");
+function line(points: [number, number][]) {
+  return points
+    .map(([t, v]) => {
+      const x = CH.padX + t * (CH.w - CH.padX * 2);
+      const y = CH.bot - v * (CH.bot - CH.top);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
 
-  const pill = (v: "wait" | "gap", label: string) => (
-    <button
-      onClick={() => setView(v)}
-      className={`font-pixel text-[11px] rounded-full px-4 py-2 border transition-colors ${
-        view === v
-          ? "bg-[#06d6a0] text-[#120F17] border-[#06d6a0]"
-          : "text-[#7ab5cc] border-[#333333] hover:border-[#06d6a0]/50 hover:text-[#06d6a0]"
-      }`}
-    >
-      {label}
-    </button>
+function MiniChart({
+  label, points, xLeft, xRight, note, accent = "#06d6a0",
+}: {
+  label: string; points: [number, number][]; xLeft: string; xRight: string; note: string; accent?: string;
+}) {
+  const last = points[points.length - 1];
+  return (
+    <div className="rounded-2xl border border-[#222222] bg-[#111111] p-6">
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#4a8fa8]">{label}</p>
+      <p className="mt-2 text-[#c5e8f0] text-sm leading-relaxed">{note}</p>
+      <svg viewBox={`0 0 ${CH.w} ${CH.h}`} className="mt-5 w-full" role="img" aria-label={`${label} — ${note}`}>
+        <line x1={CH.padX} y1={CH.bot} x2={CH.w - CH.padX} y2={CH.bot} stroke="#222222" strokeWidth="1" />
+        <polyline
+          points={line(points)}
+          fill="none"
+          stroke={accent}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle
+          cx={CH.padX + last[0] * (CH.w - CH.padX * 2)}
+          cy={CH.bot - last[1] * (CH.bot - CH.top)}
+          r="3"
+          fill={accent}
+        />
+        <text x={CH.padX} y={CH.h - 6} fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">{xLeft}</text>
+        <text x={CH.w - CH.padX} y={CH.h - 6} textAnchor="end" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">{xRight}</text>
+      </svg>
+    </div>
   );
+}
+
+function MatchmakingViz() {
+  // How wide we search, over time waited. Normalised 0..1 on both axes.
+  const search: [number, number][] = Array.from({ length: 61 }, (_, s) => [
+    s / 60,
+    Math.min(1000, 100 + 20 * s) / 1000,
+  ]);
+
+  // What beating someone is worth, as they get weaker than you.
+  const worth: [number, number][] = Array.from({ length: 41 }, (_, i) => {
+    const gap = i * 20;
+    const e = 1 / (1 + 10 ** (-gap / 400));
+    return [gap / 800, ((1 - e) * (2.2 / (0.001 * gap + 2.2))) / 0.5];
+  });
 
   return (
     <Reveal>
-      <div className="flex gap-2 mb-5">
-        {pill("wait", "By wait time")}
-        {pill("gap", "By rating gap")}
-      </div>
-      <div className="bg-[#111111] border border-[#222222] rounded-xl p-5 overflow-x-auto">
-        <svg viewBox="0 0 560 270" className="w-full min-w-[480px]" role="img"
-          aria-label={view === "wait" ? "Matchmaking band width versus seconds waited" : "ELO exchanged versus rating gap"}>
-          {/* grid */}
-          {[20, 130, 240].map(y => <line key={y} x1="20" y1={y} x2="520" y2={y} stroke="#222222" strokeWidth="1" />)}
-
-          {view === "wait" ? (
-            <g>
-              <polyline points={bandPts} fill="none" stroke="#06d6a0" strokeWidth="2.5" />
-              <polygon points={`20,240 ${bandPts} 520,240`} fill="#06d6a0" opacity="0.07" />
-              <circle cx="20" cy={240 - (100 / 1000) * 200} r="5" fill="#06d6a0" />
-              <text x="32" y={240 - (100 / 1000) * 200 - 8} fill="#c5e8f0" fontSize="11" fontFamily="var(--font-geist-mono)">you join · ±100 ELO</text>
-              <circle cx={20 + (45 / 60) * 500} cy={240 - (1000 / 1000) * 200} r="5" fill="#ffd166" />
-              <text x={20 + (45 / 60) * 500 - 150} y={240 - 200 + 16} fill="#ffd166" fontSize="11" fontFamily="var(--font-geist-mono)">45s · band fully open ±1000</text>
-              <text x="20" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">0s</text>
-              <text x="500" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">60s waited</text>
-            </g>
-          ) : (
-            <g>
-              <polyline points={gapPts} fill="none" stroke="#06d6a0" strokeWidth="2.5" />
-              <circle cx="20" cy={240 - (12 / 12) * 200} r="5" fill="#06d6a0" />
-              <text x="32" y={240 - 200 + 4} fill="#c5e8f0" fontSize="11" fontFamily="var(--font-geist-mono)">even match · full stakes</text>
-              <circle cx={20 + (400 / 800) * 500} cy={240 - ((24 * (1 - 1 / (1 + Math.pow(10, -1))) * (2.2 / (0.4 + 2.2))) / 12) * 200} r="5" fill="#ffd166" />
-              <text x={20 + (400 / 800) * 500 + 12} y={240 - ((24 * (1 - 1 / (1 + Math.pow(10, -1))) * (2.2 / (0.4 + 2.2))) / 12) * 200 + 4} fill="#ffd166" fontSize="11" fontFamily="var(--font-geist-mono)">favorite beats +400 · little to gain</text>
-              <text x="20" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">gap 0</text>
-              <text x="452" y="262" fill="#4a8fa8" fontSize="10" fontFamily="var(--font-geist-mono)">gap 800</text>
-            </g>
-          )}
-        </svg>
-        <p className="text-[#4a8fa8] text-[10px] font-mono mt-2">
-          {view === "wait"
-            ? "Derived from the live queue rule: band = min(1000, 100 + 20 × seconds waited)."
-            : "Derived from the live rating rule: favorites gain less, upsets pay more — zero-sum either way."}
-        </p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <MiniChart
+          label="Finding you a game"
+          note="We start by looking for someone almost exactly your level, then quietly relax it. Nobody waits forever."
+          points={search}
+          xLeft="the moment you tap play"
+          xRight="a minute later"
+        />
+        <MiniChart
+          accent="#ffd166"
+          label="What a win is worth"
+          note="An even fight pays full price. Beating someone well below you barely moves your rating — so there is nothing to farm."
+          points={worth}
+          xLeft="an even fight"
+          xRight="way below you"
+        />
       </div>
     </Reveal>
   );
@@ -1006,12 +1045,393 @@ function PillParallax({ scrollParent }: { scrollParent: React.RefObject<HTMLDivE
   );
 }
 
+/* ── S2·5: the dashboard, as it actually ships ──
+   Not a picture — the real lobby chrome rebuilt in place, so it stays sharp at
+   any width and can never drift from the app's colours. Everything here mirrors
+   app/lobby/lobby-client.tsx and components/side-nav.tsx; the countdown ring,
+   speed meter and section chips are the app's OWN components imported straight
+   in, so those can't drift at all. Static by design: no handlers, no data,
+   nothing to hydrate. */
+
+const SHOT_USER = { name: "Max Planck", handle: "maxplanck", initials: "MP", elo: 1480 };
+
+/* The floating dock, exactly as it renders over every authed screen. Home is
+   the active item (this is /lobby), and the Ninja AI item carries the mode
+   marker so the two chat personalities are visible without a second screen. */
+function ShotDock() {
+  const items = [
+    { icon: <Home size={18} />, label: "Home", active: true },
+    { icon: <Users size={18} />, label: "Friends" },
+    { icon: <Eye size={18} />, label: "Spectate" },
+    { icon: <Trophy size={18} />, label: "Leaderboard" },
+    { icon: <NinjaLogo color="#073b4c" className="w-[18px] h-[18px]" />, label: "Ninja AI", ninja: true },
+    { icon: <Settings size={18} />, label: "Settings" },
+    { icon: <LogOut size={18} />, label: "Sign out" },
+  ];
+  return (
+    <nav
+      aria-label="Ninjatest navigation dock"
+      className="flex flex-col items-center gap-1 rounded-[1.75rem] px-1.5 py-2.5
+        bg-gradient-to-b from-[#0be4ad] to-[#06d6a0] border border-[#3af0c8]/40
+        shadow-[0_24px_60px_-12px_rgba(6,214,160,0.55),0_8px_20px_-6px_rgba(0,0,0,0.6)]"
+    >
+      {items.map(it => (
+        <div className="relative" key={it.label}>
+          <span
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-[#073b4c] ${
+              it.active ? "bg-[#073b4c]/15" : ""
+            }`}
+          >
+            {it.icon}
+          </span>
+
+          {/* active route springs its label out beside the dock */}
+          {it.active && (
+            <span className="absolute left-full top-1/2 -translate-y-1/2 ml-3 whitespace-nowrap rounded-md bg-[#073b4c] px-2.5 py-1 text-xs font-medium text-[#06d6a0]">
+              {it.label}
+            </span>
+          )}
+
+          {/* Ninja AI keeps its pill out permanently — it is the one dock item
+              people do not guess from the glyph — and carries the mode marker,
+              so both live in the dock's own gutter and overlap nothing. */}
+          {it.ninja && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-[180px]">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[#073b4c] px-2.5 py-1 text-xs font-medium text-[#06d6a0]">
+                <NinjaLogo className="w-3 h-3" color="#06d6a0" /> Ninja AI
+              </span>
+              <ShotNinjaModes />
+            </div>
+          )}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+/* The Ninja chat's own mode switcher, lifted out of app/ninja/chat-client.tsx.
+   Buddy is the marked one: socratic — it will not hand over the answer. */
+function ShotNinjaModes() {
+  return (
+    <div className="mt-1.5 rounded-xl border border-[#333333] bg-[#111111] p-1.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.95)]">
+      <NinjaMode hint="Grounded in your stats" icon={<BarChart3 size={13} className="text-[#06d6a0]" />} label="Coach" />
+      <NinjaMode hint="Socratic — hints, not answers" icon={<Lightbulb size={13} className="text-[#ffd166]" />} label="Buddy" marked />
+    </div>
+  );
+}
+
+function NinjaMode({ icon, label, hint, marked }: { icon: React.ReactNode; label: string; hint: string; marked?: boolean }) {
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+        marked ? "bg-[#ffd166]/10 ring-1 ring-[#ffd166]/40" : ""
+      }`}
+    >
+      <span className="shrink-0">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-white text-[11px] leading-none">{label}</p>
+        <p className="text-[#4a8fa8] text-[9px] mt-1 leading-tight">{hint}</p>
+      </div>
+      {marked && <Check className="text-[#ffd166] shrink-0" size={11} />}
+    </div>
+  );
+}
+
+/* Live match, mid-question. Uses the real CountdownRing + SpeedMeter so the
+   numbers here are computed by the same code that runs in a battle: QUANT cap
+   105s, 65s left → 13 grace blocks × ×2 = +26 pts. */
+function ShotMatch() {
+  const capMs = 105_000, remaining = 65_000;
+  const progress = remaining / capMs;
+  const options = ["30", "34", "36", "38"];
+  return (
+    <div className="h-full flex flex-col rounded-2xl border border-[#222222] bg-[#120F17] overflow-hidden shadow-[0_40px_90px_-30px_rgba(0,0,0,0.95)]">
+      {/* top bar */}
+      <div className="border-b border-[#222222] px-4 py-3 shrink-0">
+        <div className="flex items-center justify-center gap-1.5 mb-3">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <span
+              key={i}
+              className={`rounded-full ${
+                i < 5 ? "w-2 h-2 bg-[#06d6a0]/60" : i === 5 ? "w-3 h-3 bg-[#06d6a0]" : "w-2 h-2 bg-[#1a6080]"
+              }`}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <ShotPlayer initials={SHOT_USER.initials} name={SHOT_USER.name} score={412} />
+          <CountdownRing progress={progress} remaining={remaining} section="QUANT" size={48} />
+          <ShotPlayer answered initials="AL" name="ada_l" right score={366} />
+        </div>
+      </div>
+
+      {/* question */}
+      <div className="flex-1 px-4 py-4 space-y-3.5">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${getSectionBadgeClass("QUANT")}`}>QUANT</span>
+          <span className="text-[#7ab5cc] text-sm">Q6 of 9</span>
+        </div>
+
+        <SpeedMeter capMs={capMs} progress={progress} section="QUANT" timeRemaining={remaining} />
+
+        <p className="text-white text-[15px] leading-relaxed">
+          The average of five numbers is 26. One number is removed and the average
+          of the remaining four is 24. Which number was removed?
+        </p>
+
+        <div className="space-y-2">
+          {options.map((o, i) => (
+            <div
+              key={o}
+              className={`w-full px-4 py-2.5 rounded-xl border text-sm ${
+                i === 1
+                  ? "border-[#06d6a0]/40 bg-[#06d6a0]/5 text-white"
+                  : "border-[#222222] bg-[#111111] text-white"
+              }`}
+            >
+              <span className="text-[#7ab5cc] font-mono mr-2.5">{String.fromCharCode(65 + i)}.</span>
+              {o}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col items-center gap-1 pt-0.5">
+          <span className="text-[#7ab5cc] text-sm">Skip · 0 pts</span>
+          <span className="text-[#4a8fa8] text-xs">Wrong answers lose points</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShotPlayer({ initials, name, score, right, answered }: {
+  initials: string; name: string; score: number; right?: boolean; answered?: boolean;
+}) {
+  return (
+    <div className={`flex-1 flex items-center gap-2 min-w-0 ${right ? "flex-row-reverse" : ""}`}>
+      <span className="w-8 h-8 shrink-0 rounded-full bg-[#120F17] border border-white/10 grid place-items-center text-[#06d6a0] text-[10px] font-bold">
+        {initials}
+      </span>
+      <div className={`min-w-0 ${right ? "text-right" : "text-left"}`}>
+        <p className="text-white text-[13px] font-semibold truncate">{name}</p>
+        <p className="text-[#ffd166] font-bold text-lg leading-none">{score}</p>
+        {answered && <p className="text-[#7ab5cc] text-xs">answered</p>}
+      </div>
+    </div>
+  );
+}
+
+function DashboardShot() {
+  const league = getLeague(SHOT_USER.elo);
+  const modes = [
+    { icon: Zap,    title: "Ranked 1v1",        sub: "Mixed set · counts towards your rating", primary: true },
+    { icon: Users,  title: "Challenge a friend", sub: "Send a code · rated or just for fun" },
+    { icon: Target, title: "Practice",           sub: "Solo drill · aims at your weak spots" },
+    { icon: Bot,    title: "Vs Ninja Bot",       sub: "Instant game · plays at your level" },
+    { icon: Eye,    title: "Spectate",           sub: "Watch live matches" },
+    { icon: Trophy, title: "Leaderboard",        sub: "This season's top 100" },
+  ];
+  // Last ten rated results, oldest → newest. Drawn as a hairline, no axes.
+  const curve = [1310, 1298, 1345, 1362, 1351, 1399, 1428, 1412, 1466, 1480];
+  const lo = Math.min(...curve), hi = Math.max(...curve);
+  const spark = curve
+    .map((v, i) => `${(i / (curve.length - 1)) * 200},${28 - ((v - lo) / (hi - lo)) * 24}`)
+    .join(" ");
+
+  return (
+    <section className="px-4 sm:px-10 py-12 border-b border-[#222222]">
+      <Reveal>
+        <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-[#c5e8f0]/40 mb-6">
+          This is the whole thing
+        </p>
+
+        {/* Lobby and live match sit side by side and never overlap — one row,
+            both panels stretched to the same height, the pair sized to land
+            inside a single viewport. Below xl the match stacks underneath. */}
+        <div className="mx-auto max-w-[1360px] flex flex-col xl:flex-row items-stretch gap-4">
+          <div className="flex-1 min-w-0 rounded-2xl border border-[#222222] bg-[#0d0b12] overflow-hidden shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]">
+            {/* window chrome */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1c1a24] bg-[#111111]">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ef476f]/50" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ffd166]/50" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#06d6a0]/50" />
+              <span className="ml-3 font-mono text-[10px] text-[#4a8fa8]">ninjatest.app/lobby</span>
+            </div>
+
+            <div className="relative p-5 sm:p-6 xl:pl-[16.5rem]">
+              {/* the dock floats over the lobby exactly like this in the app */}
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 hidden xl:block">
+                <ShotDock />
+              </div>
+
+              {/* greeting */}
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <div>
+                  <h3 className="font-pixel text-xl">
+                    Welcome, <span className="text-[#06d6a0]">{SHOT_USER.name}</span>
+                  </h3>
+                  <p className="text-[#4a8fa8] text-sm mt-1">Pick a mode to enter a battle.</p>
+                </div>
+                <span className="hidden sm:flex items-center gap-1.5 bg-[#06d6a0]/10 border border-[#06d6a0]/20 rounded-full px-2.5 py-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#06d6a0] animate-pulse" />
+                  <span className="text-[#06d6a0] text-xs font-medium">312 online</span>
+                </span>
+              </div>
+
+              {/* fixed rail track rather than a 1/3 column — at this width a
+                  fractional rail squeezed the display name and wrapped "Win rate". */}
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_244px] gap-5">
+                {/* modes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {modes.map(m => {
+                    const Icon = m.icon;
+                    return (
+                      <div
+                        key={m.title}
+                        className={`rounded-2xl p-4 ${
+                          m.primary
+                            ? "bg-gradient-to-br from-[#06d6a0] to-[#05b088] text-[#073b4c]"
+                            : "bg-[#111111] border border-[#1c1a24]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Icon size={18} className={m.primary ? "" : "text-[#06d6a0]"} />
+                          <ChevronRight size={15} className={m.primary ? "opacity-60" : "text-[#4a8fa8]"} />
+                        </div>
+                        <div className="mt-4">
+                          <div className={`font-pixel text-base ${m.primary ? "" : "text-white"}`}>{m.title}</div>
+                          <div className={`text-xs mt-0.5 ${m.primary ? "text-[#073b4c]/80" : "text-[#7ab5cc]"}`}>{m.sub}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* right rail */}
+                <aside className="rounded-2xl border border-white/10 bg-[#111111] p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="w-11 h-11 shrink-0 rounded-full bg-[#120F17] border border-white/10 grid place-items-center text-sm font-bold text-[#06d6a0]">
+                      {SHOT_USER.initials}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-white truncate">{SHOT_USER.name}</p>
+                        <span
+                          className="shrink-0 rounded-md border px-1.5 py-0.5 text-[9px] font-medium"
+                          style={{ color: league.color, borderColor: `${league.color}4d`, background: `${league.color}1a` }}
+                        >
+                          {league.name}
+                        </span>
+                      </div>
+                      <p className="text-[#7ab5cc] text-xs">@{SHOT_USER.handle}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Flame size={11} className="text-[#ffd166]" />
+                        <span className="text-[#ffd166] text-xs font-semibold">4 win streak</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-3">
+                    {[
+                      { l: "Rating", v: String(SHOT_USER.elo), c: "#ffd166" },
+                      { l: "Win rate", v: "63%", c: "#06d6a0" },
+                      { l: "Best", v: "1512", c: "#ffd166" },
+                    ].map(s => (
+                      <div key={s.l}>
+                        <p className="text-[#4a8fa8] text-[10px] font-mono uppercase tracking-wider">{s.l}</p>
+                        <p className="font-pixel text-lg mt-0.5" style={{ color: s.c }}>{s.v}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* rating over the last ten games — hairline, no axes */}
+                  <div className="border-t border-white/10 pt-3">
+                    <p className="text-[#4a8fa8] text-[10px] font-mono uppercase tracking-wider mb-2">Last 10 games</p>
+                    <svg viewBox="0 0 200 32" className="w-full h-8" role="img" aria-label="Rating over the last ten games, trending up">
+                      <polyline points={spark} fill="none" stroke="#06d6a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="200" cy={28 - ((curve[curve.length - 1] - lo) / (hi - lo)) * 24} r="2.5" fill="#06d6a0" />
+                    </svg>
+                  </div>
+
+                  {/* how each part of the paper is going — real app section chips */}
+                  <div className="border-t border-white/10 pt-3 space-y-2">
+                    <p className="text-[#4a8fa8] text-[10px] font-mono uppercase tracking-wider">By section</p>
+                    {[
+                      { s: "VARC" as const,  label: "Verbal", pct: 71 },
+                      { s: "DILR" as const,  label: "Logic",  pct: 54 },
+                      { s: "QUANT" as const, label: "Quant",  pct: 82 },
+                    ].map(r => (
+                      <div key={r.label} className="flex items-center gap-2.5">
+                        <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-mono ${getSectionBadgeClass(r.s)}`}>
+                          {r.label}
+                        </span>
+                        <div className="h-1 flex-1 rounded-full bg-white/8 overflow-hidden">
+                          <div className="h-full rounded-full bg-white/25" style={{ width: `${r.pct}%` }} />
+                        </div>
+                        <span className="font-mono text-[10px] text-[#4a8fa8] w-8 text-right">{r.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+
+                </aside>
+              </div>
+            </div>
+          </div>
+
+          {/* the live match, as its own panel beside the lobby */}
+          <div className="w-full mx-auto max-w-[380px] xl:mx-0 xl:w-[376px] xl:max-w-none shrink-0">
+            <ShotMatch />
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+/* ── S2a: institute crest ticker ──
+   ponytail: crests are white-stripped PNGs (scratch script, PIL unpremultiply) rendered as
+   white silhouettes — the source marks are dark ink and would vanish on #120F17. */
+function InstituteMarquee() {
+  const schools = [
+    { name: "IIM Ahmedabad", src: "/logos/iim-ahmedabad.svg" },
+    { name: "IIT Delhi", src: "/logos/iit-delhi.png" },
+    { name: "IIT Kharagpur", src: "/logos/iit-kharagpur.png" },
+    { name: "IIM Kozhikode", src: "/logos/iim-kozhikode.png" },
+    { name: "IIT Roorkee", src: "/logos/iit-roorkee.png" },
+    { name: "IIT Mandi", src: "/logos/iit-mandi.png" },
+  ];
+  return (
+    <div className="border-b border-[#222222] py-8">
+      <p className="text-center font-mono text-[10px] uppercase tracking-[0.3em] text-[#c5e8f0]/40">
+        Vetted by students of
+      </p>
+      <div className="mt-6 overflow-hidden">
+        <div className="flex items-center animate-marquee hover:[animation-play-state:paused]" style={{ width: "max-content" }}>
+          {[...schools, ...schools, ...schools, ...schools].map((s, i) => (
+            <div key={i} className="shrink-0 px-9">
+              <Image
+                src={s.src}
+                alt={s.name}
+                title={s.name}
+                width={56}
+                height={56}
+                className="h-14 w-auto object-contain opacity-45 hover:opacity-90 transition-opacity"
+                style={{ filter: "brightness(0) invert(1)" }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── S2: marquee ticker ── */
 function LogoMarquee() {
   const items = [
     "GMAT", "CAT", "GRE", "LSAT", "JEE", "UPSC", "NEET", "MCAT", "SAT", "UCAT", "ACT", "TSA",
-    "2,400 ELO CEILING", "90S PER VARC QUESTION", "ZERO-SUM RATINGS",
-    "SEASONS RESET MONTHLY", "SPECTATE LIVE MATCHES", "SERVER-SCORED",
+    "MATCHED IN SECONDS", "NINE QUESTIONS", "REAL RATING",
+    "NEW SEASON EVERY MONTH", "WATCH LIVE MATCHES", "NO WAY TO CHEAT",
   ];
   return (
     <div className="overflow-hidden border-y border-[#222222] py-5">

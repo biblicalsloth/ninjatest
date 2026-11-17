@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { NinjatestLogo } from "@/components/ninja-logo";
 
+// In waitlist mode nobody can reach the app, so these CTAs point at the landing
+// survey (`/#waitlist` opens it on mount) instead of a signup that grants nothing.
+const IS_WAITLIST = process.env.NEXT_PUBLIC_APP_MODE === "waitlist";
+const CTA_HREF = IS_WAITLIST ? "/#waitlist" : "/auth/signup";
+
 export const metadata: Metadata = {
   title: "Changelog — Ninjatest",
   description:
@@ -211,10 +216,10 @@ export default function ChangelogPage() {
             Pricing
           </Link>
           <Link
-            href="/auth/signup"
+            href={CTA_HREF}
             className="text-[#06d6a0] hover:text-white text-sm font-semibold transition-colors"
           >
-            Sign up →
+            {IS_WAITLIST ? "Join Waitlist →" : "Sign up →"}
           </Link>
         </div>
       </nav>

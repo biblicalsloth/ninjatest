@@ -15,8 +15,7 @@ export function NinjaDebrief({ matchId }: { matchId: string }) {
 
   useEffect(() => {
     const supabase = createClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).rpc("get_ninja_debrief", { p_match_id: matchId })
+    supabase.rpc("get_ninja_debrief", { p_match_id: matchId })
       .then(({ data }: { data: { content: string }[] | null }) => {
         if (data?.[0]?.content) setContent(data[0].content);
         setChecked(true);

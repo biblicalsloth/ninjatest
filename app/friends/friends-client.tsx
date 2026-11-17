@@ -81,10 +81,9 @@ export default function FriendsClient({ myId }: Props) {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const openWithRef = useRef<string | null>(null);
-  openWithRef.current = openWith?.other_id ?? null;
+  useEffect(() => { openWithRef.current = openWith?.other_id ?? null; }, [openWith]);
 
-  const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current;
+  const [supabase] = useState(createClient);
 
   const loadFriends = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,6 +98,7 @@ export default function FriendsClient({ myId }: Props) {
   }, [supabase]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch; state is set after the await, not synchronously
     loadFriends();
     loadChallenges();
   }, [loadFriends, loadChallenges]);

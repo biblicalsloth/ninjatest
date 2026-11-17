@@ -19,8 +19,11 @@ const USERS: Record<string, string> = {
 };
 
 export async function GET(request: NextRequest) {
+  // This file ships to production (main IS prod), so it needs two independent
+  // guards: `next dev` only, AND a local Supabase URL (anchored, so
+  // `localhost.example.com` can't pass).
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  if (!/127\.0\.0\.1|localhost/.test(url)) {
+  if (process.env.NODE_ENV !== "development" || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(url)) {
     return NextResponse.json(
       { error: "dev-login is local-stack only; refusing on a remote Supabase URL" },
       { status: 403 }
@@ -28,7 +31,9 @@ export async function GET(request: NextRequest) {
   }
 
   const as = request.nextUrl.searchParams.get("as") ?? "a";
-  const next = request.nextUrl.searchParams.get("next") ?? "/lobby";
+  // Same open-redirect guard as /auth/callback.
+  const rawNext = request.nextUrl.searchParams.get("next") ?? "/lobby";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/\\") ? rawNext : "/lobby";
   const email = USERS[as] ?? USERS.a;
 
   const supabase = await createClient();

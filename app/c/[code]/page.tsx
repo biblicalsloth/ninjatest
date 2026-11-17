@@ -124,8 +124,7 @@ export default function JoinChallengePage() {
   async function handleAccept() {
     setAccepting(true);
     const supabase = createClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: matchId, error: err } = await (supabase as any).rpc("accept_challenge", { p_code: code });
+    const { data: matchId, error: err } = await supabase.rpc("accept_challenge", { p_code: code });
     if (err || !matchId) {
       toast.error(err?.message ?? "Failed to accept challenge");
       setAccepting(false);

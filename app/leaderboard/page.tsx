@@ -12,15 +12,14 @@ export const revalidate = 60;
 export default async function LeaderboardPage() {
   const supabase = createPublicClient();
   const [{ data: rows }, { data: seasonRows }] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).rpc("get_leaderboard", { p_limit: 100, p_offset: 0 }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).rpc("get_current_season"),
+    supabase.rpc("get_leaderboard", { p_limit: 100, p_offset: 0 }),
+    supabase.rpc("get_current_season"),
   ]);
 
   const entries = ((rows ?? []) as unknown[]) as LeaderboardEntry[];
   const season = ((seasonRows ?? [])[0] as { name: string; ends_at: string } | undefined) ?? null;
   const daysLeft = season
+    // eslint-disable-next-line react-hooks/purity -- server component: runs once per ISR revalidate, not per client render
     ? Math.max(0, Math.ceil((new Date(season.ends_at).getTime() - Date.now()) / 86_400_000))
     : null;
 
