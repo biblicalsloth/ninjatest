@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Upload, Check } from "lucide-react";
-import { NinjaNav } from "@/components/ninja-nav";
 import type { ExtractGroup } from "@/lib/ai/extract";
 
 const SECTION_COLOR: Record<string, string> = { VARC: "#7ab5cc", DILR: "#ffd166", QUANT: "#06d6a0" };
@@ -57,7 +56,6 @@ export default function SolveClient() {
 
   return (
     <div className="min-h-screen bg-[#120F17] pb-8">
-      <NinjaNav active="solve" />
       <main className="max-w-5xl mx-auto px-4 pt-8">
       <div className="mb-6">
         <h1 className="font-pixel text-xl text-white">Solve a Paper</h1>

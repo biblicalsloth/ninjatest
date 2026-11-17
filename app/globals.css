@@ -266,3 +266,27 @@
 @media (prefers-reduced-motion: reduce) {
   .exam-flip { animation: none !important; opacity: 1; }
 }
+
+/* SideNav offset (components/side-nav.tsx). The sidebar only renders on app
+   routes, so pages without it (match, landing, auth) get no padding. Fixed
+   full-screen pages read var(--nav-w) / var(--nav-h) for their own edges. */
+/* Panel floats 0.75rem off the left edge, so --nav-w = width + that gutter.
+   .nav-ease is shared by the panel width and this padding so they move as one. */
+body:has([data-sidenav="expanded"]) { --nav-w: 15.75rem; }
+body:has([data-sidenav="collapsed"]) { --nav-w: 5.25rem; }
+body:has([data-sidenav-mobile]) { --nav-h: 3.5rem; }
+/* No-flash collapse: html[data-nav-collapsed] is set by SIDENAV_INIT_SCRIPT
+   before first paint (React state only mirrors it after hydration). Unlayered,
+   so it beats the aside's w-60 utility during that window; the still-expanded
+   SSR markup stays invisible until React flips data-sidenav to "collapsed". */
+html[data-nav-collapsed] body:has([data-sidenav]) { --nav-w: 5.25rem; }
+html[data-nav-collapsed] [data-sidenav] { width: 4.5rem; }
+html[data-nav-collapsed] [data-sidenav="expanded"] { visibility: hidden; }
+body { padding-top: var(--nav-h, 0px); }
+.nav-ease { transition-duration: 0.45s; transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+@media (min-width: 768px) {
+  body { padding-top: 0; padding-left: var(--nav-w, 0px); transition: padding-left 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-ease, body { transition: none !important; }
+}

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, MessageSquare } from "lucide-react";
 import { NinjaLogo } from "@/components/ninja-logo";
-import { NinjaNav } from "@/components/ninja-nav";
 import { createClient } from "@/lib/supabase/client";
 
 interface Item {
@@ -63,7 +62,6 @@ export default function NinjaHistoryClient() {
   if (sessions === null) {
     return (
       <div className="min-h-screen bg-[#120F17]">
-        <NinjaNav active="history" />
         <div className="flex items-center justify-center py-40 text-[#06d6a0]">
           <Loader2 className="animate-spin" size={22} />
         </div>
@@ -74,7 +72,6 @@ export default function NinjaHistoryClient() {
   if (sessions.length === 0) {
     return (
       <div className="min-h-screen bg-[#120F17]">
-        <NinjaNav active="history" />
         <main className="max-w-5xl mx-auto px-4 pt-8">
           <div className="flex flex-col items-center gap-4 rounded-xl border border-[#1c1a24] bg-[#111111] px-6 py-20 text-center">
             <NinjaLogo color="#06d6a0" className="w-12 h-12" />
@@ -106,7 +103,6 @@ export default function NinjaHistoryClient() {
 
   return (
     <div className="min-h-screen bg-[#120F17] pb-8">
-      <NinjaNav active="history" />
       <main className="max-w-5xl mx-auto px-4 pt-8">
         <div className="mb-6">
           <h1 className="font-pixel text-xl text-white">History</h1>

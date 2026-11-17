@@ -118,9 +118,14 @@ export async function runCoach(
   config: AiConfig,
   system: string = COACH_SYSTEM,
   priorTurns: { question: string; answer: string }[] = [],
+  image?: string, // screen snapshot (validated JPEG data URL) — routes to the vision model
 ): Promise<{ text: string; model: string }> {
   const tools = buildCoachTools(sb, username);
-  const models = [config.model_id, config.fallback_model_id].filter(Boolean) as string[];
+  // Image turns go to ai_config.vision_model_id only — the chat models are
+  // text-only, so falling back to them would answer blind.
+  const models = (image
+    ? [config.vision_model_id]
+    : [config.model_id, config.fallback_model_id]).filter(Boolean) as string[];
   // Conversational memory: replay prior turns so multi-turn (esp. Socratic)
   // builds on context. Empty for one-shot modes → same as a bare prompt.
   const history = priorTurns.flatMap((t) => [
@@ -133,7 +138,12 @@ export async function runCoach(
       const res = await generateText({
         model: getModel(modelId),
         system,
-        messages: [...history, { role: "user", content: question }],
+        messages: [
+          ...history,
+          image
+            ? { role: "user", content: [{ type: "text", text: question }, { type: "image", image }] }
+            : { role: "user", content: question },
+        ],
         tools,
         stopWhen: stepCountIs(6), // cap tool-call rounds; metered LLM
         temperature: config.temperature,

@@ -4,7 +4,7 @@
 // study-plan grid (plus the jsonb column it's cached in for a week).
 // Run: node lib/ai/model.check.mts   (no network, no env)
 import assert from "node:assert/strict";
-import { trimCurve, CURVE_POINTS, parsePlan, PLAN_MAX_TASKS_PER_DAY } from "./model.ts";
+import { trimCurve, CURVE_POINTS, parsePlan, PLAN_MAX_TASKS_PER_DAY, isValidSnapshot } from "./model.ts";
 
 const curve = (n: number) => Array.from({ length: n }, (_, i) => ({ elo: 1000 + i, at: `t${i}`, delta: 1 }));
 const profile = (n: number) => ({ profile: { username: "u" }, rank: 1, curve: curve(n) });
@@ -99,3 +99,12 @@ assert.equal(parsePlan(JSON.stringify({ days: { Mon: "45 min quant" } })), null)
 assert.equal(parsePlan(JSON.stringify({ days: { Xyz: [{ section: "QUANT", task: "t", minutes: 5 }] } })), null);
 
 console.log("✅ parsePlan: fences, junk-drop, NaN/clamp, per-day cap, and null-on-failure all hold");
+
+// isValidSnapshot — the coach route's trust boundary for screen-share images.
+assert.equal(isValidSnapshot("data:image/jpeg;base64,/9j/4AAQSkZJRg=="), true);
+assert.equal(isValidSnapshot(undefined), false);
+assert.equal(isValidSnapshot("data:image/png;base64,iVBORw0KGgo="), false);     // jpeg only
+assert.equal(isValidSnapshot("https://evil.example/x.jpg"), false);            // no URLs (SSRF via model fetch)
+assert.equal(isValidSnapshot("data:image/jpeg;base64,abc<script>"), false);
+assert.equal(isValidSnapshot("data:image/jpeg;base64," + "A".repeat(1_500_000)), false); // size cap
+console.log("✅ isValidSnapshot: jpeg-only, no URLs, size cap");

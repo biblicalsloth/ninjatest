@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitDb, clientIp } from "@/lib/rate-limit";
-import { type AiConfig } from "@/lib/ai/model";
+import { type AiConfig, isValidSnapshot } from "@/lib/ai/model";
 import { runCoach, SOCRATIC_SYSTEM } from "@/lib/ai/coach";
 import { inLiveMatch, LIVE_MATCH_ERROR, APP_LOCKED, APP_LOCKED_ERROR } from "@/lib/ai/live-match";
 
@@ -41,6 +41,12 @@ export async function POST(req: NextRequest) {
   if (!question || question.length > 2000) {
     return NextResponse.json({ error: "Ask a question (up to 2000 characters)." }, { status: 400 });
   }
+  // Screen-share snapshot (/ninja "Share your screen"). Live-match callers were
+  // already refused above, so this can't be pointed at a running match.
+  const image = body?.image == null ? undefined : body.image;
+  if (image !== undefined && !isValidSnapshot(image)) {
+    return NextResponse.json({ error: "Screenshot must be a JPEG under 1.5MB." }, { status: 400 });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
@@ -49,6 +55,9 @@ export async function POST(req: NextRequest) {
   const config = cfg as AiConfig | null;
   if (!config || !config.enabled) {
     return NextResponse.json({ error: "Ninja is currently disabled" }, { status: 503 });
+  }
+  if (image && !config.vision_model_id) {
+    return NextResponse.json({ error: "Screen sharing with Ninja is unavailable right now." }, { status: 503 });
   }
 
   // Resolve the caller's own username; all coach tools are bound to it server-side.
@@ -71,10 +80,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { text, model } = await runCoach(sb, username, question, config, system, priorTurns);
+    const { text, model } = await runCoach(sb, username, question, config, system, priorTurns, image);
     // Persist the turn (best-effort — a save blip must not fail the answer).
     await sb.rpc("save_ninja_coach_turn", {
-      p_match_id: matchId, p_question: question, p_answer: text, p_model: model,
+      p_match_id: matchId, p_question: image ? `[screen] ${question}` : question, p_answer: text, p_model: model,
       p_conversation_id: conversationId,
     }).then(({ error }: { error: unknown }) => { if (error) console.error("save coach turn:", error); });
     return NextResponse.json({ content: text, model_id: model });

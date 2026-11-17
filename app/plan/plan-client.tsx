@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { CalendarDays, Loader2, RefreshCw, X } from "lucide-react";
-import { NinjaNav } from "@/components/ninja-nav";
 import { getSectionBadgeClass } from "@/lib/utils";
 import { PLAN_DAYS, type PlanDay, type PlanSection, type StudyPlan } from "@/lib/ai/model";
 import type { CatSection } from "@/lib/supabase/types";
@@ -90,7 +89,6 @@ export default function PlanClient({
 
   return (
     <div className="min-h-screen bg-[#120F17] pb-8">
-      <NinjaNav active="plan" />
       {/* Everything — heading and calendar — shares the lobby's max-w-5xl
           gutter, so no card breaks the container grid. */}
       <main className="max-w-5xl mx-auto px-4 pt-8">

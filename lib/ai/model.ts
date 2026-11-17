@@ -18,9 +18,17 @@ export interface AiConfig {
   system_prompt: string;
   temperature: number;
   max_tokens: number;
+  // Screen-share snapshots (20261120000000). Optional until that migration is
+  // on every DB the app talks to; null/absent = screen share off.
+  vision_model_id?: string | null;
 }
 
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+// Coach route trust boundary for a screen snapshot: JPEG data URL only, <=1.5MB.
+export function isValidSnapshot(v: unknown): v is string {
+  return typeof v === "string" && v.length <= 1_500_000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(v);
+}
 
 export function getModel(modelId: string): LanguageModel {
   const key = process.env.OPENROUTER_API_KEY;

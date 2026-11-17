@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SideNav } from "@/components/side-nav";
 import { AuthListener } from "@/components/auth-listener";
 import { NinjaCoachMount } from "@/components/ninja-coach-mount";
+import { SIDENAV_INIT_SCRIPT } from "@/lib/sidenav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,7 +32,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${GeistPixelSquare.variable} dark h-full antialiased`}
+      // SIDENAV_INIT_SCRIPT may add data-nav-collapsed before hydration.
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SIDENAV_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AuthListener />
         <SideNav />
