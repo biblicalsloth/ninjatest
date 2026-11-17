@@ -32,6 +32,11 @@
 --      bank, bot skip discipline on MCQ / never on TITA
 --  15. the bot is absent from every list of real users: leaderboard,
 --      friend search, spectate browser
+--  16. a match must hold exactly 9 questions
+--  17. self-paced: players advance independently; finalize waits for both
+--  18. embeddings (20261118000000-200): staleness triggers, pick_spread
+--      near-dup guard, QUANT sets served whole / never standalone + reading
+--      window, start_practice_similar exclusions, get_mistake_patterns
 --
 -- Note on timing: now() is frozen inside a transaction, so every submit lands
 -- at taken_ms = 0. That makes all of A's correct answers 'fast_answer'
@@ -1304,6 +1309,137 @@ begin
   end if;
 
   raise notice 'PASS 17: self-paced — players advance independently; finalize waits for both';
+end $$;
+
+-- ── 18. embeddings: staleness, near-dup guard, QUANT sets, drill, patterns ──
+--       (20261118000000 / 000100 / 000200)
+do $$
+declare
+  -- unit vector on dimension i (+ optional tiny tilt on dim i+1 -> cos ~0.9999)
+  ua uuid := gen_random_uuid();
+  ub uuid := gen_random_uuid();
+  pid uuid; mid uuid;
+  q1 uuid; q2 uuid; q3 uuid; q4 uuid;
+  g1 uuid; g2 uuid; g3 uuid;
+  got uuid[]; i int; r jsonb;
+  e1 extensions.vector; e1b extensions.vector; e2 extensions.vector; e3 extensions.vector;
+begin
+  select (select array_agg(case when g = 1 then 1 else 0 end) from generate_series(1, 1536) g)::real[]::extensions.vector into e1;
+  select (select array_agg(case when g = 1 then 1 when g = 2 then 0.01 else 0 end) from generate_series(1, 1536) g)::real[]::extensions.vector into e1b;
+  select (select array_agg(case when g = 3 then 1 else 0 end) from generate_series(1, 1536) g)::real[]::extensions.vector into e2;
+  select (select array_agg(case when g = 4 then 1 else 0 end) from generate_series(1, 1536) g)::real[]::extensions.vector into e3;
+
+  -- Isolate: only this section's QUANT rows are active.
+  update questions set is_active = false where section = 'QUANT';
+
+  insert into questions (section, difficulty, body, options, correct_index, elo, embedding)
+  values ('QUANT', 2, 's18 q1', '["1","2","3","4"]', 0, 1200, e1) returning id into q1;
+  insert into questions (section, difficulty, body, options, correct_index, elo, embedding)
+  values ('QUANT', 2, 's18 q2 (near-dup of q1)', '["1","2","3","4"]', 0, 1200, e1b) returning id into q2;
+  insert into questions (section, difficulty, body, options, correct_index, elo, embedding)
+  values ('QUANT', 2, 's18 q3', '["1","2","3","4"]', 0, 1200, e2) returning id into q3;
+  insert into questions (section, difficulty, body, options, correct_index, elo, embedding)
+  values ('QUANT', 2, 's18 q4', '["1","2","3","4"]', 0, 1200, e3) returning id into q4;
+
+  -- 18a. staleness triggers
+  update questions set elo = 1210 where id = q3;
+  if (select embedding from questions where id = q3) is null then
+    raise exception '18a: an elo-only update nulled the embedding (match hot path would re-embed)';
+  end if;
+  update questions set options = '["1","2","3","5"]' where id = q3;
+  if (select embedding from questions where id = q3) is not null then
+    raise exception '18a: options change did not null the embedding';
+  end if;
+  update questions set embedding = e2 where id = q3;
+
+  -- 18b. pick_spread: walks the ranking, skips the near-dup, back-fills if short
+  got := pick_spread(array[q1, q2, q3], 2);
+  if got <> array[q1, q3] then raise exception '18b: expected {q1,q3}, got %', got; end if;
+  got := pick_spread(array[q1, q2, q3], 3);
+  if got <> array[q1, q3, q2] then raise exception '18b: short pool must back-fill the near-dup last, got %', got; end if;
+  got := pick_spread(array[q2, q3], 1, array[q1]);
+  if got <> array[q3] then raise exception '18b: p_avoid not honoured, got %', got; end if;
+
+  -- 18c. the real picker never serves q1 and q2 together (2 of 4 => always possible)
+  for i in 1..30 loop
+    got := pick_quant_question_ids(1200, 2, '{}');
+    if q1 = any(got) and q2 = any(got) then
+      raise exception '18c: pick_quant served a near-duplicate pair %', got;
+    end if;
+  end loop;
+
+  -- 18d. QUANT set: never standalone; served whole and in order by the group branch
+  insert into passages (section, body, is_active) values ('QUANT', 's18 shared setup', true) returning id into pid;
+  insert into questions (section, difficulty, body, options, correct_index, elo, passage_id, created_at)
+  values ('QUANT', 2, 's18 set a', '["1","2","3","4"]', 0, 1200, pid, now() - interval '3 min') returning id into g1;
+  insert into questions (section, difficulty, body, options, correct_index, elo, passage_id, created_at)
+  values ('QUANT', 2, 's18 set b', '["1","2","3","4"]', 0, 1200, pid, now() - interval '2 min') returning id into g2;
+  insert into questions (section, difficulty, body, options, correct_index, elo, passage_id, created_at)
+  values ('QUANT', 2, 's18 set c', '["1","2","3","4"]', 0, 1200, pid, now() - interval '1 min') returning id into g3;
+
+  for i in 1..30 loop
+    got := pick_quant_question_ids(1200, 4, '{}');
+    if got && array[g1, g2, g3] then
+      raise exception '18d: pick_quant served a grouped (setup-less) stem standalone: %', got;
+    end if;
+  end loop;
+
+  -- v_solo < 3 forces the group branch: leave only the set active.
+  update questions set is_active = false where id in (q1, q2, q3, q4);
+  got := pick_section_question_ids('QUANT', 1200, '{}');
+  if got is distinct from array[g1, g2, g3] then
+    raise exception '18d: QUANT set not served whole and in order, got %', got;
+  end if;
+
+  if question_cap_ms(array[g1, g2, g3], 0) - question_cap_ms(array[g1, g2, g3], 1) <> 60000 then
+    raise exception '18d: QUANT set opener lacks the 60s reading window';
+  end if;
+  update questions set is_active = true where id in (q1, q2, q3, q4);
+
+  -- 18e. passage body edit nulls every child's embedding
+  update questions set embedding = e3 where id in (g1, g2, g3);
+  update passages set body = 's18 shared setup (edited)' where id = pid;
+  if exists (select 1 from questions where passage_id = pid and embedding is not null) then
+    raise exception '18e: passage body edit left a child embedding stale';
+  end if;
+
+  -- 18f. start_practice_similar + get_mistake_patterns
+  insert into auth.users (id, aud, role, email)
+  values (ua, 'authenticated', 'authenticated', 'stress-18a@test.local'),
+         (ub, 'authenticated', 'authenticated', 'stress-18b@test.local');
+  insert into profiles (id, username, display_name, elo)
+  values (ua, 'stress_18a', 'A18', 1200), (ub, 'stress_18b', 'B18', 1200)
+  on conflict (id) do nothing;
+
+  insert into matches (player_a, player_b, status, is_rated, question_ids, elo_a_before, elo_b_before)
+  values (ua, ub, 'completed', false, array[q1, q2, q4, q4, q4, q4, q4, q4, q4], 1200, 1200)
+  returning id into mid;
+  -- A missed q1 and q2 (a near-identical pair -> one pattern), answered q4 right.
+  insert into match_answers (match_id, user_id, question_id, question_index, selected_index, is_correct, time_taken_ms)
+  values (mid, ua, q1, 0, 1, false, 5000),
+         (mid, ua, q2, 1, 1, false, 5000),
+         (mid, ua, q4, 2, 0, true,  5000);
+
+  perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+  r := get_mistake_patterns();
+  if jsonb_array_length(r) <> 1 or (r->0->>'misses')::int <> 2 then
+    raise exception '18f: expected one pattern of 2 misses, got %', r;
+  end if;
+  if r::text like '%correct%' then raise exception '18f: pattern output leaks answer fields: %', r; end if;
+
+  -- Drill: seen (q1, q2, q4) excluded -> only q3 is left to serve.
+  r := start_practice_similar(mid);
+  select question_ids into got from practice_sessions where id = (r->>'session_id')::uuid;
+  if got && array[q1, q2, q4] then raise exception '18f: drill re-served a seen question: %', got; end if;
+  if not (q3 = any(got)) then raise exception '18f: drill missed the only unseen similar question: %', got; end if;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', ub, 'role', 'authenticated')::text, true);
+  if get_mistake_patterns() <> '[]'::jsonb then
+    raise exception '18f: B sees patterns built from A''s misses';
+  end if;
+  perform set_config('request.jwt.claims', null, true);
+
+  raise notice 'PASS 18: staleness triggers, near-dup guard, QUANT sets whole + 60s read, drill excludes seen, patterns own-only';
 end $$;
 
 rollback;

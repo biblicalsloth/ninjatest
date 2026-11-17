@@ -1,8 +1,8 @@
 // Backfill `questions.embedding` with text-embedding-3-small vectors.
 //
 // Re-runs are safe and are the intended repair path: this only selects rows
-// where embedding IS NULL, and the questions_null_stale_embedding trigger nulls
-// the column whenever a body is edited. So "someone changed questions in /admin"
+// where embedding IS NULL, and the staleness triggers null the column whenever
+// an input changes (question body/options/passage_id, or its passage's body). So "someone changed questions in /admin"
 // is fixed by running this again — no diffing, no bookkeeping.
 //
 // Routed through OpenRouter like every other model call (OPENROUTER_API_KEY is
@@ -47,12 +47,23 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const MODEL = "openai/text-embedding-3-small";
 const DIMS = 1536; // must match the vector(1536) column in 20260716180000
 
-// THE CONTRACT. Whatever eventually embeds a *query* at read time must call this
-// same function, or the query vector lands in a different space than the bank and
-// similarity is quietly garbage. Body only: the stem carries the topic, and
-// options are mostly distractor noise.
+// THE CONTRACT (v2, 20261118000000). Whatever embeds a *query* at read time must
+// call this same function, or the query vector lands in a different space than
+// the bank and similarity is quietly garbage.
+//
+// passage + stem + options. v1 was stem only, and measured on prod 2026-11-17
+// that made "similar" near-meaningless for generic stems: 31 "Choose the word
+// that does not belong" rows embedded identically (the content is in the
+// options), and 300+ RC/caselet stems like "Which statement is true?" matched
+// questions from unrelated passages. With the passage in, a DILR miss drills the
+// same set *type*; with options in, vocab rows stop colliding.
+// Any field may be absent: TITA has options=[], standalone rows have no passage.
+// q.passage is the PostgREST embed shape: { body } | null.
+const MAX_CHARS = 24000; // ~6k tokens, under text-embedding-3-small's 8191 limit
 export function embedInput(q) {
-  return String(q.body ?? "").replace(/\s+/g, " ").trim();
+  const clean = (t) => String(t ?? "").replace(/\s+/g, " ").trim();
+  const opts = Array.isArray(q.options) ? q.options.map(clean).filter(Boolean).join(" | ") : "";
+  return [clean(q.passage?.body), clean(q.body), opts].filter(Boolean).join("\n\n").slice(0, MAX_CHARS);
 }
 
 function parseArgs(argv) {
@@ -72,6 +83,16 @@ function selfTest() {
   const assert = (c, m) => { if (!c) { console.error("FAIL:", m); process.exit(1); } };
 
   assert(embedInput({ body: "  a\n\nb  " }) === "a b", "collapses whitespace");
+  assert(
+    embedInput({ body: "Q?", options: ["x ", " y"], passage: { body: "P  text" } }) === "P text\n\nQ?\n\nx | y",
+    "passage, stem, options in order",
+  );
+  assert(embedInput({ body: "Q?", options: [], passage: null }) === "Q?", "TITA / standalone: stem only");
+  assert(
+    embedInput({ body: "Odd one out:", options: ["a", "b"] }) !== embedInput({ body: "Odd one out:", options: ["c", "d"] }),
+    "same stem, different options embed differently",
+  );
+  assert(embedInput({ body: "x".repeat(30000) }).length === MAX_CHARS, "capped under the token limit");
   assert(embedInput({ body: "x" }) === embedInput({ body: "\tx \n" }), "stable across formatting");
   assert(embedInput({ body: null }) === "", "null body does not throw");
   // A row that embeds to "" would burn an API call and store a meaningless
@@ -132,7 +153,7 @@ for (let from = 0; ; from += PAGE) {
   const want = args.limit ? Math.min(PAGE, args.limit - rows.length) : PAGE;
   let q = sb
     .from("questions")
-    .select("id, section, body")
+    .select("id, section, body, options, passage:passages(body)")
     .is("embedding", null)
     .order("is_active", { ascending: false }) // active questions are the ones users hit
     .order("id", { ascending: true })         // tiebreak: is_active alone is not a stable sort, so pages could overlap/skip

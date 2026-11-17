@@ -106,6 +106,13 @@ function buildCoachTools(sb: Sb, username: string): ToolSet {
       inputSchema: NO_INPUT,
       execute: () => call("get_recent_mistakes", { p_limit: 10 }),
     }),
+    get_my_mistake_patterns: tool({
+      description: "Recurring TOPICS across the user's last 30 missed questions: up to 3 clusters of semantically similar misses, each with its section, how many misses it holds, and one example snippet. Use this to name a pattern (\"you've missed 4 mixture problems\") rather than reacting to a single question; use get_my_recent_mistakes for the specifics of individual questions.",
+      inputSchema: NO_INPUT,
+      // Fixed size (<=3 clusters, 160-char examples) and built only from the
+      // user's own answered questions — see get_mistake_patterns' migration.
+      execute: () => call("get_mistake_patterns", {}),
+    }),
   };
 }
 
