@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -8,10 +8,12 @@ import {
   AnimatePresence, MotionConfig, motion, useReducedMotion, useSpring, useTransform, type Variants,
 } from "motion/react";
 import { LineChart, Line, ResponsiveContainer, ReferenceLine, YAxis } from "recharts";
-import { Zap, Users, Target, Bot, Eye, Trophy, Flame, ArrowUpRight } from "lucide-react";
+import { Zap, Users, Eye, Trophy, Flame, ArrowUpRight, Play } from "lucide-react";
 import { useOnlineCount } from "@/lib/hooks/use-online-count";
 import { createClient } from "@/lib/supabase/client";
 import { ChallengeDialog } from "@/components/challenge-dialog";
+import { PlayDialog, type PlayMode } from "@/components/play-dialog";
+import { C, Shuriken, Crown, Crescent, Burst, FlameShape } from "@/components/lobby-shapes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Profile } from "@/lib/supabase/types";
 import type { StudyPlan } from "@/lib/ai/model";
@@ -20,18 +22,6 @@ import { cn, getWinRate } from "@/lib/utils";
 import { getLeague } from "@/lib/leagues";
 import { gsap, useGSAP, countTo, prefersReduced } from "@/lib/motion";
 import { StudyTimeline, todayIndex, SECTION_LOOK } from "./study-timeline";
-
-// Palette ("tuned to mint"): pastel cards on the dark #120F17 page, dark ink on
-// top. Mint stays the only CTA colour. Each card also carries a deeper tone of
-// its own hue for the decorative shape bleeding off its corner.
-const C = {
-  ink: "#17131C",
-  mint: "#06d6a0", mintTone: "#05b088",
-  butter: "#F5D96B", butterTone: "#EBC53E",
-  rose: "#F7BFD8", roseTone: "#EE9EC3",
-  sage: "#B7C97A", sageTone: "#9DB35A",
-  peri: "#A9BDF2", periTone: "#8AA4EA",
-} as const;
 
 export interface SectionStat { section: "VARC" | "DILR" | "QUANT"; questions_answered: number; accuracy: number | null }
 export interface RecentMatch {
@@ -52,9 +42,9 @@ interface Props {
 }
 
 const SPRING = { type: "spring", stiffness: 300, damping: 24 } as const;
-const container: Variants = { show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } } };
+const container: Variants = { show: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } } };
 const rise: Variants = {
-  hidden: { opacity: 0, y: 24, scale: 0.98 },
+  hidden: { opacity: 0, y: 18, scale: 0.98 },
   show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 220, damping: 24 } },
 };
 
@@ -62,35 +52,30 @@ export default function LobbyClient({
   profile, dailyProgress, sectionStats, recentMatches, eloCurve, plan, weekStart, regens,
 }: Props) {
   const router = useRouter();
-  const [joining, setJoining] = useState(false);
-  const [startingBot, setStartingBot] = useState(false);
+  const [starting, setStarting] = useState<PlayMode | null>(null);
+  const [showPlay, setShowPlay] = useState(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const displayName = profile.display_name ?? profile.username;
 
   async function handleFindMatch() {
-    if (joining) return;
-    setJoining(true);
+    if (starting) return;
+    setStarting("ranked");
     const supabase = createClient();
     const { error } = await supabase.rpc("join_queue");
     if (error) {
       toast.error("Failed to join queue: " + error.message);
-      setJoining(false);
+      setStarting(null);
       return;
     }
     router.push("/queue");
   }
 
-  async function handlePlayBot() {
-    if (startingBot) return;
-    setStartingBot(true);
-    const supabase = createClient();
-    const { data, error } = await supabase.rpc("match_with_bot");
-    if (error || !data) {
-      toast.error("Bot unavailable right now — try again");
-      setStartingBot(false);
-      return;
-    }
-    router.push(`/match/${data}`);
+  function handlePick(mode: PlayMode) {
+    if (mode === "ranked") return handleFindMatch();
+    setStarting(mode);
+    // /arena joins its own queue on mount (it owns the whole queue → ready →
+    // play loop), so the lobby only routes.
+    router.push(mode === "arena" ? "/arena" : "/practice");
   }
 
   const winRate = getWinRate(profile.wins, profile.matches_played);
@@ -124,19 +109,21 @@ export default function LobbyClient({
   const stat = (s: SectionStat["section"]) => sectionStats.find((x) => x.section === s);
   const first = eloCurve[0] ?? profile.elo;
   const trendDelta = profile.elo - first;
+  const goalsDone = (dailyProgress.matches_today >= 1 ? 1 : 0) + (dailyProgress.wins_today >= 2 ? 1 : 0);
+  const decided = profile.wins + profile.losses + profile.draws;
 
   return (
     <MotionConfig reducedMotion="user">
       <div ref={scope} className="min-h-screen bg-[#120F17] text-white">
-        <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-8 px-4 py-6 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="mx-auto grid max-w-[1360px] grid-cols-1 gap-6 px-4 py-5 md:px-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* ═════════ Main column ═════════ */}
-          <motion.main variants={container} initial="hidden" animate="show" className="min-w-0 space-y-5">
-            <motion.header variants={rise} className="flex items-start justify-between gap-4 pt-2">
+          <motion.main variants={container} initial="hidden" animate="show" className="min-w-0 space-y-3">
+            <motion.header variants={rise} className="flex items-center justify-between gap-4 pb-1 pt-1">
               <div className="min-w-0">
-                <h1 className="font-pixel text-3xl leading-tight break-words md:text-4xl">
+                <h1 className="font-pixel text-2xl leading-tight break-words md:text-[28px]">
                   {greeting}, <span className="text-[#06d6a0]">{displayName}</span>
                 </h1>
-                <p className="mt-2 max-w-xl text-sm text-white/55">
+                <p className="mt-1 max-w-xl text-[13px] text-white/50">
                   {tasksToday
                     ? `Ninja has ${tasksToday} task${tasksToday > 1 ? "s" : ""} on today's plan.`
                     : "Sharpen up — every battle moves your rating."}
@@ -146,109 +133,113 @@ export default function LobbyClient({
               <OnlinePill userId={profile.id} />
             </motion.header>
 
-            {/* ── Play (mint, full width) ── */}
+            {/* ── Play (mint, full width, one row) ── */}
             <PastelCard
               color={C.mint}
-              shape={<Shuriken color={C.mintTone} className="-right-10 -top-14 h-56 w-56" spin />}
-              className="p-6"
+              shape={<Shuriken color={C.mintTone} className="-right-6 -top-12 h-40 w-40" spin />}
+              className="min-h-0 px-4 py-3.5"
             >
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div>
-                  <p className="font-pixel text-sm opacity-70">Play</p>
-                  <motion.button
-                    whileHover={{ x: 4 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={handleFindMatch}
-                    disabled={joining}
-                    className="mt-1 flex items-center gap-3 text-left disabled:opacity-70"
-                  >
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#17131C] text-[#06d6a0]">
-                      <Zap size={22} fill="currentColor" />
-                    </span>
-                    <span>
-                      <span className="block whitespace-nowrap font-pixel text-2xl md:text-3xl">{joining ? "Joining queue…" : "Ranked 1v1"}</span>
-                      <span className="block text-sm opacity-70">Mixed 3·3·3 · ELO rated</span>
-                    </span>
-                  </motion.button>
-                </div>
-                <div className="flex flex-wrap gap-2 xl:max-w-[420px] xl:justify-end">
-                  <ModePill icon={<Users size={14} />} onClick={() => setShowChallenge(true)}>Challenge</ModePill>
-                  <ModePill icon={<Target size={14} />} href="/practice">Practice</ModePill>
-                  <ModePill icon={<Bot size={14} />} onClick={handlePlayBot} disabled={startingBot}>
-                    {startingBot ? "Starting…" : "Vs Bot"}
-                  </ModePill>
-                  <ModePill icon={<Eye size={14} />} href="/spectate">Spectate</ModePill>
-                  <ModePill icon={<Trophy size={14} />} href="/leaderboard">Leaderboard</ModePill>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <motion.button
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setShowPlay(true)}
+                  disabled={!!starting}
+                  className="flex items-center gap-3 text-left disabled:opacity-70"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#17131C] text-[#06d6a0]">
+                    {starting ? <Zap size={18} fill="currentColor" className="animate-pulse" /> : <Play size={18} fill="currentColor" className="translate-x-px" />}
+                  </span>
+                  <span>
+                    <span className="block font-pixel text-2xl leading-none">{starting === "ranked" ? "Joining queue…" : "Play"}</span>
+                    <span className="mt-1 block text-xs opacity-70">Ranked 1v1 · Arena · Practice drill</span>
+                  </span>
+                </motion.button>
+                <div className="flex flex-wrap gap-1.5">
+                  <ModePill icon={<Users size={13} />} onClick={() => setShowChallenge(true)}>Challenge</ModePill>
+                  <ModePill icon={<Eye size={13} />} href="/spectate">Spectate</ModePill>
+                  <ModePill icon={<Trophy size={13} />} href="/leaderboard">Leaderboard</ModePill>
                 </div>
               </div>
             </PastelCard>
 
-            {/* ── 4 pastel stat cards (zig-zag widths like the ref) ── */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-5">
-              <PastelCard color={C.butter} shape={<Crown color={C.butterTone} className="-right-8 -top-6 h-40 w-40" />} className="sm:col-span-2">
-                <CardTitle>Rating:</CardTitle>
-                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            {/* ── 4 equal stat cards: title row · metrics · visual pinned bottom ── */}
+            <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <PastelCard color={C.butter} shape={<Crown color={C.butterTone} className="-right-6 -top-5 h-24 w-24" />}>
+                <CardTitle aside={<span className="rounded-full bg-[#17131C] px-2 py-0.5 text-[10px] font-semibold" style={{ color: league.color }}>{league.name}</span>}>
+                  Rating
+                </CardTitle>
+                <div className="mt-2.5 flex items-baseline gap-4">
                   <Metric value={profile.elo} label="Current" big countup />
                   <Metric value={profile.peak_elo} label="Peak" countup />
-                  <span className="rounded-full bg-[#17131C] px-2.5 py-0.5 text-[11px] font-semibold" style={{ color: league.color }}>
-                    {league.name}
-                  </span>
                 </div>
-                <div className="mt-5 flex h-28 items-end gap-4">
+                <div className="mt-auto flex h-16 items-end gap-2 pt-3">
                   {(["VARC", "DILR", "QUANT"] as const).map((s, i) => (
                     <SectionBar key={s} label={SECTION_LOOK[s].label} pct={stat(s)?.questions_answered ? Number(stat(s)!.accuracy ?? 0) : null} delay={0.35 + i * 0.08} />
                   ))}
                 </div>
-                <p className="mt-2 text-[10px] uppercase tracking-wide opacity-60">Section accuracy</p>
               </PastelCard>
 
-              <PastelCard color={C.rose} shape={<Crescent color={C.roseTone} className="-right-12 -top-10 h-48 w-48" />} className="sm:col-span-3">
-                <CardTitle>Rating trend:</CardTitle>
-                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
-                  <Metric value={profile.elo} label="Now" />
-                  <Metric value={`${trendDelta >= 0 ? "+" : ""}${trendDelta}`} label={`Last ${Math.max(eloCurve.length, 1)}`} />
+              <PastelCard color={C.rose} shape={<Crescent color={C.roseTone} className="-right-8 -top-8 h-28 w-28" />}>
+                <CardTitle aside={<Chip>{`${trendDelta >= 0 ? "+" : ""}${trendDelta}`}</Chip>}>Trend</CardTitle>
+                <div className="mt-2.5 flex gap-4">
+                  <Metric value={profile.elo} label="Now" big />
                   <Metric value={winRate} label="Win rate" />
                 </div>
-                <div className="mt-2 h-32">
+                <div className="mt-auto h-16 pt-2">
                   {eloCurve.length >= 2 ? <TrendChart data={eloCurve} /> : (
-                    <p className="flex h-full items-center text-sm opacity-60">Play rated matches to draw your curve.</p>
+                    <p className="flex h-full items-end text-xs opacity-60">Play rated matches to draw your curve.</p>
                   )}
                 </div>
               </PastelCard>
 
-              <PastelCard color={C.sage} shape={<Burst color={C.sageTone} className="-bottom-12 -right-6 h-44 w-44" />} className="sm:col-span-3">
-                <CardTitle>Today:</CardTitle>
-                <div className="mt-4 grid grid-cols-2 gap-4">
+              <PastelCard color={C.sage} shape={<Burst color={C.sageTone} className="-bottom-8 -right-5 h-28 w-28" />}>
+                <CardTitle aside={<Chip>{goalsDone}/2 done</Chip>}>Today</CardTitle>
+                <div className="mt-auto space-y-3 pt-3">
                   <DailyGoal label="Play a match" value={dailyProgress.matches_today} target={1} />
                   <DailyGoal label="Win 2 matches" value={dailyProgress.wins_today} target={2} />
                 </div>
               </PastelCard>
 
-              <PastelCard color={C.peri} shape={<FlameShape color={C.periTone} className="-bottom-8 -right-6 h-40 w-36" />} className="sm:col-span-2">
-                <CardTitle>Record:</CardTitle>
-                <div className="mt-3 flex gap-5">
-                  <Metric value={profile.wins} label="Wins" countup />
+              <PastelCard color={C.peri} shape={<FlameShape color={C.periTone} className="-bottom-6 -right-4 h-28 w-24" />}>
+                <CardTitle aside={<Chip><Flame size={11} fill="currentColor" className="-mt-px mr-0.5 inline text-[#F5D96B]" />{profile.current_streak}</Chip>}>
+                  Record
+                </CardTitle>
+                <div className="mt-2.5 flex gap-4">
+                  <Metric value={profile.wins} label="Wins" big countup />
                   <Metric value={profile.losses} label="Losses" countup />
                   <Metric value={profile.draws} label="Draws" countup />
                 </div>
-                <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#17131C] px-3 py-1 text-xs font-semibold text-[#F5D96B]">
-                  <Flame size={13} fill="currentColor" />
-                  {profile.current_streak} streak · best {profile.best_streak}
+                <div className="mt-auto pt-3">
+                  {/* W/L/D split as one segmented bar */}
+                  <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-[#17131C]/15">
+                    {decided > 0 && [profile.wins, profile.losses, profile.draws].map((v, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(v / decided) * 100}%` }}
+                        transition={{ type: "spring", stiffness: 120, damping: 20, delay: 0.4 + i * 0.06 }}
+                        className="h-full rounded-full bg-[#17131C]"
+                        style={{ opacity: 1 - i * 0.3 }}
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[10px] uppercase tracking-wide opacity-60">Best streak {profile.best_streak}</p>
                 </div>
               </PastelCard>
             </div>
 
-            <motion.div variants={rise}>
+            <motion.div variants={rise} className="pt-2">
               <RecentMatches matches={recentMatches} />
             </motion.div>
           </motion.main>
 
-          {/* ═════════ Right column: week + study timeline ═════════ */}
+          {/* ═════════ Right rail: week + study timeline ═════════ */}
           <motion.aside
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.15 }}
-            className="lg:sticky lg:top-6 lg:self-start"
+            className="lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:self-start lg:overflow-y-auto lg:rounded-[24px] lg:[scrollbar-width:thin]"
           >
             <StudyTimeline
               initialPlan={plan}
@@ -261,6 +252,7 @@ export default function LobbyClient({
           </motion.aside>
         </div>
 
+        <PlayDialog open={showPlay} onOpenChange={setShowPlay} onPick={handlePick} busy={starting} />
         <ChallengeDialog open={showChallenge} onOpenChange={setShowChallenge} />
       </div>
     </MotionConfig>
@@ -283,18 +275,18 @@ function PastelCard({ color, shape, className, children }: { color: string; shap
   return (
     <motion.div
       variants={rise}
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -3 }}
       whileTap={{ scale: 0.985 }}
       transition={SPRING}
       onPointerMove={(e) => {
         if (reduce || e.pointerType !== "mouse") return;
         const r = e.currentTarget.getBoundingClientRect();
-        ry.set(((e.clientX - r.left) / r.width - 0.5) * 6);
-        rx.set(-((e.clientY - r.top) / r.height - 0.5) * 6);
+        ry.set(((e.clientX - r.left) / r.width - 0.5) * 5);
+        rx.set(-((e.clientY - r.top) / r.height - 0.5) * 5);
       }}
       onPointerLeave={() => { rx.set(0); ry.set(0); }}
       style={{ backgroundColor: color, rotateX: rx, rotateY: ry, transformPerspective: 1000 }}
-      className={cn("relative isolate overflow-hidden rounded-[28px] p-5 text-[#17131C] md:p-6", className)}
+      className={cn("relative isolate flex min-h-[164px] flex-col overflow-hidden rounded-[20px] p-4 text-[#17131C]", className)}
     >
       {shape && <motion.div aria-hidden style={{ x: sx, y: sy }} className="pointer-events-none absolute inset-0 -z-10">{shape}</motion.div>}
       {children}
@@ -302,14 +294,23 @@ function PastelCard({ color, shape, className, children }: { color: string; shap
   );
 }
 
-function CardTitle({ children }: { children: ReactNode }) {
-  return <h3 className="font-pixel text-lg">{children}</h3>;
+function CardTitle({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-70">{children}</h3>
+      {aside}
+    </div>
+  );
+}
+
+function Chip({ children }: { children: ReactNode }) {
+  return <span className="rounded-full bg-[#17131C] px-2 py-0.5 text-[10px] font-semibold tabular-nums text-white">{children}</span>;
 }
 
 function Metric({ value, label, big, countup }: { value: number | string; label: string; big?: boolean; countup?: boolean }) {
   return (
     <div>
-      <div data-countup={countup ? "" : undefined} className={cn("font-bold tabular-nums leading-none", big ? "text-3xl" : "text-lg")}>
+      <div data-countup={countup ? "" : undefined} className={cn("font-bold tabular-nums leading-none", big ? "text-2xl" : "text-base")}>
         {value}
       </div>
       <div className="mt-1 text-[10px] uppercase tracking-wide opacity-60">{label}</div>
@@ -319,42 +320,36 @@ function Metric({ value, label, big, countup }: { value: number | string; label:
 
 function SectionBar({ label, pct, delay }: { label: string; pct: number | null; delay: number }) {
   return (
-    <div className="flex h-full flex-1 flex-col items-center gap-1.5">
+    <div className="flex h-full flex-1 flex-col items-center gap-1">
       <div className="relative w-full flex-1">
         {pct === null ? (
-          // No data yet: dashed ghost bar, like the ref's empty slots.
-          <div className="absolute inset-x-2 bottom-0 h-1/3 rounded-full border-2 border-dashed border-[#17131C]/30" />
+          // No data yet: dashed ghost bar.
+          <div className="absolute inset-x-1.5 bottom-0 h-1/3 rounded-full border-2 border-dashed border-[#17131C]/30" />
         ) : (
           <motion.div
             initial={{ height: 0 }}
-            animate={{ height: `${Math.max(pct, 6)}%` }}
+            animate={{ height: `${Math.max(pct, 8)}%` }}
             transition={{ type: "spring", stiffness: 120, damping: 18, delay }}
-            className="absolute inset-x-2 bottom-0 rounded-full bg-[#17131C]"
+            className="absolute inset-x-1.5 bottom-0 rounded-full bg-[#17131C]"
           />
         )}
       </div>
-      <span className="text-[11px] font-semibold tabular-nums">{pct === null ? "—" : `${Math.round(pct)}%`}</span>
-      <span className="text-[10px] opacity-60">{label}</span>
+      <span className="text-[10px] leading-none tabular-nums">
+        <span className="font-semibold">{pct === null ? "—" : `${Math.round(pct)}%`}</span> <span className="opacity-60">{label}</span>
+      </span>
     </div>
   );
 }
 
 function DailyGoal({ label, value, target }: { label: string; value: number; target: number }) {
   const v = Math.min(value, target);
-  const done = v >= target;
   return (
     <div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold tabular-nums">{v}</span>
-        <span className="text-sm opacity-60">/ {target}</span>
-        {done && (
-          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 15, delay: 0.5 }} className="ml-1 rounded-full bg-[#17131C] px-2 py-0.5 text-[10px] font-semibold text-[#B7C97A]">
-            done
-          </motion.span>
-        )}
+      <div className="flex items-baseline justify-between text-[11px]">
+        <span className="font-semibold">{label}</span>
+        <span className="tabular-nums opacity-70">{v}/{target}</span>
       </div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide opacity-60">{label}</div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#17131C]/15">
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#17131C]/15">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${(v / target) * 100}%` }}
@@ -366,12 +361,12 @@ function DailyGoal({ label, value, target }: { label: string; value: number; tar
   );
 }
 
-function ModePill({ icon, children, href, onClick, disabled }: { icon: ReactNode; children: ReactNode; href?: string; onClick?: () => void; disabled?: boolean }) {
-  const cls = "flex items-center gap-1.5 rounded-full bg-[#17131C] px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-black disabled:opacity-60";
+function ModePill({ icon, children, href, onClick }: { icon: ReactNode; children: ReactNode; href?: string; onClick?: () => void }) {
+  const cls = "flex items-center gap-1.5 rounded-full bg-[#17131C] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-black";
   const inner = <>{icon}{children}</>;
   return (
     <motion.span whileHover={{ y: -2 }} whileTap={{ scale: 0.95 }} transition={SPRING} className="inline-flex">
-      {href ? <Link href={href} className={cls}>{inner}</Link> : <button onClick={onClick} disabled={disabled} className={cls}>{inner}</button>}
+      {href ? <Link href={href} className={cls}>{inner}</Link> : <button onClick={onClick} className={cls}>{inner}</button>}
     </motion.span>
   );
 }
@@ -383,7 +378,7 @@ function TrendChart({ data }: { data: number[] }) {
   const pad = Math.max(10, (max - min) * 0.2);
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={points} margin={{ top: 10, right: 12, bottom: 4, left: 4 }}>
+      <LineChart data={points} margin={{ top: 6, right: 6, bottom: 2, left: 2 }}>
         <YAxis hide domain={[min - pad, max + pad]} />
         <ReferenceLine x={last.i} stroke={C.ink} strokeDasharray="3 3" strokeOpacity={0.5} />
         <Line
@@ -395,9 +390,9 @@ function TrendChart({ data }: { data: number[] }) {
           animationDuration={1400}
           animationEasing="ease-out"
           dot={(p: { cx?: number; cy?: number; index?: number }) =>
-            p.index === last.i ? <circle key="last" cx={p.cx} cy={p.cy} r={4.5} fill={C.ink} /> : <g key={p.index} />
+            p.index === last.i ? <circle key="last" cx={p.cx} cy={p.cy} r={4} fill={C.ink} /> : <g key={p.index} />
           }
-          activeDot={{ r: 5, fill: C.ink, stroke: C.rose, strokeWidth: 2 }}
+          activeDot={{ r: 4.5, fill: C.ink, stroke: C.rose, strokeWidth: 2 }}
         />
       </LineChart>
     </ResponsiveContainer>
@@ -415,11 +410,34 @@ function useMounted() {
   return useSyncExternalStore(noop, () => true, () => false);
 }
 
+// Tab → panel "melt": the active row's rose highlight runs flush into the rose
+// detail panel, and two concave fillets (FILLET px) round the joint above and
+// below so it reads as one shape. Inactive rows stop FILLET px short of the
+// panel (md:mr-3), which is the gutter the fillets live in — so they never
+// paint over a neighbouring row. Everything rides the same layoutId spring.
+const MORPH = { type: "spring", stiffness: 420, damping: 34 } as const;
+const ROSE = C.rose;
+
 function RecentMatches({ matches }: { matches: RecentMatch[] }) {
   const mounted = useMounted();
   const [sel, setSel] = useState(matches[0]?.match_id ?? null);
   const [breakdowns, setBreakdowns] = useState<Record<string, Breakdown[] | "err">>({});
   const m = matches.find((x) => x.match_id === sel) ?? null;
+  const selIdx = matches.findIndex((x) => x.match_id === sel);
+  // When the panel outgrows the list, the last row no longer sits on the
+  // panel's bottom edge — it needs its lower fillet and the panel keeps its
+  // corner. Tracked live because the panel's height changes with its content.
+  const listRef = useRef<HTMLUListElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [listShorter, setListShorter] = useState(false);
+  useLayoutEffect(() => {
+    const l = listRef.current, p = panelRef.current;
+    if (!l || !p) return;
+    const check = () => setListShorter(l.offsetHeight < p.offsetHeight - 2);
+    const ro = new ResizeObserver(check);
+    ro.observe(l); ro.observe(p);
+    return () => ro.disconnect();
+  }, [matches.length]);
 
   useEffect(() => {
     if (!sel || breakdowns[sel]) return;
@@ -433,41 +451,69 @@ function RecentMatches({ matches }: { matches: RecentMatch[] }) {
 
   if (!matches.length) {
     return (
-      <div className="rounded-[28px] bg-[#17141d] p-6 text-sm text-white/55">
-        <h3 className="mb-1 font-pixel text-lg text-white">Recent matches</h3>
+      <div className="rounded-[20px] bg-[#17141d] p-4 text-[13px] text-white/55">
+        <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Recent matches</h3>
         No matches yet — your first battle shows up here.
       </div>
     );
   }
 
   const bd = sel ? breakdowns[sel] : undefined;
+  const firstActive = selIdx === 0;
+  const lastActive = selIdx === matches.length - 1 && !listShorter;
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-      <div>
-        <h3 className="mb-3 font-pixel text-lg">Recent matches</h3>
-        <ul className="space-y-2">
-          {matches.map((x) => {
+    <div>
+      <div className="mb-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Recent matches</h3>
+        <h3 className="hidden pl-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70 md:block">Match details</h3>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:gap-0">
+        <ul ref={listRef} className="space-y-1.5 self-start">
+          {matches.map((x, i) => {
             const active = x.match_id === sel;
             return (
-              <li key={x.match_id}>
+              <li key={x.match_id} className="md:mr-3">
                 <motion.button
                   onClick={() => setSel(x.match_id)}
-                  whileHover={{ x: active ? 0 : 3 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={cn("relative flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors", active ? "text-[#17131C]" : "bg-[#17141d] text-white hover:bg-[#1c1922]")}
+                  whileHover={{ x: active ? 0 : 2 }}
+                  whileTap={{ scale: 0.985 }}
+                  className={cn(
+                    "relative flex w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left transition-colors",
+                    active ? "text-[#17131C]" : "bg-[#17141d] text-white hover:bg-[#1c1922]"
+                  )}
                 >
                   {active && (
-                    // One rose highlight that slides between rows and visually
-                    // flows into the rose detail panel beside it.
-                    <motion.span layoutId="match-hl" transition={{ type: "spring", stiffness: 380, damping: 32 }} className="absolute inset-0 rounded-2xl bg-[#F7BFD8] md:-right-5 md:rounded-r-none" />
+                    <motion.span
+                      layoutId="match-hl"
+                      transition={MORPH}
+                      className="absolute inset-y-0 left-0 right-0 rounded-2xl md:-right-3 md:rounded-r-none"
+                      style={{ backgroundColor: ROSE }}
+                    >
+                      {/* concave fillets into the panel (hidden at the panel's own top/bottom edge) */}
+                      {i > 0 && (
+                        <span
+                          aria-hidden
+                          className="absolute -top-3 right-0 hidden h-3 w-3 md:block"
+                          style={{ background: `radial-gradient(circle at 0 0, transparent 11.5px, ${ROSE} 12px)` }}
+                        />
+                      )}
+                      {(i < matches.length - 1 || listShorter) && (
+                        <span
+                          aria-hidden
+                          className="absolute -bottom-3 right-0 hidden h-3 w-3 md:block"
+                          style={{ background: `radial-gradient(circle at 0 100%, transparent 11.5px, ${ROSE} 12px)` }}
+                        />
+                      )}
+                    </motion.span>
                   )}
-                  <Avatar className="relative h-9 w-9 shrink-0">
+                  <Avatar className="relative h-8 w-8 shrink-0">
                     <AvatarImage src={x.opponent_avatar ?? undefined} />
-                    <AvatarFallback className="bg-[#17131C] text-[11px] font-bold text-[#06d6a0]">{x.opponent.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback className="bg-[#17131C] text-[10px] font-bold text-[#06d6a0]">{x.opponent.slice(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <span className="relative min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">vs {x.opponent}</span>
+                    <span className="block truncate text-[13px] font-semibold">vs {x.opponent}</span>
                     <span className={cn("block text-[11px]", active ? "opacity-60" : "text-white/45")}>
                       {mounted && `${new Date(x.played_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · `}{x.my_score}–{x.opp_score}
                     </span>
@@ -478,44 +524,53 @@ function RecentMatches({ matches }: { matches: RecentMatch[] }) {
             );
           })}
         </ul>
-      </div>
 
-      <div>
-        <h3 className="mb-3 font-pixel text-lg">Match details</h3>
-        <div className="relative min-h-[240px] overflow-hidden rounded-[28px] bg-[#F7BFD8] p-5 text-[#17131C]">
+        {/* Panel corners square off where the active tab meets its top/bottom
+            edge, so the joint stays one continuous shape. */}
+        <motion.div
+          ref={panelRef}
+          layout
+          animate={{
+            borderTopLeftRadius: firstActive ? 0 : 20,
+            borderBottomLeftRadius: lastActive ? 0 : 20,
+          }}
+          transition={MORPH}
+          className="relative min-h-[220px] overflow-hidden rounded-[20px] p-4 text-[#17131C] max-md:!rounded-[20px]"
+          style={{ backgroundColor: ROSE }}
+        >
           <AnimatePresence mode="popLayout" initial={false}>
             {m && (
               <motion.div
                 key={m.match_id}
-                initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+                initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
+                exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-base font-semibold underline decoration-[#17131C]/30 underline-offset-4">vs {m.opponent}</p>
-                    <p className="mt-0.5 h-4 text-xs opacity-60">{mounted && new Date(m.played_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">vs {m.opponent}</p>
+                    <p className="mt-0.5 h-4 text-[11px] opacity-60">{mounted && new Date(m.played_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</p>
                   </div>
                   <ResultChip result={m.result} delta={m.elo_delta} onLight />
                 </div>
 
-                <div className="mt-4 flex gap-6">
-                  <Metric value={m.my_score} label="You" />
-                  <Metric value={m.opp_score} label="Opponent" />
-                  <Metric value={m.elo_delta === null ? "—" : `${m.elo_delta > 0 ? "+" : ""}${m.elo_delta}`} label="ELO" />
+                <div className="mt-3 flex gap-5">
+                  <Metric value={m.my_score} label="You" big />
+                  <Metric value={m.opp_score} label="Opponent" big />
+                  <Metric value={m.elo_delta === null ? "—" : `${m.elo_delta > 0 ? "+" : ""}${m.elo_delta}`} label="ELO" big />
                 </div>
 
-                <div className="mt-4 space-y-2">
+                <div className="mt-3 space-y-1.5">
                   {bd === undefined ? (
-                    [0, 1, 2].map((i) => <div key={i} className="h-6 animate-pulse rounded-full bg-[#17131C]/10" />)
+                    [0, 1, 2].map((i) => <div key={i} className="h-5 animate-pulse rounded-full bg-[#17131C]/10" />)
                   ) : bd === "err" ? (
                     <p className="text-xs opacity-60">Section breakdown unavailable.</p>
                   ) : (
                     bd.map((r, i) => (
-                      <div key={r.section} className="flex items-center gap-3 text-xs">
-                        <span className="w-12 font-semibold">{SECTION_LOOK[r.section as "VARC"]?.label ?? r.section}</span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#17131C]/15">
+                      <div key={r.section} className="flex items-center gap-3 text-[11px]">
+                        <span className="w-11 font-semibold">{SECTION_LOOK[r.section as "VARC"]?.label ?? r.section}</span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#17131C]/15">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${r.answered ? (r.correct / r.answered) * 100 : 0}%` }}
@@ -523,19 +578,19 @@ function RecentMatches({ matches }: { matches: RecentMatch[] }) {
                             className="h-full rounded-full bg-[#17131C]"
                           />
                         </div>
-                        <span className="w-16 text-right tabular-nums opacity-70">{r.correct}/{r.answered} · {r.points}</span>
+                        <span className="w-14 text-right tabular-nums opacity-70">{r.correct}/{r.answered} · {r.points}</span>
                       </div>
                     ))
                   )}
                 </div>
 
-                <Link href={`/result/${m.match_id}`} className="mt-5 inline-flex items-center gap-1 rounded-full bg-[#17131C] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-black">
-                  Full result & Ninja debrief <ArrowUpRight size={13} />
+                <Link href={`/result/${m.match_id}`} className="mt-4 inline-flex items-center gap-1 rounded-full bg-[#17131C] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-black">
+                  Full result & Ninja debrief <ArrowUpRight size={12} />
                 </Link>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
@@ -546,7 +601,7 @@ function ResultChip({ result, delta, onLight }: { result: string; delta: number 
   const color = result === "win" ? "#06d6a0" : result === "loss" ? "#ef476f" : "#F5D96B";
   return (
     <span
-      className={cn("relative shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums", onLight ? "bg-[#17131C]" : "bg-white/[0.06]")}
+      className={cn("relative shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums", onLight ? "bg-[#17131C]" : "bg-white/[0.06]")}
       style={{ color }}
     >
       {label}
@@ -571,70 +626,5 @@ function OnlinePill({ userId }: { userId: string }) {
       <span className="text-xs font-semibold text-white">{count}</span>
       <span className="text-xs text-white/55">online</span>
     </div>
-  );
-}
-
-/* ──────────────────── Decorative shapes (ninja / CAT) ──────────────────── */
-
-type ShapeProps = { color: string; className?: string };
-
-function Shuriken({ color, className, spin }: ShapeProps & { spin?: boolean }) {
-  return (
-    <motion.svg
-      viewBox="0 0 100 100"
-      className={cn("absolute", className)}
-      animate={spin ? { rotate: 360 } : undefined}
-      transition={spin ? { duration: 40, repeat: Infinity, ease: "linear" } : undefined}
-    >
-      <path
-        fill={color}
-        fillRule="evenodd"
-        d="M50 0 Q56 34 64 36 Q66 44 100 50 Q66 56 64 64 Q56 66 50 100 Q44 66 36 64 Q34 56 0 50 Q34 44 36 36 Q44 34 50 0Z M50 42a8 8 0 1 0 0.01 0Z"
-      />
-    </motion.svg>
-  );
-}
-
-function Crown({ color, className }: ShapeProps) {
-  return (
-    <motion.svg viewBox="0 0 100 100" className={cn("absolute", className)} animate={{ rotate: [-8, -2, -8] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}>
-      <path fill={color} d="M8 82 L4 28 L30 50 L50 10 L70 50 L96 28 L92 82 Q50 92 8 82Z" />
-    </motion.svg>
-  );
-}
-
-// Katana arc — a crescent sweep.
-function Crescent({ color, className }: ShapeProps) {
-  return (
-    <motion.svg viewBox="0 0 100 100" className={cn("absolute", className)} animate={{ rotate: [0, 10, 0] }} transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}>
-      <path fill={color} d="M30 6 A46 46 0 1 0 94 70 A40 40 0 1 1 30 6Z" />
-    </motion.svg>
-  );
-}
-
-function Burst({ color, className }: ShapeProps) {
-  const pts = Array.from({ length: 20 }, (_, i) => {
-    const r = i % 2 ? 30 : 50, a = (i / 20) * Math.PI * 2;
-    // toFixed: Node and the browser disagree in the last float digits of
-    // cos/sin, which would mismatch on hydration.
-    return `${(50 + r * Math.cos(a)).toFixed(1)},${(50 + r * Math.sin(a)).toFixed(1)}`;
-  }).join(" ");
-  return (
-    <motion.svg viewBox="0 0 100 100" className={cn("absolute", className)} animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }}>
-      <polygon fill={color} points={pts} strokeLinejoin="round" stroke={color} strokeWidth={4} />
-    </motion.svg>
-  );
-}
-
-function FlameShape({ color, className }: ShapeProps) {
-  return (
-    <motion.svg
-      viewBox="0 0 100 120"
-      className={cn("absolute origin-bottom", className)}
-      animate={{ scaleY: [1, 1.06, 0.98, 1], skewX: [0, 2, -2, 0] }}
-      transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-    >
-      <path fill={color} d="M50 0 C58 28 88 42 88 76 A38 38 0 0 1 12 76 C12 56 26 46 30 28 C40 40 42 48 48 54 C56 36 54 18 50 0Z" />
-    </motion.svg>
   );
 }

@@ -7,7 +7,7 @@ import { Loader2, Target, Home, RotateCcw, SkipForward } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, TITA_INPUT } from "@/lib/utils";
 import { NinjaPill } from "@/components/ninja-pill";
 import { QuestionBody } from "@/components/question-body";
 import { QuestionDiagram } from "@/components/question-diagram";
@@ -44,10 +44,6 @@ type Reveal = {
   done: boolean;
 };
 
-// Mirrors TITA_INPUT in app/match/[matchId]/match-client.tsx — keys are numeric
-// (questions_tita_answer_numeric), so the box refuses units rather than
-// sanitising them into a different number.
-const TITA_INPUT = /^-?[0-9]*(?:,[0-9]*)*(?:\.[0-9]*)?$/;
 
 type PracticeState = {
   current_index: number;

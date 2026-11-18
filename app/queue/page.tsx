@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { X, Zap, Bot } from "lucide-react";
+import { X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { gsap, useGSAP, enterUp, stamp, prefersReduced } from "@/lib/motion";
 
@@ -13,7 +13,6 @@ export default function QueuePage() {
   const router = useRouter();
   const [elapsed, setElapsed] = useState(0);
   const [cancelling, setCancelling] = useState(false);
-  const [startingBot, setStartingBot] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [matchFound, setMatchFound] = useState<{ matchId: string; opponent: string | null } | null>(null);
   const startRef = useRef(0); // set on mount — Date.now() in render is impure
@@ -243,20 +242,6 @@ export default function QueuePage() {
    
   }, [router]);
 
-  async function handlePlayBot() {
-    const sb = supabaseRef.current;
-    if (!sb || matchedRef.current) return;
-    setStartingBot(true);
-    const { data, error } = await sb.rpc("match_with_bot");
-    if (error || !data) {
-      toast.error("Bot unavailable right now — keep searching");
-      setStartingBot(false);
-      return;
-    }
-    matchedRef.current = true;
-    router.push(`/match/${data}`);
-  }
-
   async function handleCancel() {
     setCancelling(true);
     const { createClient } = await import("@/lib/supabase/client");
@@ -387,19 +372,6 @@ export default function QueuePage() {
           <div className="text-[#7ab5cc] text-xs">Match length</div>
         </div>
       </div>
-
-      {/* Bot fallback — server refuses before 15s of genuine waiting; show at
-          20s so client elapsed (page mount) can't outrun server enqueued_at */}
-      {elapsed >= 20 && (
-        <Button
-          onClick={handlePlayBot}
-          disabled={startingBot || cancelling}
-          className="mb-3 bg-[#06d6a0] text-[#073b4c] font-semibold rounded-full px-6 hover:bg-[#05b088] flex items-center gap-2"
-        >
-          <Bot size={14} />
-          {startingBot ? "Starting…" : "Play Ninja Bot · unrated"}
-        </Button>
-      )}
 
       <Button
         onClick={handleCancel}

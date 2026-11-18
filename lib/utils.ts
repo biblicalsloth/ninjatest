@@ -41,3 +41,9 @@ export function rankLabel(rank: number): string {
   if (rank === 3) return "#3";
   return `#${rank}`;
 }
+
+// TITA answers are numeric — the DB enforces it (questions_tita_answer_numeric),
+// so every answer box refuses everything else (match, practice, arena). Permissive
+// enough to type THROUGH: "", "-", "1,", "1900." are valid intermediate states.
+// Rejects the inputs that scored a right solve as wrong: "Rs.1900", "1900m".
+export const TITA_INPUT = /^-?[0-9]*(?:,[0-9]*)*(?:\.[0-9]*)?$/;

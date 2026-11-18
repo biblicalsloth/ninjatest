@@ -11,7 +11,7 @@ import { QuestionDiagram } from "@/components/question-diagram";
 import { SpeedMeter } from "@/components/speed-meter";
 import { Button } from "@/components/ui/button";
 import type { Match, Profile, MatchQuestion, CatSection } from "@/lib/supabase/types";
-import { getSectionBadgeClass, cn } from "@/lib/utils";
+import { getSectionBadgeClass, cn, TITA_INPUT } from "@/lib/utils";
 import { gsap, useGSAP, enterUp, stamp, countTo, prefersReduced, DUR, EASE } from "@/lib/motion";
 
 interface Props {
@@ -34,11 +34,6 @@ interface RevealData {
   is_correct: boolean;
 }
 
-// TITA answers are numeric — the DB enforces it (questions_tita_answer_numeric),
-// so the box can refuse everything else. Permissive enough to type THROUGH:
-// "", "-", "1,", "1900." are all valid intermediate states. Rejects the inputs
-// that scored a right solve as wrong: "Rs.1900", "1900m", "1900 metres".
-const TITA_INPUT = /^-?[0-9]*(?:,[0-9]*)*(?:\.[0-9]*)?$/;
 
 export default function MatchClient({ match, myProfile, oppProfile, isPlayerA, userId }: Props) {
   const router = useRouter();

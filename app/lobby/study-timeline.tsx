@@ -174,17 +174,25 @@ export function StudyTimeline({
   const dayEnd = slots.length ? slots[slots.length - 1].end : 0;
 
   return (
-    <div className="space-y-5">
+    // One elevated surface for the whole rail: lighter fill + ring + deep
+    // shadow, a mint hairline and glow on top — so it reads as its own panel,
+    // never as more tiles on the page.
+    <div className="relative isolate overflow-hidden rounded-[24px] bg-[#1B1723] shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.08]">
+      <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#06d6a0]/70 to-transparent" />
+      <span aria-hidden className="pointer-events-none absolute -right-20 -top-20 -z-10 h-52 w-52 rounded-full bg-[#06d6a0]/[0.09] blur-3xl" />
+
       {/* ── Week strip ───────────────────────────────────────────── */}
-      <div className="rounded-[28px] bg-[#17141d] p-4">
-        <div className="mb-3 flex items-center justify-between px-1">
-          <span className="font-pixel text-sm text-white">This week</span>
-          <span className="rounded-full bg-[#F7BFD8] px-3 py-0.5 text-[11px] font-semibold text-[#17131C]">
+      <div className="p-4 pb-3">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#06d6a0] shadow-[0_0_8px_#06d6a0]" /> Your week
+          </span>
+          <span className="rounded-full bg-[#F7BFD8] px-2.5 py-0.5 text-[10px] font-semibold text-[#17131C]">
             {dayDate(week, 0).toLocaleDateString(LOCALE, { month: "short", day: "numeric" })} –{" "}
             {dayDate(week, 6).toLocaleDateString(LOCALE, { month: "short", day: "numeric" })}
           </span>
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1 rounded-2xl bg-white/[0.03] p-1">
           {DAY_SHORT.map((d, i) => {
             const date = dayDate(week, i);
             const secs = activity[isoDate(date)] ?? [];
@@ -193,19 +201,19 @@ export function StudyTimeline({
               <button
                 key={d}
                 onClick={() => setSelected(i)}
-                className="relative flex flex-col items-center gap-1 rounded-2xl py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-[#06d6a0]"
+                className="relative flex flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-[#06d6a0]"
               >
                 {active && (
                   <motion.span
                     layoutId="week-day"
                     transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                    className="absolute inset-0 rounded-2xl bg-white/[0.07]"
+                    className="absolute inset-0 rounded-xl bg-[#06d6a0]/[0.08] ring-1 ring-[#06d6a0]/45"
                   />
                 )}
                 <span className="relative text-white/45">{d}</span>
                 <span
                   className={cn(
-                    "relative flex h-8 w-8 items-center justify-center rounded-full font-semibold tabular-nums transition-colors",
+                    "relative flex h-7 w-7 items-center justify-center rounded-full font-semibold tabular-nums transition-colors",
                     i === today ? "bg-[#06d6a0] text-[#17131C]" : active ? "text-white" : "text-white/80"
                   )}
                 >
@@ -230,14 +238,14 @@ export function StudyTimeline({
         </div>
       </div>
 
-      <div className="rounded-[28px] bg-[#17141d] px-4 pt-1 pb-3 [&>div]:!mt-0 [&>div]:!border-0 empty:hidden">
+      <div className="border-t border-white/[0.06] px-4 pt-1 pb-3 [&>div]:!mt-0 [&>div]:!border-0 empty:hidden">
         <NinjaDailyFocus />
       </div>
 
       {/* ── Timeline header ─────────────────────────────────────── */}
-      <div>
+      <div className="border-t border-white/[0.06] p-4">
         <div className="mb-1 flex items-baseline justify-between">
-          <h2 className="font-pixel text-xl text-white">
+          <h2 className="font-pixel text-lg text-white">
             {dayDate(week, day).toLocaleDateString(LOCALE, { month: "short", day: "numeric" })}
           </h2>
           <div className="relative">
@@ -272,8 +280,8 @@ export function StudyTimeline({
           </div>
         </div>
 
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <span className="text-sm text-white/50">{isToday ? "Today's timeline" : `${dayDate(week, day).toLocaleDateString(LOCALE, { weekday: "long" })}'s timeline`}</span>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="text-xs text-white/50">{isToday ? "Today's timeline" : `${dayDate(week, day).toLocaleDateString(LOCALE, { weekday: "long" })}'s timeline`}</span>
           <div className="flex items-center gap-1.5">
             <div className="relative">
               <select
@@ -307,7 +315,7 @@ export function StudyTimeline({
         {!plan ? (
           <EmptyPlan busy={busy} onGenerate={() => generate(false)} />
         ) : visible.length === 0 ? (
-          <p className="rounded-2xl bg-[#17141d] px-4 py-6 text-center text-sm text-white/50">
+          <p className="rounded-2xl bg-white/[0.03] px-4 py-6 text-center text-sm text-white/50">
             {slots.length ? "Nothing in this section today." : "Nothing planned — enjoy the rest day."}
           </p>
         ) : (
@@ -342,7 +350,7 @@ export function StudyTimeline({
 
         <Link
           href="/plan"
-          className="mt-4 flex w-full items-center justify-center rounded-full bg-black py-3 text-sm font-medium text-white ring-1 ring-white/10 transition hover:ring-white/25 active:scale-[0.99]"
+          className="mt-4 flex w-full items-center justify-center rounded-full py-2.5 text-[13px] font-semibold text-[#06d6a0] ring-1 ring-[#06d6a0]/40 transition hover:bg-[#06d6a0]/10 hover:ring-[#06d6a0]/70 active:scale-[0.99]"
         >
           Open full plan
         </Link>
@@ -409,10 +417,12 @@ function TimelineRow({
           transition={{ type: "spring", stiffness: 300, damping: 28 }}
           whileHover={{ y: -2 }}
           className={cn(
-            "relative h-full overflow-hidden rounded-2xl p-3",
-            current ? "bg-[#211d29] ring-1 ring-[#06d6a0]/40" : "bg-[#17141d]"
+            "relative h-full overflow-hidden rounded-2xl p-3 pl-3.5",
+            current ? "bg-[#06d6a0]/[0.07] shadow-[0_0_28px_-8px_#06d6a0] ring-1 ring-[#06d6a0]/45" : "bg-white/[0.04] ring-1 ring-white/[0.04]"
           )}
         >
+          {/* section stripe */}
+          <span aria-hidden className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full" style={{ backgroundColor: look.color }} />
           <div className="flex items-start gap-3">
             <span className="relative mt-0.5 shrink-0">
               {current && (
@@ -499,7 +509,7 @@ function EmptyPlan({ busy, onGenerate }: { busy: boolean; onGenerate: () => void
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex gap-3">
             <span className="w-9 pt-3 text-[11px] text-white/20">--:--</span>
-            <div className="h-16 flex-1 animate-pulse rounded-2xl bg-[#17141d]" style={{ animationDelay: `${i * 150}ms` }} />
+            <div className="h-16 flex-1 animate-pulse rounded-2xl bg-white/[0.04]" style={{ animationDelay: `${i * 150}ms` }} />
           </div>
         ))}
       </div>

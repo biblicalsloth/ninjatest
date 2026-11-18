@@ -10,21 +10,26 @@
 // ('active','pending') for the caller (pending is bounded — advance_timed_out
 // abandons no-shows after 2 min).
 //
-// Reads `matches` through RLS (participants-only), so no new RPC. Fail-closed:
+// Reads `matches` through RLS (participants-only). Arena seats count too —
+// queued, in a ready-check, or playing (`arena_busy`, caller-scoped RPC: the
+// arena tables are definer-only, so RLS can't serve this read). Fail-closed:
 // an error blocks the call, matching the metered-LLM limiters.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function inLiveMatch(sb: any, userId: string): Promise<boolean> {
-  const { data, error } = await sb
-    .from("matches")
-    .select("id")
-    .or(`player_a.eq.${userId},player_b.eq.${userId}`)
-    .in("status", ["active", "pending"])
-    .limit(1);
-  if (error) {
-    console.error("inLiveMatch check failed:", error);
+  const [{ data, error }, arena] = await Promise.all([
+    sb
+      .from("matches")
+      .select("id")
+      .or(`player_a.eq.${userId},player_b.eq.${userId}`)
+      .in("status", ["active", "pending"])
+      .limit(1),
+    sb.rpc("arena_busy"),
+  ]);
+  if (error || arena.error) {
+    console.error("inLiveMatch check failed:", error ?? arena.error);
     return true;
   }
-  return Array.isArray(data) && data.length > 0;
+  return (Array.isArray(data) && data.length > 0) || arena.data === true;
 }
 
 export const LIVE_MATCH_ERROR = "Ninja is off while you're in a match. Finish the match first.";
